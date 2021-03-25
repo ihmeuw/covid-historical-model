@@ -22,6 +22,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     model_data = model_data.reset_index()
     
     model_data['logit_ihr'] = logit(model_data['ihr'])
+    model_data['logit_ihr'] = model_data['logit_ihr'].replace((-np.inf, np.inf), np.nan)
     model_data['ihr_se'] = 1
     model_data['logit_ihr_se'] = 1
     model_data['intercept'] = 1

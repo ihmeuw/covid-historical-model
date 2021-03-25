@@ -67,7 +67,6 @@ def pipeline(model_inputs_root: Path, vaccine_coverage_root: Path,
                 loc_mr_model = full_ifr_results[day_inflection]['refit_results'].mr_model_dict
                 loc_mr_model = loc_mr_model[loc_model_location]
                 ifr_mr_model_dict.update({loc_model_location: loc_mr_model})
-            import pdb; pdb.set_trace()
         except KeyError:
             pass
         

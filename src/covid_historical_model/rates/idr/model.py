@@ -12,6 +12,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
               verbose: bool = True,
               **kwargs) -> Tuple[Dict, Dict, pd.Series, pd.Series, pd.Series]:
     model_data['logit_idr'] = logit(model_data['idr'])
+    model_data['logit_idr'] = model_data['logit_idr'].replace((-np.inf, np.inf), np.nan)
     model_data['idr_se'] = 1
     model_data['logit_idr_se'] = 1
     model_data['intercept'] = 1

@@ -24,6 +24,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     model_data = model_data.reset_index()
     
     model_data['logit_ifr'] = logit(model_data['ifr'])
+    model_data['logit_ifr'] = model_data['logit_ifr'].replace((-np.inf, np.inf), np.nan)
     model_data['ifr_se'] = 1
     model_data['logit_ifr_se'] = 1
     model_data['intercept'] = 1
@@ -36,10 +37,10 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
                 'fe_vars': ['intercept', 't','obesity'],
                 'prior_dict': {'t':{'use_spline': True,
                                     'spline_knots_type':'domain',
-                                    'spline_knots':np.array([0, inflection_point, 1.]),
+                                    'spline_knots':np.array([0., inflection_point, 1.]),
                                     'spline_degree':1,
-                                    'prior_spline_maxder_uniform':np.array([[-1., -0.],
-                                                                            [-1e-6  , -0.]])},
+                                    'prior_spline_maxder_uniform':np.array([[-1.  , -0.],
+                                                                            [-1e-6, -0.]])},
                               },
                 're_vars': [],
                 'group_var': 'location_id',}
