@@ -4,15 +4,19 @@ from loguru import logger
 
 import pandas as pd
 
+from covid_historical_model.rates import serology
 from covid_historical_model.rates import ifr
 from covid_historical_model.rates import idr
 from covid_historical_model.rates import ihr
 
 
-def pipeline(model_inputs_root: Path, age_pattern_root: Path, testing_root: Path,
+def pipeline(model_inputs_root: Path, vaccine_coverage_root: Path,
+             age_pattern_root: Path, testing_root: Path,
              day_inflection_list: List[str] = ['2020-05-01', '2020-06-01', '2020-07-01',
                                                '2020-08-01', '2020-09-01', '2020-10-01', '2020-11-01'],
-             verbose: bool = True):
+             verbose: bool = True,):
+    seroprevalence = serology.load_seroprevalence(model_inputs_root, vaccine_coverage_root)
+    
     full_ifr_results = {}
     for day_inflection in day_inflection_list:
         if verbose:
@@ -20,7 +24,7 @@ def pipeline(model_inputs_root: Path, age_pattern_root: Path, testing_root: Path
                         f'IFR ESTIMATION -- testing inflection point at {day_inflection}\n'
                         '*************************************')
         full_ifr_results.update({day_inflection: ifr.runner.runner(model_inputs_root, age_pattern_root,
-                                                                   day_inflection, verbose=verbose)})
+                                                                   seroprevalence, day_inflection, verbose=verbose)})
     
     if verbose:
         logger.info('\n*************************************\n'
@@ -86,14 +90,14 @@ def pipeline(model_inputs_root: Path, age_pattern_root: Path, testing_root: Path
         pd.concat(ifr_pred_hr),
     )
 
-    seroprevalence = ifr_results.seroprevalence.copy()
+    adj_seroprevalence = ifr_results.seroprevalence.copy()
 
     if verbose:
         logger.info('\n*************************************\n'
                     'IDR ESTIMATION\n'
                     '*************************************')
     idr_results = idr.runner.runner(model_inputs_root, testing_root,
-                                    seroprevalence.copy(),
+                                    adj_seroprevalence.copy(),
                                     ifr_results.pred.copy(),
                                     verbose=verbose)
     
@@ -102,6 +106,6 @@ def pipeline(model_inputs_root: Path, age_pattern_root: Path, testing_root: Path
                     'IHR ESTIMATION\n'
                     '*************************************')
     ihr_results = ihr.runner.runner(model_inputs_root, age_pattern_root,
-                                    seroprevalence.copy(), verbose=verbose)
+                                    adj_seroprevalence.copy(), verbose=verbose)
     
-    return ifr_results, idr_results, ihr_results
+    return seroprevalence, ifr_results, idr_results, ihr_results

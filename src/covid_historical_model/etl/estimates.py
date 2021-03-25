@@ -27,10 +27,11 @@ def testing(testing_root: Path) -> pd.DataFrame:
     data = data.dropna()
     data = data.sort_values(['location_id', 'date']).reset_index(drop=True)
     data['testing_capacity'] = data.groupby('location_id')['daily_tests'].cummax()
-    
-    data = data.loc[:, ['location_id', 'date',
-                        'daily_tests', 'testing_capacity',
-                        'cumulative_tests',]]
+
+    data = (data
+            .set_index(['location_id', 'date'])
+            .sort_index()
+            .loc[:, ['daily_tests', 'testing_capacity', 'cumulative_tests']])
     
     return data
 
@@ -46,6 +47,7 @@ def ihr_age_pattern(age_pattern_root: Path) -> pd.Series:
 
     data = (data
             .set_index(['age_group_years_start', 'age_group_years_end'])
+            .sort_index()
             .loc[:, 'ihr'])
     
     return data
@@ -61,6 +63,7 @@ def ifr_age_pattern(age_pattern_root: Path) -> pd.Series:
 
     data = (data
             .set_index(['age_group_years_start', 'age_group_years_end'])
+            .sort_index()
             .loc[:, 'ifr'])
     
     return data
@@ -77,9 +80,20 @@ def seroprevalence_age_pattern(age_pattern_root: Path) -> pd.Series:
 
     data = (data
             .set_index(['age_group_years_start', 'age_group_years_end'])
+            .sort_index()
             .loc[:, 'seroprevalence'])
     
     return data
 
 def vaccinations(vaccine_coverage_root: Path) -> pd.DataFrame:
+    data_path = vaccine_coverage_root / 'slow_scenario_vaccine_coverage.csv'
+    data = pd.read_csv(data_path)
+    data['date'] = pd.to_datetime(data['date'])
+    data = data.rename(columns={'cumulative_all_effective':'effectively_vaccinated'})    
     
+    data = (data
+            .set_index(['location_id', 'date'])
+            .sort_index()
+            .loc[:, ['effectively_vaccinated']])
+    
+    return data

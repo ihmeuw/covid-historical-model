@@ -8,13 +8,14 @@ import pandas as pd
 
 from covid_historical_model.rates import ifr
 from covid_historical_model.rates import ihr
-from covid_historical_model.rates import waning
+from covid_historical_model.rates import serology
 from covid_historical_model.rates import age_standardization
 
 RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dicts pred_location_map pred pred_fe pred_lr pred_hr')
 
 
 def runner(model_inputs_root: Path, age_pattern_root: Path,
+           seroprevalence: pd.DataFrame,
            day_inflection: str,
            day_0: str = '2020-03-15',
            pred_start_date: str = '2020-01-01',
@@ -25,7 +26,8 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
     pred_start_date = pd.Timestamp(pred_start_date)
     pred_end_date = pd.Timestamp(pred_end_date)
 
-    input_data = ifr.data.load_input_data(model_inputs_root, age_pattern_root, verbose=verbose)
+    input_data = ifr.data.load_input_data(model_inputs_root, age_pattern_root,
+                                          seroprevalence, verbose=verbose)
     model_data = ifr.data.create_model_data(day_0=day_0, **input_data)
     pred_data = ifr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,
@@ -42,7 +44,8 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
     )
 
     # need to combine hospitalized and non-hospitalized
-    ihr_age_pattern = ihr.data.load_input_data(model_inputs_root, age_pattern_root, verbose=verbose)['ihr_age_pattern']
+    ihr_age_pattern = ihr.data.load_input_data(model_inputs_root, age_pattern_root,
+                                               seroprevalence, verbose=verbose)['ihr_age_pattern']
     hospitalized_weights = age_standardization.get_all_age_rate(
         ihr_age_pattern, input_data['sero_age_pattern'],
         input_data['age_spec_population']
@@ -60,9 +63,11 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
     increasing = ['S-Ortho Ig']
     assay_sensitivity = pd.concat(
         [
-            waning.fit_hospital_weighted_sensitivity_decay(sensitivity.loc[sensitivity['assay'] == assay].copy(),
-                                                           assay in increasing,
-                                                           hospitalized_weights.copy())
+            serology.fit_hospital_weighted_sensitivity_decay(
+                sensitivity.loc[sensitivity['assay'] == assay].copy(),
+                assay in increasing,
+                hospitalized_weights.copy()
+            )
             for assay in assays]
     ).set_index(['assay', 'location_id', 't']).sort_index()
 
@@ -88,7 +93,7 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
     for assay_combination in assay_combinations:
         assay_combination_data = seroprevalence.loc[seroprevalence['assay_match'] == ', '.join(assay_combination)].copy()
         if not assay_combination_data.empty:
-            assay_seroprevalence = waning.adjust_seroprevalence(
+            assay_seroprevalence = serology.waning_adjustment(
                 pred.copy(),
                 input_data['daily_deaths'].copy(),
                 (assay_sensitivity

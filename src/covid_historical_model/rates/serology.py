@@ -1,11 +1,13 @@
+from pathlib import Path
+from loguru import logger
+
 import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
 
-from covid_historical_model.durations.durations import SERO_TO_DEATH
 
-## TODO:
-##     - add diagnostics
+from covid_historical_model.durations.durations import SERO_TO_DEATH
+from covid_historical_model.etl import model_inputs, estimates
 
 
 def fit_sensitivity_decay(t: np.array, sensitivity: np.array, increasing: bool, t_N: int = 720) -> pd.DataFrame:
@@ -65,8 +67,8 @@ def calulate_waning_factor(infections: pd.DataFrame, sensitivity: pd.DataFrame,
     return waning_factor
     
     
-def adjust_location_seroprevalence(infections: pd.DataFrame, sensitivity: pd.DataFrame,
-                                   seroprevalence: pd.DataFrame) -> pd.DataFrame:
+def location_waning_adjustment(infections: pd.DataFrame, sensitivity: pd.DataFrame,
+                               seroprevalence: pd.DataFrame) -> pd.DataFrame:
     adj_seroprevalence = []
     for i, (sero_data_id, sero_date, sero_value) in enumerate(zip(seroprevalence['data_id'], seroprevalence['date'], seroprevalence['seroprevalence'])):
         waning_factor = calulate_waning_factor(infections, sensitivity, sero_date)
@@ -80,8 +82,8 @@ def adjust_location_seroprevalence(infections: pd.DataFrame, sensitivity: pd.Dat
     return adj_seroprevalence
 
 
-def adjust_seroprevalence(ifr: pd.Series, daily_deaths: pd.Series, sensitivity: pd.DataFrame,
-                          seroprevalence: pd.DataFrame) -> pd.DataFrame:
+def waning_adjustment(ifr: pd.Series, daily_deaths: pd.Series, sensitivity: pd.DataFrame,
+                      seroprevalence: pd.DataFrame) -> pd.DataFrame:
     infections = ((daily_deaths / ifr)
                   .dropna()
                   .rename('infections')
@@ -93,13 +95,45 @@ def adjust_seroprevalence(ifr: pd.Series, daily_deaths: pd.Series, sensitivity: 
     location_ids = seroprevalence['location_id'].unique().tolist()
     location_ids = [location_id for location_id in location_ids if location_id in infections.reset_index()['location_id'].to_list()]
     for location_id in location_ids:
-        _sero = adjust_location_seroprevalence(infections.loc[location_id],
-                                               sensitivity.loc[location_id],
-                                               (seroprevalence
-                                                .loc[seroprevalence['location_id'] == location_id, ['data_id', 'date', 'seroprevalence']]
-                                                .reset_index(drop=True)))
+        _sero = location_waning_adjustment(infections.loc[location_id],
+                                           sensitivity.loc[location_id],
+                                           (seroprevalence
+                                            .loc[seroprevalence['location_id'] == location_id,
+                                                 ['data_id', 'date', 'seroprevalence']
+                                                ].reset_index(drop=True)))
         _sero['location_id'] = location_id
         seroprevalence_list.append(_sero)
     seroprevalence = pd.concat(seroprevalence_list).reset_index(drop=True)
+    
+    return seroprevalence
+
+
+def remove_effectively_vaccinated(seroprevalence: pd.DataFrame,
+                                  effectively_vaccinated: pd.Series,) -> pd.DataFrame:
+    seroprevalence = seroprevalence.merge(
+        effectively_vaccinated.reset_index(), how='left'
+    )
+    seroprevalence['effectively_vaccinated'] = seroprevalence['effectively_vaccinated'].fillna(0)
+    seroprevalence.loc[seroprevalence['test_target'] != 'spike', 'effectively_vaccinated'] = 0
+    
+    seroprevalence = seroprevalence.rename(columns={'seroprevalence':'reported_seroprevalence'})
+    seroprevalence['seroprevalence'] = 1 - (1 - seroprevalence['reported_seroprevalence']) / (1 - seroprevalence['effectively_vaccinated'])
+    
+    del seroprevalence['effectively_vaccinated']
+    
+    return seroprevalence
+
+
+def load_seroprevalence(model_inputs_root: Path, vaccine_coverage_root: Path,
+                        verbose: bool = True) -> pd.DataFrame:
+    seroprevalence = model_inputs.seroprevalence(model_inputs_root, verbose=verbose)
+
+    effectively_vaccinated = estimates.vaccinations(vaccine_coverage_root)['effectively_vaccinated']
+    population = model_inputs.population(model_inputs_root)
+    effectively_vaccinated /= population
+    
+    if verbose:
+        logger.info('Removing effectively vaccinated from reported seroprevalence.')
+    seroprevalence = remove_effectively_vaccinated(seroprevalence, effectively_vaccinated,)
     
     return seroprevalence

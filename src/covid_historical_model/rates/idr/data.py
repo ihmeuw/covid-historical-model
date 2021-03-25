@@ -13,20 +13,15 @@ from covid_historical_model.durations.durations import (
 
 
 def load_input_data(model_inputs_root: Path, testing_root: Path,
-                    seroprevalence: pd.DataFrame = None,
+                    seroprevalence: pd.DataFrame,
                     verbose: bool = True) -> Dict:
     # load data
-    if seroprevalence is None:
-        seroprevalence = model_inputs.seroprevalence(model_inputs_root, verbose=verbose)
     hierarchy = model_inputs.hierarchy(model_inputs_root)
     population = model_inputs.population(model_inputs_root)
     cumulative_cases, daily_cases = model_inputs.reported_epi(model_inputs_root, 'cases')
     _, daily_deaths = model_inputs.reported_epi(model_inputs_root, 'deaths')
-    testing_capacity = estimates.testing(testing_root)
-    testing_capacity = (testing_capacity
-                        .set_index(['location_id', 'date'])
-                        .sort_index()
-                        .loc[:, 'testing_capacity'])
+    testing_capacity = estimates.testing(testing_root)['testing_capacity']
+
     covariates = []
     
     return {'cumulative_cases': cumulative_cases,

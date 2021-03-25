@@ -10,10 +10,9 @@ from covid_historical_model.durations.durations import ADMISSION_TO_SERO
 
 
 def load_input_data(model_inputs_root: Path, age_pattern_root: Path,
-                    seroprevalence: pd.DataFrame = None, verbose: bool = True) -> Dict:
+                    seroprevalence: pd.DataFrame,
+                    verbose: bool = True) -> Dict:
     # load data
-    if seroprevalence is None:
-        seroprevalence = model_inputs.seroprevalence(model_inputs_root, verbose=verbose)
     hierarchy = model_inputs.hierarchy(model_inputs_root)
     population = model_inputs.population(model_inputs_root)
     age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
