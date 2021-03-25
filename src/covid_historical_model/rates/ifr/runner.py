@@ -11,7 +11,7 @@ from covid_historical_model.rates import ihr
 from covid_historical_model.rates import serology
 from covid_historical_model.rates import age_standardization
 
-RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dicts pred_location_map pred pred_fe pred_lr pred_hr')
+RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map pred pred_fe pred_lr pred_hr')
 
 
 def runner(model_inputs_root: Path, age_pattern_root: Path,
@@ -35,7 +35,7 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
     )
     
     # check what NAs in pred data might be about, get rid of them in safer way
-    mr_model_dicts, prior_dicts, pred, pred_fe, pred_location_map = ifr.model.run_model(
+    mr_model_dict, prior_dicts, pred, pred_fe, pred_location_map = ifr.model.run_model(
         model_data=model_data.copy(),
         pred_data=pred_data.copy(),
         day_0=day_0, day_inflection=day_inflection,
@@ -118,7 +118,7 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
     )
 
     # check what NAs in pred data might be about, get rid of them in safer way
-    refit_mr_model_dicts, refit_prior_dicts, refit_pred, refit_pred_fe, refit_pred_location_map = ifr.model.run_model(
+    refit_mr_model_dict, refit_prior_dicts, refit_pred, refit_pred_fe, refit_pred_location_map = ifr.model.run_model(
         model_data=refit_model_data.copy(),
         pred_data=refit_pred_data.dropna().copy(),
         day_0=day_0, day_inflection=day_inflection,
@@ -136,9 +136,9 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
     refit_pred_lr = (refit_pred * low_risk_rr).rename('pred_ifr_lr')
     refit_pred_hr = (refit_pred * high_risk_rr).rename('pred_ifr_hr')
     
-    results = RESULTS(seroprevalence, model_data, mr_model_dicts, pred_location_map,
+    results = RESULTS(seroprevalence, model_data, mr_model_dict, pred_location_map,
                       pred, pred_fe, pred_lr, pred_hr)
-    refit_results = RESULTS(assay_seroprevalence, refit_model_data, refit_mr_model_dicts, refit_pred_location_map,
+    refit_results = RESULTS(assay_seroprevalence, refit_model_data, refit_mr_model_dict, refit_pred_location_map,
                             refit_pred, refit_pred_fe, refit_pred_lr, refit_pred_hr)
     
     nrmse = ifr.model.get_nrmse(assay_seroprevalence.copy(),
@@ -146,6 +146,6 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
                                 refit_pred.copy(),
                                 refit_input_data['population'].copy(),
                                 refit_pred_location_map.copy(),
-                                refit_mr_model_dicts.copy(),)
+                                refit_mr_model_dict.copy(),)
 
     return {'raw_results': results, 'refit_results': refit_results, 'nrmse': nrmse}

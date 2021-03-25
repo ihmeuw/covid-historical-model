@@ -6,7 +6,7 @@ import pandas as pd
 
 from covid_historical_model.rates import ihr
 
-RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dicts pred_location_map pred pred_fe')
+RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map pred pred_fe')
 
 
 def runner(model_inputs_root: Path, age_pattern_root: Path,
@@ -28,7 +28,7 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
     )
     
     # check what NAs in data might be about, get rid of them in safer way
-    mr_model_dicts, prior_dicts, pred, pred_fe, pred_location_map = ihr.model.run_model(
+    mr_model_dict, prior_dicts, pred, pred_fe, pred_location_map = ihr.model.run_model(
         model_data=model_data.copy(),
         pred_data=pred_data.copy(),
         verbose=verbose,
@@ -36,6 +36,6 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
     )
 
     results = RESULTS(input_data['seroprevalence'], model_data,
-                      mr_model_dicts, pred_location_map, pred, pred_fe)
+                      mr_model_dict, pred_location_map, pred, pred_fe)
 
     return results

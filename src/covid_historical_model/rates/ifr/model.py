@@ -61,7 +61,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
                        var_args['dep_var_se']] + var_args['fe_vars']
     model_data = model_data.loc[:, model_data_cols]
     model_data = model_data.dropna()
-    mr_model_dicts, prior_dicts = cascade.run_cascade(
+    mr_model_dict, prior_dicts = cascade.run_cascade(
         model_data=model_data.copy(),
         hierarchy=hierarchy.copy(),
         var_args=var_args.copy(),
@@ -72,7 +72,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     pred, pred_fe, pred_location_map = cascade.predict_cascade(
         pred_data=pred_data.copy(),
         hierarchy=hierarchy.copy(),
-        mr_model_dicts=mr_model_dicts.copy(),
+        mr_model_dict=mr_model_dict.copy(),
         pred_replace_dict=pred_replace_dict.copy(),
         pred_exclude_vars=pred_exclude_vars.copy(),
         var_args=var_args.copy(),
@@ -85,13 +85,13 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     pred /= age_stand_scaling_factor
     pred_fe /= age_stand_scaling_factor
 
-    return mr_model_dicts, prior_dicts, pred.dropna(), pred_fe.dropna(), pred_location_map
+    return mr_model_dict, prior_dicts, pred.dropna(), pred_fe.dropna(), pred_location_map
 
 
-def map_pred_and_model_locations(pred_location_map: Dict, mr_model_dicts: Dict, data: pd.Series) -> pd.DataFrame:
+def map_pred_and_model_locations(pred_location_map: Dict, mr_model_dict: Dict, data: pd.Series) -> pd.DataFrame:
     nrmse_data = []
     for pred_location_id, model_location_id in pred_location_map.items():
-        model_location_ids = mr_model_dicts[model_location_id].data.to_df()['study_id'].unique().tolist()
+        model_location_ids = mr_model_dict[model_location_id].data.to_df()['study_id'].unique().tolist()
         nrmse_data.append(
             pd.concat([data.loc[model_location_ids].reset_index(),
                        pd.DataFrame({'pred_location_id':pred_location_id},
@@ -108,7 +108,7 @@ def map_pred_and_model_locations(pred_location_map: Dict, mr_model_dicts: Dict, 
 
 def get_nrmse(seroprevalence: pd.DataFrame, deaths: pd.Series,
               pred: pd.Series, population: pd.Series,
-              pred_location_map: pd.Series, mr_model_dicts: Dict) -> pd.Series:
+              pred_location_map: pd.Series, mr_model_dict: Dict) -> pd.Series:
     seroprevalence = (seroprevalence
                       .set_index(['location_id', 'date'])
                       .sort_index()
@@ -125,9 +125,9 @@ def get_nrmse(seroprevalence: pd.DataFrame, deaths: pd.Series,
     
     residuals = seroprevalence.to_frame().join(infections)
     residuals = (residuals['seroprevalence'] - residuals['infections']).dropna().rename('residuals')
-    residuals = map_pred_and_model_locations(pred_location_map, mr_model_dicts, residuals)
+    residuals = map_pred_and_model_locations(pred_location_map, mr_model_dict, residuals)
     residuals = residuals.loc[:, 'residuals']
-    seroprevalence = map_pred_and_model_locations(pred_location_map, mr_model_dicts, seroprevalence)
+    seroprevalence = map_pred_and_model_locations(pred_location_map, mr_model_dict, seroprevalence)
     seroprevalence = seroprevalence.loc[:, 'seroprevalence']
     rmse = np.sqrt((residuals ** 2).groupby(level=0).mean())
     

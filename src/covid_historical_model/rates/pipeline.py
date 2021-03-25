@@ -45,6 +45,8 @@ def pipeline(model_inputs_root: Path, vaccine_coverage_root: Path,
 
     ifr_seroprevalence = []
     ifr_model_data = []
+    ifr_mr_model_dict = {}
+    ifr_pred_location_map = []
     ifr_pred = []
     ifr_pred_fe = []
     ifr_pred_lr = []
@@ -57,7 +59,18 @@ def pipeline(model_inputs_root: Path, vaccine_coverage_root: Path,
         loc_model_data = full_ifr_results[day_inflection]['refit_results'].model_data
         loc_model_data = loc_model_data.loc[loc_model_data['location_id'] == location_id]
         ifr_model_data.append(loc_model_data)
-
+        
+        try:  # extract pred map and model object in this chunk
+            loc_pred_location_map = full_ifr_results[day_inflection]['refit_results'].pred_location_map.loc[[location_id]]
+            ifr_pred_location_map.append(loc_pred_location_map)
+            loc_model_location = loc_pred_location_map.values.item()
+            if loc_model_location not in list(ifr_mr_model_dicts.keys()):
+                loc_mr_model = full_ifr_results[day_inflection]['refit_results'].mr_model_dict
+                loc_mr_model = loc_mr_model[loc_model_location]
+                ifr_mr_model_dicts.update({loc_model_location: loc_mr_model})
+        except KeyError:
+            pass
+        
         try:
             loc_pred = full_ifr_results[day_inflection]['refit_results'].pred.loc[[location_id]]
             ifr_pred.append(loc_pred)

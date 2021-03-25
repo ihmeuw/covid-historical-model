@@ -51,7 +51,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
                        var_args['dep_var_se']] + var_args['fe_vars']
     model_data = model_data.loc[:, model_data_cols]
     model_data = model_data.dropna()
-    mr_model_dicts, prior_dicts = cascade.run_cascade(
+    mr_model_dict, prior_dicts = cascade.run_cascade(
         model_data=model_data.copy(),
         hierarchy=hierarchy.copy(),
         var_args=var_args.copy(),
@@ -62,7 +62,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     pred, pred_fe, pred_location_map = cascade.predict_cascade(
         pred_data=pred_data.copy(),
         hierarchy=hierarchy.copy(),
-        mr_model_dicts=mr_model_dicts.copy(),
+        mr_model_dict=mr_model_dict.copy(),
         pred_replace_dict=pred_replace_dict.copy(),
         pred_exclude_vars=pred_exclude_vars.copy(),
         var_args=var_args.copy(),
@@ -75,4 +75,4 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     pred /= age_stand_scaling_factor
     pred_fe /= age_stand_scaling_factor
 
-    return mr_model_dicts, prior_dicts, pred.dropna(), pred_fe.dropna(), pred_location_map
+    return mr_model_dict, prior_dicts, pred.dropna(), pred_fe.dropna(), pred_location_map
