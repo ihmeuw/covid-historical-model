@@ -136,10 +136,26 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
     refit_pred_lr = (refit_pred * low_risk_rr).rename('pred_ifr_lr')
     refit_pred_hr = (refit_pred * high_risk_rr).rename('pred_ifr_hr')
     
-    results = RESULTS(seroprevalence, model_data, mr_model_dict, pred_location_map,
-                      pred, pred_fe, pred_lr, pred_hr)
-    refit_results = RESULTS(assay_seroprevalence, refit_model_data, refit_mr_model_dict, refit_pred_location_map,
-                            refit_pred, refit_pred_fe, refit_pred_lr, refit_pred_hr)
+    results = RESULTS(
+        seroprevalence=seroprevalence,
+        model_data=model_data,
+        mr_model_dict=mr_model_dict,
+        pred_location_map=pred_location_map,
+        pred=pred,
+        pred_fe=pred_fe,
+        pred_lr=pred_lr,
+        pred_hr=pred_hr,
+    )
+    results = RESULTS(
+        seroprevalence=assay_seroprevalence,
+        model_data=refit_model_data,
+        mr_model_dict=refit_mr_model_dict,
+        pred_location_map=refit_pred_location_map,
+        pred=refit_pred,
+        pred_fe=refit_pred_fe,
+        pred_lr=refit_pred_lr,
+        pred_hr=refit_pred_hr,
+    )
     
     nrmse = ifr.model.get_nrmse(assay_seroprevalence.copy(),
                                 refit_input_data['daily_deaths'].copy(),

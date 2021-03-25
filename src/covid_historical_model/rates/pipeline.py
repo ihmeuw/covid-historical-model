@@ -46,7 +46,7 @@ def pipeline(model_inputs_root: Path, vaccine_coverage_root: Path,
     ifr_seroprevalence = []
     ifr_model_data = []
     ifr_mr_model_dict = {}
-    ifr_pred_location_map = []
+    ifr_pred_location_map = {}
     ifr_pred = []
     ifr_pred_fe = []
     ifr_pred_lr = []
@@ -61,9 +61,8 @@ def pipeline(model_inputs_root: Path, vaccine_coverage_root: Path,
         ifr_model_data.append(loc_model_data)
         
         try:  # extract pred map and model object in this chunk
-            loc_pred_location_map = full_ifr_results[day_inflection]['refit_results'].pred_location_map.loc[[location_id]]
-            ifr_pred_location_map.append(loc_pred_location_map)
-            loc_model_location = loc_pred_location_map.values.item()
+            loc_model_location = full_ifr_results[day_inflection]['refit_results'].pred_location_map[location_id]
+            ifr_pred_location_map.update({location_id: loc_model_location})
             if loc_model_location not in list(ifr_mr_model_dicts.keys()):
                 loc_mr_model = full_ifr_results[day_inflection]['refit_results'].mr_model_dict
                 loc_mr_model = loc_mr_model[loc_model_location]
@@ -95,12 +94,14 @@ def pipeline(model_inputs_root: Path, vaccine_coverage_root: Path,
         except KeyError:
             pass
     ifr_results = ifr.runner.RESULTS(
-        pd.concat(ifr_seroprevalence).reset_index(drop=True),
-        pd.concat(ifr_model_data).reset_index(drop=True),
-        pd.concat(ifr_pred),
-        pd.concat(ifr_pred_fe),
-        pd.concat(ifr_pred_lr),
-        pd.concat(ifr_pred_hr),
+        seroprevalence=pd.concat(ifr_seroprevalence).reset_index(drop=True),
+        model_data=pd.concat(ifr_model_data).reset_index(drop=True),
+        mr_model_dict=ifr_mr_model_dict,
+        pred_location_map=ifr_pred_location_map,
+        pred=pd.concat(ifr_pred),
+        pred_fe=pd.concat(ifr_pred_fe),
+        pred_lr=pd.concat(ifr_pred_lr),
+        pred_hr=pd.concat(ifr_pred_hr),
     )
 
     adj_seroprevalence = ifr_results.seroprevalence.copy()

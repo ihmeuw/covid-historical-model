@@ -34,8 +34,14 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
         verbose=verbose,
         **input_data
     )
-
-    results = RESULTS(input_data['seroprevalence'], model_data,
-                      mr_model_dict, pred_location_map, pred, pred_fe)
+    
+    results = RESULTS(
+        seroprevalence=input_data['seroprevalence'],
+        model_data=model_data,
+        mr_model_dict=mr_model_dict,
+        pred_location_map=pred_location_map,
+        pred=pred,
+        pred_fe=pred_fe,
+    )
 
     return results

@@ -56,7 +56,13 @@ def runner(model_inputs_root: Path, testing_root: Path,
                                                       ceiling=1.,))
             .rename('pred_idr'))
 
-    results = RESULTS(input_data['seroprevalence'], model_data,
-                      mr_model_dict, pred_location_map, pred, pred_fe)
+    results = RESULTS(
+        seroprevalence=input_data['seroprevalence'],
+        model_data=model_data,
+        mr_model_dict=mr_model_dict,
+        pred_location_map=pred_location_map,
+        pred=pred,
+        pred_fe=pred_fe,
+    )
 
     return results
