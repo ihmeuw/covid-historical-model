@@ -146,7 +146,7 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
         pred_lr=pred_lr,
         pred_hr=pred_hr,
     )
-    results = RESULTS(
+    refit_results = RESULTS(
         seroprevalence=assay_seroprevalence,
         model_data=refit_model_data,
         mr_model_dict=refit_mr_model_dict,

@@ -63,10 +63,11 @@ def pipeline(model_inputs_root: Path, vaccine_coverage_root: Path,
         try:  # extract pred map and model object in this chunk
             loc_model_location = full_ifr_results[day_inflection]['refit_results'].pred_location_map[location_id]
             ifr_pred_location_map.update({location_id: loc_model_location})
-            if loc_model_location not in list(ifr_mr_model_dicts.keys()):
+            if loc_model_location not in list(ifr_mr_model_dict.keys()):
                 loc_mr_model = full_ifr_results[day_inflection]['refit_results'].mr_model_dict
                 loc_mr_model = loc_mr_model[loc_model_location]
-                ifr_mr_model_dicts.update({loc_model_location: loc_mr_model})
+                ifr_mr_model_dict.update({loc_model_location: loc_mr_model})
+            import pdb; pdb.set_trace()
         except KeyError:
             pass
         
