@@ -1,0 +1,85 @@
+from pathlib import Path
+
+import pandas as pd
+import numpy as np
+
+from covid_historical_model.etl import helpers
+
+
+def testing(testing_root: Path) -> pd.DataFrame:
+    data_path = testing_root / 'forecast_raked_test_pc_simple.csv'
+    data = pd.read_csv(data_path)
+    data['date'] = pd.to_datetime(data['date'])
+    data = data.sort_values(['location_id', 'date']).reset_index(drop=True)
+    data['daily_tests'] = data['test_pc'] * data['pop']
+    data['cumulative_tests'] = data.groupby('location_id')['daily_tests'].cumsum()
+    data = (data
+            .loc[:, ['location_id', 'date', 'cumulative_tests']]
+            .sort_values(['location_id', 'date'])
+            .reset_index(drop=True))
+    data = (data.groupby('location_id', as_index=False)
+            .apply(lambda x: helpers.fill_dates(x, ['cumulative_tests']))
+            .reset_index(drop=True))
+    data = data.sort_values(['location_id', 'date']).reset_index(drop=True)
+    data['daily_tests'] = (data
+                           .groupby('location_id')['cumulative_tests']
+                           .apply(lambda x: x.diff()))
+    data = data.dropna()
+    data = data.sort_values(['location_id', 'date']).reset_index(drop=True)
+    data['testing_capacity'] = data.groupby('location_id')['daily_tests'].cummax()
+    
+    data = data.loc[:, ['location_id', 'date',
+                        'daily_tests', 'testing_capacity',
+                        'cumulative_tests',]]
+    
+    return data
+
+
+def ihr_age_pattern(age_pattern_root: Path) -> pd.Series:
+    data_path = age_pattern_root / 'hir_preds_5yr.csv'
+    data = pd.read_csv(data_path)
+    
+    data = data.rename(columns={'age_group_start': 'age_group_years_start',
+                                'age_group_end': 'age_group_years_end',
+                                'hir': 'ihr',})
+    data['age_group_years_end'].iloc[-1] = 125
+
+    data = (data
+            .set_index(['age_group_years_start', 'age_group_years_end'])
+            .loc[:, 'ihr'])
+    
+    return data
+
+
+def ifr_age_pattern(age_pattern_root: Path) -> pd.Series:
+    data_path = age_pattern_root / 'ifr_preds_5yr.csv'
+    data = pd.read_csv(data_path)
+    
+    data = data.rename(columns={'age_group_start': 'age_group_years_start',
+                                'age_group_end': 'age_group_years_end',})
+    data['age_group_years_end'].iloc[-1] = 125
+
+    data = (data
+            .set_index(['age_group_years_start', 'age_group_years_end'])
+            .loc[:, 'ifr'])
+    
+    return data
+
+
+def seroprevalence_age_pattern(age_pattern_root: Path) -> pd.Series:
+    data_path = age_pattern_root / 'seroprev_preds_5yr.csv'
+    data = pd.read_csv(data_path)
+    
+    data = data.rename(columns={'age_group_start': 'age_group_years_start',
+                                'age_group_end': 'age_group_years_end',
+                                'seroprev': 'seroprevalence',})
+    data['age_group_years_end'].iloc[-1] = 125
+
+    data = (data
+            .set_index(['age_group_years_start', 'age_group_years_end'])
+            .loc[:, 'seroprevalence'])
+    
+    return data
+
+def vaccinations(vaccine_coverage_root: Path) -> pd.DataFrame:
+    
