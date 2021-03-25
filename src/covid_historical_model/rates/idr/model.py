@@ -66,3 +66,22 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     pred_fe = expit(pred_fe).rename(pred.name.replace('logit_', ''))
 
     return mr_model_dict, prior_dicts, pred.dropna(), pred_fe.dropna(), pred_location_map
+
+
+def determine_mean_date_of_infection(location_dates: List,
+                                     daily_cases: pd.DataFrame,
+                                     pred: pd.Series) -> pd.DataFrame:
+    daily_infections = (daily_cases / pred).rename('daily_infections').dropna()
+
+    dates_data = []
+    for location_id, date in location_dates:
+        data = daily_infections[location_id]
+        data = data.reset_index()
+        data = data.loc[data['date'] <= date].reset_index(drop=True)
+        if not data.empty:
+            avg_date_of_infection_idx = int(np.round(np.average(data.index, weights=(data['daily_infections'] + 1))))
+            avg_date_of_infection = data.loc[avg_date_of_infection_idx, 'date']
+            dates_data.append(pd.DataFrame({'location_id':location_id, 'date':date, 'avg_date_of_infection':avg_date_of_infection}, index=[0]))
+    dates_data = pd.concat(dates_data).reset_index(drop=True)
+
+    return dates_data

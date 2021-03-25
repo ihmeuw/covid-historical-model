@@ -6,7 +6,7 @@ import pandas as pd
 from scipy.optimize import curve_fit
 
 
-from covid_historical_model.durations.durations import SERO_TO_DEATH
+from covid_historical_model.durations.durations import SERO_TO_DEATH, EXPOSURE_TO_SEROPOSITIVE
 from covid_historical_model.etl import model_inputs, estimates
 
 
@@ -131,6 +131,10 @@ def load_seroprevalence(model_inputs_root: Path, vaccine_coverage_root: Path,
     effectively_vaccinated = estimates.vaccinations(vaccine_coverage_root)['effectively_vaccinated']
     population = model_inputs.population(model_inputs_root)
     effectively_vaccinated /= population
+    
+    effectively_vaccinated = effectively_vaccinated.reset_index()
+    effectively_vaccinated['date'] -= pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
+    effectively_vaccinated = effectively_vaccinated.set_index(['location_id', 'date'])
     
     if verbose:
         logger.info('Removing effectively vaccinated from reported seroprevalence.')

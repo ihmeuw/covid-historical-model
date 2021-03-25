@@ -91,6 +91,7 @@ def create_model_data(cumulative_cases: pd.Series,
     infections = infections.reset_index()
     
     testing_capacity = testing_capacity.reset_index()
+    testing_capacity['date'] -= pd.Timedelta(days=EXPOSURE_TO_CASE)
     sero_location_dates = seroprevalence[['location_id', 'date']].drop_duplicates()
     sero_location_dates = list(zip(sero_location_dates['location_id'], sero_location_dates['date']))
     infwavg_testing_capacity = []
