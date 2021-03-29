@@ -18,7 +18,7 @@ def manual_floor_setting(rmse: pd.DataFrame,
     for ssa_location_id in ssa_location_ids:
         if best_floor[ssa_location_id] > 0.001:
             if verbose:
-                logger.warning(f'... {ssa_location_id}')
+                logger.warning(f'... {ssa_location_id} (previously {best_floor[ssa_location_id] * 100}%)')
             best_floor[ssa_location_id] = 0.001
             is_ssa_rmse = rmse['location_id'] == ssa_location_id
             rmse.loc[is_ssa_rmse, 'rmse'] = np.nan

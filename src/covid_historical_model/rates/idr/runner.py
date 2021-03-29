@@ -56,19 +56,14 @@ def runner(model_inputs_root: Path, testing_root: Path,
                                                       ceiling=1.,))
             .rename('pred_idr'))
 
-    dates_data = data.determine_mean_date_of_infection(
+    dates_data = idr.model.determine_mean_date_of_infection(
         location_dates=model_data[['location_id', 'date']].drop_duplicates().values.tolist(),
         daily_cases=input_data['daily_cases'].copy(),
         pred=pred.copy()
     )
     model_data = model_data.merge(dates_data, how='left')
-    if len(model_data.loc[(model_data['avg_date_of_infection'].isnull()) & (model_data['is_outlier'] != 1)]) > 0:
-        raise ValueError('Cannot find avg date of infection for data in model.')
-    else:
-        model_data['avg_date_of_infection'] = model_data['avg_date_of_infection'].fillna(model_data['date'])
-    model_data = (model_data
-                  .loc[:, ['location_id', 'avg_date_of_infection', 'idr', 'is_outlier']]
-                  .reset_index(drop=True))
+    model_data['avg_date_of_infection'] = model_data['avg_date_of_infection'].fillna(model_data['date'])
+    model_data = (model_data.loc[:, ['location_id', 'avg_date_of_infection', 'idr']].reset_index(drop=True))
     model_data = model_data.rename(columns={'avg_date_of_infection':'date'})
 
     results = RESULTS(

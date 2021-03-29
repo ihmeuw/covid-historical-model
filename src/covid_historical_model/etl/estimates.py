@@ -1,4 +1,5 @@
 from pathlib import Path
+from loguru import logger
 
 import pandas as pd
 import numpy as np
@@ -85,15 +86,31 @@ def seroprevalence_age_pattern(age_pattern_root: Path) -> pd.Series:
     
     return data
 
-def vaccinations(vaccine_coverage_root: Path) -> pd.DataFrame:
+
+def vaccine_coverage(vaccine_coverage_root: Path) -> pd.DataFrame:
     data_path = vaccine_coverage_root / 'slow_scenario_vaccine_coverage.csv'
     data = pd.read_csv(data_path)
     data['date'] = pd.to_datetime(data['date'])
-    data = data.rename(columns={'cumulative_all_effective':'effectively_vaccinated'})    
+    data = data.rename(columns={'cumulative_all_effective':'vaccinated'})
     
     data = (data
             .set_index(['location_id', 'date'])
             .sort_index()
-            .loc[:, ['effectively_vaccinated']])
+            .loc[:, ['vaccinated']])
+    
+    return data
+
+
+def escape_variant_scaleup(variant_scaleup_root: Path, verbose: bool = True) -> pd.Series:
+    data_path = variant_scaleup_root / 'variant_reference.csv'
+    data = pd.read_csv(data_path)
+    data['date'] = pd.to_datetime(data['date'])
+    is_escape_variant = ~data['variant'].isin(['wild_type', 'B117'])
+    data = data.loc[is_escape_variant]
+    if verbose:
+        logger.info(f"Escape variants: {', '.join(data['variant'].unique())}")
+    data = data.rename(columns={'prevalence': 'variant_prevalence'})
+    
+    data = data.groupby(['location_id', 'date'])['variant_prevalence'].sum()
     
     return data

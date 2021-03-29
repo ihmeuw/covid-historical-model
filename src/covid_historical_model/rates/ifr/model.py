@@ -117,11 +117,9 @@ def get_nrmse(seroprevalence: pd.DataFrame, deaths: pd.Series,
     
     infections = (deaths / pred).dropna().rename('infections')
     infections = infections.reset_index()
-    infections['date'] -= pd.Timedelta(days=SERO_TO_DEATH)
+    infections['date'] -= pd.Timedelta(days=SERO_TO_DEATH)  # matching date to serosurveys
     infections = infections.set_index(['location_id', 'date'])
-    infections = (infections
-                  .groupby(level=0).cumsum()
-                  .loc[:, 'infections'])
+    infections = infections.groupby(level=0)['infections'].cumsum()
     infections /= population
     
     residuals = seroprevalence.to_frame().join(infections)

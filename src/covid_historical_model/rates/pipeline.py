@@ -10,12 +10,15 @@ from covid_historical_model.rates import idr
 from covid_historical_model.rates import ihr
 
 
-def pipeline(model_inputs_root: Path, vaccine_coverage_root: Path,
+def pipeline(model_inputs_root: Path,
+             vaccine_coverage_root: Path, variant_scaleup_root: Path,
              age_pattern_root: Path, testing_root: Path,
              day_inflection_list: List[str] = ['2020-05-01', '2020-06-01', '2020-07-01',
                                                '2020-08-01', '2020-09-01', '2020-10-01', '2020-11-01'],
              verbose: bool = True,):
-    seroprevalence = serology.load_seroprevalence(model_inputs_root, vaccine_coverage_root)
+    seroprevalence = serology.load_seroprevalence_sub_vacccinated(
+        model_inputs_root, vaccine_coverage_root
+    )
     
     full_ifr_results = {}
     for day_inflection in day_inflection_list:
@@ -24,7 +27,9 @@ def pipeline(model_inputs_root: Path, vaccine_coverage_root: Path,
                         f'IFR ESTIMATION -- testing inflection point at {day_inflection}\n'
                         '*************************************')
         full_ifr_results.update({day_inflection: ifr.runner.runner(model_inputs_root, age_pattern_root,
-                                                                   seroprevalence, day_inflection, verbose=verbose)})
+                                                                   variant_scaleup_root,
+                                                                   seroprevalence, day_inflection,
+                                                                   verbose=verbose)})
     
     if verbose:
         logger.info('\n*************************************\n'

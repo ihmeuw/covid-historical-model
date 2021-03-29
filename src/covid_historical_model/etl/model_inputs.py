@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 
 from covid_historical_model.etl import db, helpers
+from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
 
 
 def seroprevalence(model_inputs_root: Path, verbose: bool = True) -> pd.DataFrame:
@@ -16,11 +17,15 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True) -> pd.DataFram
         logger.info(f'Initial observation count: {len(data)}')
 
     # date formatting
-    data['date'] = helpers.str_fmt(data['date']).replace('.202$', '.2020')
-    data.loc[(data['location_id'] == 570) & (data['date'] == '11.08.2021'), 'date'] = '11.08.2020'
-    data.loc[(data['location_id'] == 533) & (data['date'] == '13.11.2.2020'), 'date'] = '13.11.2020'
-    data.loc[data['date'] == '05.21.2020', 'date'] = '21.05.2020'
-    data['date'] = pd.to_datetime(data['date'], format='%d.%m.%Y')
+    for date_var in ['start_date', 'date']:
+        # data[date_var] = helpers.str_fmt(data[date_var]).replace('.202$', '.2020')
+        # data.loc[(data['location_id'] == 570) & (data[date_var] == '11.08.2021'), date_var] = '11.08.2020'
+        # data.loc[(data['location_id'] == 533) & (data[date_var] == '13.11.2.2020'), date_var] = '13.11.2020'
+        # data.loc[data[date_var] == '05.21.2020', date_var] = '21.05.2020'
+        data[date_var] = pd.to_datetime(data[date_var], format='%d.%m.%Y')
+    
+    # if no start date provided, assume 2 weeks before end date? median seems to be 21 days, so this is conservative
+    data['start_date'] = data['start_date'].fillna(data['date'] - pd.Timedelta(days=14))
 
     # convert to m/l/u to 0-1, sample size to numeric
     if not (helpers.str_fmt(data['units']).unique() == 'percentage').all():
@@ -83,9 +88,9 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True) -> pd.DataFram
     data['correction_status'] == helpers.str_fmt(data['correction_status']).replace(('unchecked', 'not specified', np.nan), '0').astype(int)
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
-    keep_columns = ['data_id', 'nid', 'location_id', 'date',
+    keep_columns = ['data_id', 'nid', 'location_id', 'start_date', 'date',
                     'seroprevalence',  # 'sample_size',
-                    'test_name', 'test_target',
+                    'test_name', 'test_target', 'isotype',
                     'bias', 'bias_type',
                     'correction_status', 'geo_accordance',
                     'is_outlier', 'manual_outlier']
@@ -163,3 +168,38 @@ def population(model_inputs_root: Path, by_age: bool = False) -> pd.Series:
                 .loc[:, 'population'])
 
     return data
+
+
+def assay_sensitivity(model_inputs_root: Path) -> pd.DataFrame:
+    # for consistency, should switch to using official model-inputs path (once Perez-Saez are in there)
+    model_inputs_root = Path('/home/j/Project/covid/data_intake/')
+    
+    # TODO: bootstrapping or something to incorporate uncertainty (would need to digitize this portion from Perez-Saez plots)?
+    peluso_path = model_inputs_root / 'serology' / 'waning_immunity' / 'peluso_assay_sensitivity.xlsx'
+    perez_saez_paths = [
+        model_inputs_root / 'serology' / 'waning_immunity' / 'perez-saez_n-roche.xlsx',
+        model_inputs_root / 'serology' / 'waning_immunity' / 'perez-saez_rbd-euroimmun.xlsx',
+        model_inputs_root / 'serology' / 'waning_immunity' / 'perez-saez_rbd-roche.xlsx',
+    ]
+    
+    peluso = pd.read_excel(peluso_path)
+    peluso['t'] = peluso['Time'].apply(lambda x: int(x.split(' ')[0]) * 30)
+    peluso = peluso.rename(columns={'mean': 'sensitivity',
+                                    'AntigenAndAssay': 'assay',
+                                    'Hospitalization_status': 'hospitalization_status',})
+    peluso = peluso.loc[:, ['assay', 'hospitalization_status', 't', 'sensitivity']]
+    peluso['source'] = 'Peluso'
+    
+    # could try to manually apply hosp/non-hosp split
+    perez_saez = pd.concat([pd.read_excel(perez_saez_path) for perez_saez_path in perez_saez_paths])
+    perez_saez = perez_saez.loc[perez_saez['t'] >= EXPOSURE_TO_SEROPOSITIVE]
+    perez_saez['t'] -= EXPOSURE_TO_SEROPOSITIVE
+    perez_saez = pd.concat([
+        pd.concat([perez_saez, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=perez_saez.index)], axis=1),
+        pd.concat([perez_saez, pd.DataFrame({'hospitalization_status':'Hospitalized'}, index=perez_saez.index)], axis=1)
+    ])
+    perez_saez['source'] = 'Perez-Saez'
+    
+    sensitivity = pd.concat([peluso, perez_saez])
+    
+    return sensitivity

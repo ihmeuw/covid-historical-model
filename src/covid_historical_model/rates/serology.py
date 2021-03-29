@@ -10,6 +10,123 @@ from covid_historical_model.durations.durations import SERO_TO_DEATH, EXPOSURE_T
 from covid_historical_model.etl import model_inputs, estimates
 
 
+def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccine_coverage_root: Path,
+                                        verbose: bool = True) -> pd.DataFrame:
+    seroprevalence = model_inputs.seroprevalence(model_inputs_root, verbose=verbose)
+
+    vaccinated = estimates.vaccine_coverage(vaccine_coverage_root)['vaccinated']
+    
+    population = model_inputs.population(model_inputs_root)
+    vaccinated /= population
+    
+    vaccinated = vaccinated.reset_index()
+    # assume this is date of seroconversion?
+    # vaccinated['date'] += pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
+    vaccinated = vaccinated.set_index(['location_id', 'date'])
+    
+    if verbose:
+        logger.info('Removing effectively vaccinated from reported seroprevalence.')
+    seroprevalence = remove_vaccinated(seroprevalence, vaccinated,)
+    
+    return seroprevalence
+
+
+def remove_vaccinated(seroprevalence: pd.DataFrame,
+                      vaccinated: pd.Series,) -> pd.DataFrame:
+    ## remove vaccinated based on end date? otherwise use commented out bits here
+    # seroprevalence = seroprevalence.rename(columns={'date':'end_date'})
+    # seroprevalence['n_midpoint_days'] = (seroprevalence['end_date'] - seroprevalence['start_date']).dt.days
+    # seroprevalence['n_midpoint_days'] = seroprevalence['n_midpoint_days'].astype(int)
+    # seroprevalence['date'] = seroprevalence.apply(lambda x: x['end_date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
+    seroprevalence = seroprevalence.merge(vaccinated.reset_index(), how='left')
+    # del seroprevalence['date']
+    # del seroprevalence['n_midpoint_days']
+    # seroprevalence = seroprevalence.rename(columns={'end_date':'date'})
+    seroprevalence['vaccinated'] = seroprevalence['vaccinated'].fillna(0)
+    
+    seroprevalence.loc[seroprevalence['test_target'] != 'spike', 'vaccinated'] = 0
+    
+    seroprevalence = seroprevalence.rename(columns={'seroprevalence':'reported_seroprevalence'})
+    
+    seroprevalence['seroprevalence'] = 1 - (1 - seroprevalence['reported_seroprevalence']) / (1 - seroprevalence['vaccinated'])
+    
+    del seroprevalence['vaccinated']
+    
+    return seroprevalence
+
+
+def apply_waning_adjustment(model_inputs_root: Path,
+                            hospitalized_weights: pd.Series,
+                            seroprevalence: pd.DataFrame,
+                            daily_deaths: pd.Series,
+                            pred_ifr: pd.Series,
+                            verbose: bool = True,) -> pd.DataFrame:    
+    sensitivity = model_inputs.assay_sensitivity(model_inputs_root)
+
+    assays = ['N-Abbott',  # IgG
+              'S-Roche', 'N-Roche',  # Ig
+              'S-Ortho Ig', 'S-Ortho IgG', # Ig/IgG
+              'S-DiaSorin',  # IgG
+              'S-EuroImmun',]  # IgG
+    increasing = ['S-Ortho Ig']
+    
+    data_assays = sensitivity['assay'].unique().tolist()
+    excluded_data_assays = [da for da in data_assays if da not in assays]
+    if verbose and excluded_data_assays:
+        logger.warning(f"Excluding the following assays found in sensitivity data: {', '.join(excluded_data_assays)}")
+    if any([a not in data_assays for a in assays]):
+        raise ValueError('Assay mis-labelled.')
+    sensitivity = sensitivity.loc[sensitivity['assay'].isin(assays)]
+    
+    source_assays = sensitivity[['source', 'assay']].drop_duplicates().values.tolist()
+    
+    assay_sensitivity = pd.concat(
+        [
+            fit_hospital_weighted_sensitivity_decay(
+                sensitivity.loc[(sensitivity['source'] == source) & (sensitivity['assay'] == assay)].copy(),
+                assay in increasing,
+                hospitalized_weights.copy()
+            )
+            for source, assay in source_assays]
+    ).set_index(['assay', 'location_id', 't']).sort_index()
+    
+    seroprevalence = seroprevalence.loc[seroprevalence['is_outlier'] == 0]
+    test_matching = pd.read_csv('tests.csv', encoding='latin1')
+    seroprevalence = seroprevalence.merge(test_matching, how='left')
+    missing_match = seroprevalence['assay_match'].isnull()
+    is_N = seroprevalence['test_target'] == 'nucleocapsid'
+    is_S = seroprevalence['test_target'] == 'spike'
+    is_other = ~(is_N | is_S)
+    seroprevalence.loc[missing_match & is_N, 'assay_match'] = 'N-Roche, N-Abbott'
+    seroprevalence.loc[missing_match & is_S, 'assay_match'] = 'S-Roche, S-Ortho Ig, S-Ortho IgG, S-DiaSorin, S-EuroImmun'
+    seroprevalence.loc[missing_match & is_other, 'assay_match'] = 'N-Roche, '  # N Ig
+                                                                  'N-Abbott, '  # N IgG
+                                                                  'S-Roche, S-Ortho Ig, '  # S Ig
+                                                                  'S-Ortho IgG, S-DiaSorin, S-EuroImmun'  # S IgG
+
+    assay_combinations = seroprevalence['assay_match'].unique().tolist()
+    # for i in range(len(assays)):
+    #     assay_combinations += list(itertools.combinations(assays, i + 1))
+
+    assay_seroprevalence_list = []
+    for assay_combination in assay_combinations:
+        assay_seroprevalence = waning_adjustment(
+            pred_ifr.copy(),
+            daily_deaths.copy(),
+            (assay_sensitivity
+             .loc[assay_combination.split(', ')]
+             .reset_index()
+             .groupby(['location_id', 't'])['sensitivity'].mean()),
+            seroprevalence.loc[seroprevalence['assay_match'] == assay_combination].copy()
+        )
+        assay_seroprevalence['is_outlier'] = 0
+        assay_seroprevalence['assay'] = assay_combination
+        assay_seroprevalence_list.append(assay_seroprevalence)
+    assay_seroprevalence = pd.concat(assay_seroprevalence_list)
+    
+    return assay_sensitivity, assay_seroprevalence
+
+
 def fit_sensitivity_decay(t: np.array, sensitivity: np.array, increasing: bool, t_N: int = 720) -> pd.DataFrame:
     def sigmoid(x, x0, k):
         y = 1 / (1 + np.exp(-k * (x-x0)))
@@ -30,7 +147,8 @@ def fit_sensitivity_decay(t: np.array, sensitivity: np.array, increasing: bool, 
     return pd.DataFrame({'t': t_pred, 'sensitivity': sensitivity_pred})
 
 
-def fit_hospital_weighted_sensitivity_decay(sensitivity: pd.DataFrame, increasing: bool, hospitalized_weights: pd.Series) -> pd.DataFrame:
+def fit_hospital_weighted_sensitivity_decay(sensitivity: pd.DataFrame, increasing: bool,
+                                            hospitalized_weights: pd.Series,) -> pd.DataFrame:
     assay = sensitivity['assay'].unique().item()
     hosp_sensitivity = sensitivity.loc[sensitivity['hospitalization_status'] == 'Hospitalized']
     nonhosp_sensitivity = sensitivity.loc[sensitivity['hospitalization_status'] == 'Non-hospitalized']
@@ -70,7 +188,9 @@ def calulate_waning_factor(infections: pd.DataFrame, sensitivity: pd.DataFrame,
 def location_waning_adjustment(infections: pd.DataFrame, sensitivity: pd.DataFrame,
                                seroprevalence: pd.DataFrame) -> pd.DataFrame:
     adj_seroprevalence = []
-    for i, (sero_data_id, sero_date, sero_value) in enumerate(zip(seroprevalence['data_id'], seroprevalence['date'], seroprevalence['seroprevalence'])):
+    for i, (sero_data_id, sero_date, sero_value) in enumerate(zip(seroprevalence['data_id'],
+                                                                  seroprevalence['date'],
+                                                                  seroprevalence['seroprevalence'])):
         waning_factor = calulate_waning_factor(infections, sensitivity, sero_date)
         adj_seroprevalence.append(pd.DataFrame({
             'data_id': sero_data_id,
@@ -82,14 +202,21 @@ def location_waning_adjustment(infections: pd.DataFrame, sensitivity: pd.DataFra
     return adj_seroprevalence
 
 
-def waning_adjustment(ifr: pd.Series, daily_deaths: pd.Series, sensitivity: pd.DataFrame,
+def waning_adjustment(pred_ifr: pd.Series, daily_deaths: pd.Series, sensitivity: pd.DataFrame,
                       seroprevalence: pd.DataFrame) -> pd.DataFrame:
-    infections = ((daily_deaths / ifr)
+    infections = ((daily_deaths / pred_ifr)
                   .dropna()
                   .rename('infections')
                   .reset_index()
                   .set_index('location_id'))
     infections['date'] -= pd.Timedelta(days=SERO_TO_DEATH)
+    
+    # determine waning adjustment based on midpoint of survey
+    orig_date = seroprevalence[['data_id', 'date']].copy()
+    seroprevalence['n_midpoint_days'] = (seroprevalence['end_date'] - seroprevalence['start_date']).dt.days
+    seroprevalence['n_midpoint_days'] = seroprevalence['n_midpoint_days'].astype(int)
+    seroprevalence['date'] = seroprevalence.apply(lambda x: x['date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
+    del seroprevalence['n_midpoint_days']
     
     seroprevalence_list = []
     location_ids = seroprevalence['location_id'].unique().tolist()
@@ -104,40 +231,7 @@ def waning_adjustment(ifr: pd.Series, daily_deaths: pd.Series, sensitivity: pd.D
         _sero['location_id'] = location_id
         seroprevalence_list.append(_sero)
     seroprevalence = pd.concat(seroprevalence_list).reset_index(drop=True)
-    
-    return seroprevalence
-
-
-def remove_effectively_vaccinated(seroprevalence: pd.DataFrame,
-                                  effectively_vaccinated: pd.Series,) -> pd.DataFrame:
-    seroprevalence = seroprevalence.merge(
-        effectively_vaccinated.reset_index(), how='left'
-    )
-    seroprevalence['effectively_vaccinated'] = seroprevalence['effectively_vaccinated'].fillna(0)
-    seroprevalence.loc[seroprevalence['test_target'] != 'spike', 'effectively_vaccinated'] = 0
-    
-    seroprevalence = seroprevalence.rename(columns={'seroprevalence':'reported_seroprevalence'})
-    seroprevalence['seroprevalence'] = 1 - (1 - seroprevalence['reported_seroprevalence']) / (1 - seroprevalence['effectively_vaccinated'])
-    
-    del seroprevalence['effectively_vaccinated']
-    
-    return seroprevalence
-
-
-def load_seroprevalence(model_inputs_root: Path, vaccine_coverage_root: Path,
-                        verbose: bool = True) -> pd.DataFrame:
-    seroprevalence = model_inputs.seroprevalence(model_inputs_root, verbose=verbose)
-
-    effectively_vaccinated = estimates.vaccinations(vaccine_coverage_root)['effectively_vaccinated']
-    population = model_inputs.population(model_inputs_root)
-    effectively_vaccinated /= population
-    
-    effectively_vaccinated = effectively_vaccinated.reset_index()
-    effectively_vaccinated['date'] -= pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
-    effectively_vaccinated = effectively_vaccinated.set_index(['location_id', 'date'])
-    
-    if verbose:
-        logger.info('Removing effectively vaccinated from reported seroprevalence.')
-    seroprevalence = remove_effectively_vaccinated(seroprevalence, effectively_vaccinated,)
+    del seroprevalence['date']
+    seroprevalence = seroprevalence.merge(orig_date)
     
     return seroprevalence
