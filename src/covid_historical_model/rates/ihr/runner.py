@@ -5,12 +5,13 @@ from loguru import logger
 import pandas as pd
 
 from covid_historical_model.rates import ihr
+from covid_historical_model.rates import post
 
-RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map pred pred_fe')
+RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map pred pred_fe pred_lr pred_hr')
 
 
-def runner(model_inputs_root: Path, age_pattern_root: Path,
-           seroprevalence: pd.DataFrame,
+def runner(model_inputs_root: Path, age_pattern_root: Path, variant_scaleup_root: Path,
+           seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
            day_0: str = '2020-03-15',
            pred_start_date: str = '2020-01-01',
            pred_end_date: str = '2021-12-31',
@@ -35,6 +36,18 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
         **input_data
     )
     
+    pred, pred_lr, pred_hr = post.variants_vaccines(
+        rate_age_pattern=input_data['ihr_age_pattern'].copy(),
+        denom_age_pattern=input_data['sero_age_pattern'].copy(),
+        age_spec_population=input_data['age_spec_population'].copy(),
+        numerator=input_data['daily_hospitalizations'].copy(),
+        rate=pred.copy(),
+        variant_prevalence=input_data['variant_prevalence'].copy(),
+        vaccine_coverage=input_data['vaccine_coverage'].copy(),
+        population=input_data['population'].copy(),
+    )
+
+    
     results = RESULTS(
         seroprevalence=input_data['seroprevalence'],
         model_data=model_data,
@@ -42,6 +55,8 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
         pred_location_map=pred_location_map,
         pred=pred,
         pred_fe=pred_fe,
+        pred_lr=pred_lr,
+        pred_hr=pred_hr,
     )
 
     return results

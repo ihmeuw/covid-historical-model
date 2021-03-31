@@ -8,7 +8,7 @@ from covid_historical_model.mrbrt import cascade
 
 
 def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
-              hierarchy: pd.DataFrame,
+              hierarchy: pd.DataFrame, cov_hierarchy: pd.DataFrame,
               verbose: bool = True,
               **kwargs) -> Tuple[Dict, Dict, pd.Series, pd.Series, pd.Series]:
     model_data['logit_idr'] = logit(model_data['idr'])
@@ -29,11 +29,11 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     pred_replace_dict = {'log_testing_rate_capacity': 'log_infwavg_testing_rate_capacity',}
     pred_exclude_vars = []
     level_lambdas = {
-        0: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
-        1: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
-        2: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
-        3: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
-        4: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
+        0: {'intercept': 5., 'log_infwavg_testing_rate_capacity': 100.,},
+        1: {'intercept': 5., 'log_infwavg_testing_rate_capacity': 100.,},
+        2: {'intercept': 5., 'log_infwavg_testing_rate_capacity': 100.,},
+        3: {'intercept': 5., 'log_infwavg_testing_rate_capacity': 100.,},
+        4: {'intercept': 5., 'log_infwavg_testing_rate_capacity': 100.,},
     }
     
     if var_args['group_var'] != 'location_id':
@@ -54,7 +54,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     pred_data = pred_data.dropna()
     pred, pred_fe, pred_location_map = cascade.predict_cascade(
         pred_data=pred_data.copy(),
-        hierarchy=hierarchy.copy(),
+        hierarchy=cov_hierarchy.copy(),
         mr_model_dict=mr_model_dict.copy(),
         pred_replace_dict=pred_replace_dict.copy(),
         pred_exclude_vars=pred_exclude_vars.copy(),

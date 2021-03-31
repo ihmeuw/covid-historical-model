@@ -10,24 +10,30 @@ from covid_historical_model.durations.durations import ADMISSION_TO_SERO
 
 
 def load_input_data(model_inputs_root: Path, age_pattern_root: Path,
-                    seroprevalence: pd.DataFrame,
+                    variant_scaleup_root: Path,
+                    seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
                     verbose: bool = True) -> Dict:
     # load data
     hierarchy = model_inputs.hierarchy(model_inputs_root)
     population = model_inputs.population(model_inputs_root)
     age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
-    cumulative_hospitalizations, daily_hospitalizations = model_inputs.reported_epi(model_inputs_root, 'hospitalizations')
+    cumulative_hospitalizations, daily_hospitalizations = model_inputs.reported_epi(
+        model_inputs_root, 'hospitalizations', hierarchy
+    )
     sero_age_pattern = estimates.seroprevalence_age_pattern(age_pattern_root)
     ihr_age_pattern = estimates.ihr_age_pattern(age_pattern_root)
+    variant_prevalence = estimates.escape_variant_scaleup(variant_scaleup_root, verbose=verbose)
     covariates = []
     
     return {'cumulative_hospitalizations': cumulative_hospitalizations,
             'daily_hospitalizations': daily_hospitalizations,
             'seroprevalence': seroprevalence,
+            'vaccine_coverage': vaccine_coverage,
             'covariates': covariates,
             'sero_age_pattern': sero_age_pattern,
             'ihr_age_pattern': ihr_age_pattern,
             'age_spec_population': age_spec_population,
+            'variant_prevalence': variant_prevalence,
             'hierarchy': hierarchy,
             'population': population,}
 

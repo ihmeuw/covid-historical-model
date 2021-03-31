@@ -91,12 +91,28 @@ def vaccine_coverage(vaccine_coverage_root: Path) -> pd.DataFrame:
     data_path = vaccine_coverage_root / 'slow_scenario_vaccine_coverage.csv'
     data = pd.read_csv(data_path)
     data['date'] = pd.to_datetime(data['date'])
-    data = data.rename(columns={'cumulative_all_effective':'vaccinated'})
+    
+    keep_columns = [
+        # total seroconverted
+        'cumulative_all_effective',
+        
+        # elderly (mutually exclusive)
+        'cumulative_hr_effective_wildtype',
+        'cumulative_hr_effective_protected_wildtype',
+        'cumulative_hr_effective_variant',
+        'cumulative_hr_effective_protected_variant',
+    
+        # other adults (mutually exclusive)
+        'cumulative_lr_effective_wildtype',
+        'cumulative_lr_effective_protected_wildtype',
+        'cumulative_lr_effective_variant',
+        'cumulative_lr_effective_protected_variant',
+    ]
     
     data = (data
             .set_index(['location_id', 'date'])
             .sort_index()
-            .loc[:, ['vaccinated']])
+            .loc[:, keep_columns])
     
     return data
 

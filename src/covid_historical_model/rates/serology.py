@@ -7,14 +7,12 @@ from scipy.optimize import curve_fit
 
 
 from covid_historical_model.durations.durations import SERO_TO_DEATH, EXPOSURE_TO_SEROPOSITIVE
-from covid_historical_model.etl import model_inputs, estimates
+from covid_historical_model.etl import model_inputs
 
 
-def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccine_coverage_root: Path,
+def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.Series,
                                         verbose: bool = True) -> pd.DataFrame:
     seroprevalence = model_inputs.seroprevalence(model_inputs_root, verbose=verbose)
-
-    vaccinated = estimates.vaccine_coverage(vaccine_coverage_root)['vaccinated']
     
     population = model_inputs.population(model_inputs_root)
     vaccinated /= population
@@ -35,7 +33,7 @@ def remove_vaccinated(seroprevalence: pd.DataFrame,
                       vaccinated: pd.Series,) -> pd.DataFrame:
     ## remove vaccinated based on end date? otherwise use commented out bits here
     # seroprevalence = seroprevalence.rename(columns={'date':'end_date'})
-    # seroprevalence['n_midpoint_days'] = (seroprevalence['end_date'] - seroprevalence['start_date']).dt.days
+    # seroprevalence['n_midpoint_days'] = (seroprevalence['end_date'] - seroprevalence['start_date']).dt.days / 2
     # seroprevalence['n_midpoint_days'] = seroprevalence['n_midpoint_days'].astype(int)
     # seroprevalence['date'] = seroprevalence.apply(lambda x: x['end_date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
     seroprevalence = seroprevalence.merge(vaccinated.reset_index(), how='left')
@@ -80,7 +78,7 @@ def apply_waning_adjustment(model_inputs_root: Path,
     
     source_assays = sensitivity[['source', 'assay']].drop_duplicates().values.tolist()
     
-    assay_sensitivity = pd.concat(
+    sensitivity = pd.concat(
         [
             fit_hospital_weighted_sensitivity_decay(
                 sensitivity.loc[(sensitivity['source'] == source) & (sensitivity['assay'] == assay)].copy(),
@@ -99,29 +97,39 @@ def apply_waning_adjustment(model_inputs_root: Path,
     is_other = ~(is_N | is_S)
     seroprevalence.loc[missing_match & is_N, 'assay_match'] = 'N-Roche, N-Abbott'
     seroprevalence.loc[missing_match & is_S, 'assay_match'] = 'S-Roche, S-Ortho Ig, S-Ortho IgG, S-DiaSorin, S-EuroImmun'
-    seroprevalence.loc[missing_match & is_other, 'assay_match'] = 'N-Roche, '  # N Ig
-                                                                  'N-Abbott, '  # N IgG
-                                                                  'S-Roche, S-Ortho Ig, '  # S Ig
-                                                                  'S-Ortho IgG, S-DiaSorin, S-EuroImmun'  # S IgG
+    seroprevalence.loc[missing_match & is_other, 'assay_match'] = 'N-Roche, ' \
+                                                                  'N-Abbott, ' \
+                                                                  'S-Roche, S-Ortho Ig, ' \
+                                                                  'S-Ortho IgG, S-DiaSorin, S-EuroImmun' 
 
     assay_combinations = seroprevalence['assay_match'].unique().tolist()
-    # for i in range(len(assays)):
-    #     assay_combinations += list(itertools.combinations(assays, i + 1))
 
+    assay_sensitivity_list = []
     assay_seroprevalence_list = []
     for assay_combination in assay_combinations:
+        assay_sensitivity = (sensitivity
+                             .loc[assay_combination.split(', ')]
+                             .reset_index()
+                             .groupby(['location_id', 't'])['sensitivity'].mean())
+        assay_seroprevalence = (seroprevalence
+                                 .loc[seroprevalence['assay_match'] == assay_combination].copy())
         assay_seroprevalence = waning_adjustment(
             pred_ifr.copy(),
             daily_deaths.copy(),
-            (assay_sensitivity
-             .loc[assay_combination.split(', ')]
-             .reset_index()
-             .groupby(['location_id', 't'])['sensitivity'].mean()),
-            seroprevalence.loc[seroprevalence['assay_match'] == assay_combination].copy()
+            assay_sensitivity.copy(),
+            assay_seroprevalence.copy()
         )
+        
+        assay_sensitivity = (assay_sensitivity
+                             .loc[assay_seroprevalence['location_id'].unique().tolist()]
+                             .reset_index())
+        assay_sensitivity['assay'] = assay_combination
+        assay_sensitivity_list.append(assay_sensitivity)
+        
         assay_seroprevalence['is_outlier'] = 0
         assay_seroprevalence['assay'] = assay_combination
         assay_seroprevalence_list.append(assay_seroprevalence)
+    assay_sensitivity = pd.concat(assay_sensitivity_list)
     assay_seroprevalence = pd.concat(assay_seroprevalence_list)
     
     return assay_sensitivity, assay_seroprevalence
@@ -213,7 +221,7 @@ def waning_adjustment(pred_ifr: pd.Series, daily_deaths: pd.Series, sensitivity:
     
     # determine waning adjustment based on midpoint of survey
     orig_date = seroprevalence[['data_id', 'date']].copy()
-    seroprevalence['n_midpoint_days'] = (seroprevalence['end_date'] - seroprevalence['start_date']).dt.days
+    seroprevalence['n_midpoint_days'] = (seroprevalence['date'] - seroprevalence['start_date']).dt.days / 2
     seroprevalence['n_midpoint_days'] = seroprevalence['n_midpoint_days'].astype(int)
     seroprevalence['date'] = seroprevalence.apply(lambda x: x['date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
     del seroprevalence['n_midpoint_days']

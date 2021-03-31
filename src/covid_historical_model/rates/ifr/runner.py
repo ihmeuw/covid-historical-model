@@ -11,12 +11,13 @@ from covid_historical_model.rates import ihr
 from covid_historical_model.rates import reinfection
 from covid_historical_model.rates import serology
 from covid_historical_model.rates import age_standardization
+from covid_historical_model.rates import post
 
 RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map pred pred_fe pred_lr pred_hr')
 
 
-def runner(model_inputs_root: Path, age_pattern_root: Path, variant_scaleup_root: Path,
-           orig_seroprevalence: pd.DataFrame,
+def runner(model_inputs_root: Path, em_path: Path, age_pattern_root: Path, variant_scaleup_root: Path,
+           orig_seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
            day_inflection: str,
            day_0: str = '2020-03-15',
            pred_start_date: str = '2020-01-01',
@@ -27,8 +28,8 @@ def runner(model_inputs_root: Path, age_pattern_root: Path, variant_scaleup_root
     pred_start_date = pd.Timestamp(pred_start_date)
     pred_end_date = pd.Timestamp(pred_end_date)
 
-    input_data = ifr.data.load_input_data(model_inputs_root, age_pattern_root,
-                                          orig_seroprevalence, verbose=verbose)
+    input_data = ifr.data.load_input_data(model_inputs_root, em_path, age_pattern_root, variant_scaleup_root,
+                                          orig_seroprevalence, vaccine_coverage, verbose=verbose)
     model_data = ifr.data.create_model_data(day_0=day_0, **input_data)
     pred_data = ifr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,
@@ -45,21 +46,24 @@ def runner(model_inputs_root: Path, age_pattern_root: Path, variant_scaleup_root
     )
     
     # account for escape variant re-infection
-    seroprevalence = reinfection.add_repeat_infections(
-        variant_scaleup_root,
+    reinfection_inflation_factor, seroprevalence = reinfection.add_repeat_infections(
+        input_data['variant_prevalence'].copy(),
         input_data['daily_deaths'].copy(),
         pred.copy(),
         orig_seroprevalence.copy(),
+        input_data['hierarchy'],
+        input_data['population'],
+        verbose=verbose,
     )
 
     # account for waning antibody detection
-    ihr_age_pattern = ihr.data.load_input_data(model_inputs_root, age_pattern_root,
-                                               seroprevalence, verbose=verbose)['ihr_age_pattern']
+    ihr_age_pattern = ihr.data.load_input_data(model_inputs_root, age_pattern_root, variant_scaleup_root,
+                                               seroprevalence, vaccine_coverage, verbose=verbose)['ihr_age_pattern']
     hospitalized_weights = age_standardization.get_all_age_rate(
         ihr_age_pattern, input_data['sero_age_pattern'],
         input_data['age_spec_population']
     )
-    seroprevalence = serology.apply_waning_adjustment(
+    sensitivity, seroprevalence = serology.apply_waning_adjustment(
         model_inputs_root,
         hospitalized_weights.copy(),
         seroprevalence.copy(),
@@ -84,15 +88,26 @@ def runner(model_inputs_root: Path, age_pattern_root: Path, variant_scaleup_root
         **refit_input_data
     )
     
-    low_risk_rr, high_risk_rr = age_standardization.get_risk_group_rr(
-        input_data['ifr_age_pattern'].copy(),
-        input_data['sero_age_pattern'].copy(),
-        input_data['age_spec_population'].copy(),
+    pred, pred_lr, pred_hr = post.variants_vaccines(
+        rate_age_pattern=input_data['ifr_age_pattern'].copy(),
+        denom_age_pattern=input_data['sero_age_pattern'].copy(),
+        age_spec_population=input_data['age_spec_population'].copy(),
+        numerator=input_data['daily_deaths'].copy(),
+        rate=pred.copy(),
+        variant_prevalence=input_data['variant_prevalence'].copy(),
+        vaccine_coverage=input_data['vaccine_coverage'].copy(),
+        population=input_data['population'].copy(),
     )
-    pred_lr = (pred * low_risk_rr).rename('pred_ifr_lr')
-    pred_hr = (pred * high_risk_rr).rename('pred_ifr_hr')
-    refit_pred_lr = (refit_pred * low_risk_rr).rename('pred_ifr_lr')
-    refit_pred_hr = (refit_pred * high_risk_rr).rename('pred_ifr_hr')
+    refit_pred, refit_pred_lr, refit_pred_hr = post.variants_vaccines(
+        rate_age_pattern=refit_input_data['ifr_age_pattern'].copy(),
+        denom_age_pattern=refit_input_data['sero_age_pattern'].copy(),
+        age_spec_population=refit_input_data['age_spec_population'].copy(),
+        numerator=refit_input_data['daily_deaths'].copy(),
+        rate=refit_pred.copy(),
+        variant_prevalence=refit_input_data['variant_prevalence'].copy(),
+        vaccine_coverage=refit_input_data['vaccine_coverage'].copy(),
+        population=refit_input_data['population'].copy(),
+    )
     
     results = RESULTS(
         seroprevalence=orig_seroprevalence,
@@ -122,4 +137,6 @@ def runner(model_inputs_root: Path, age_pattern_root: Path, variant_scaleup_root
                                 refit_pred_location_map.copy(),
                                 refit_mr_model_dict.copy(),)
 
-    return {'raw_results': results, 'refit_results': refit_results, 'nrmse': nrmse}
+    return {'raw_results': results, 'refit_results': refit_results,
+            'reinfection_inflation_factor': reinfection_inflation_factor,
+            'sensitivity': sensitivity, 'nrmse': nrmse,}

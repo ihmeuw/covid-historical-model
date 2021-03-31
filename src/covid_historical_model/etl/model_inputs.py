@@ -9,7 +9,7 @@ from covid_historical_model.etl import db, helpers
 from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
 
 
-def seroprevalence(model_inputs_root: Path, verbose: bool = True) -> pd.DataFrame:
+def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFrame:
     # load
     data_path = model_inputs_root / 'serology' / 'global_serology_summary.csv'
     data = pd.read_csv(data_path, encoding='latin1')
@@ -60,21 +60,21 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True) -> pd.DataFram
     #             f'filling missing sample size with min observed for {n_missing_ss_ci} that also do not report CI.')
     # del n_missing_ss, n_missing_ss_ci
     
-    # 2)
-    #    Question: What if survey is only in adults? Only kids?
-    #    Current approach: Drop beyond some threshold limits.
-    #    Final solution: ...
-    max_start_age = 30
-    min_end_age = 60
-    data['study_start_age'] = helpers.str_fmt(data['study_start_age']).replace('not specified', np.nan).astype(float)
-    data['study_end_age'] = helpers.str_fmt(data['study_end_age']).replace('not specified', np.nan).astype(float)
-    too_old = data['study_start_age'] > max_start_age
-    too_young = data['study_end_age'] < min_end_age
-    age_outlier = (too_old  | too_young).astype(int)
-    outliers.append(age_outlier)
-    if verbose:
-        logger.info(f'{age_outlier.sum()} rows from sero data do not have enough '
-                f'age coverage (at least ages {max_start_age} to {min_end_age}).')
+    # # 2)
+    # #    Question: What if survey is only in adults? Only kids?
+    # #    Current approach: Drop beyond some threshold limits.
+    # #    Final solution: ...
+    # max_start_age = 30
+    # min_end_age = 60
+    # data['study_start_age'] = helpers.str_fmt(data['study_start_age']).replace('not specified', np.nan).astype(float)
+    # data['study_end_age'] = helpers.str_fmt(data['study_end_age']).replace('not specified', np.nan).astype(float)
+    # too_old = data['study_start_age'] > max_start_age
+    # too_young = data['study_end_age'] < min_end_age
+    # age_outlier = (too_old  | too_young).astype(int)
+    # outliers.append(age_outlier)
+    # if verbose:
+    #     logger.info(f'{age_outlier.sum()} rows from sero data do not have enough '
+    #             f'age coverage (at least ages {max_start_age} to {min_end_age}).')
     
     # 3)
     #    Question: Use of geo_accordance?
@@ -85,7 +85,24 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True) -> pd.DataFram
     outliers.append(geo_outlier)
     if verbose:
         logger.info(f'{geo_outlier.sum()} rows from sero data do not have `geo_accordance`.')
-    data['correction_status'] == helpers.str_fmt(data['correction_status']).replace(('unchecked', 'not specified', np.nan), '0').astype(int)
+    data['correction_status'] = helpers.str_fmt(data['correction_status']).replace(('unchecked', 'not specified', np.nan), '0').astype(int)
+    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+    
+    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+    ## manually specify certain tests when reporting is mixed (might just be US?)
+    # Connecticut (looks to use Abbott test)
+    is_conn = data['location_id'] == 529
+    is_cdc = data['survey_series'] == 'cdc_series'
+    data.loc[is_conn & is_cdc, 'test_target'] = 'nucleocapsid'
+    data.loc[is_conn & is_cdc, 'isotype'] = 'IgG'
+    data.loc[is_conn & is_cdc, 'test_name'] = 'Abbott ARCHITECT SARS-CoV-2 IgG immunoassay'
+    
+    # Illinois (looks to use Ortho test)
+    is_conn = data['location_id'] == 536
+    is_cdc = data['survey_series'] == 'cdc_series'
+    data.loc[is_conn & is_cdc, 'test_target'] = 'spike'
+    data.loc[is_conn & is_cdc, 'isotype'] = 'IgG'
+    data.loc[is_conn & is_cdc, 'test_name'] = 'Ortho-Clinical Diagnostics VITROS SARS-CoV-2 IgG immunoassay'
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
     keep_columns = ['data_id', 'nid', 'location_id', 'start_date', 'date',
@@ -108,7 +125,8 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True) -> pd.DataFram
     return data
 
 
-def reported_epi(model_inputs_root: Path, input_measure: str) -> Tuple[pd.Series, pd.Series]:
+def reported_epi(model_inputs_root: Path, input_measure: str,
+                 hierarchy: pd.DataFrame, em_path: Path = None,) -> Tuple[pd.Series, pd.Series]:
     data_path = model_inputs_root / 'use_at_your_own_risk' / 'full_data_extra_hospital.csv'
     data = pd.read_csv(data_path)
     data = data.rename(columns={'Deaths':'cumulative_deaths',
@@ -122,6 +140,15 @@ def reported_epi(model_inputs_root: Path, input_measure: str) -> Tuple[pd.Series
     data = (data.groupby('location_id', as_index=False)
             .apply(lambda x: helpers.fill_dates(x, [f'cumulative_{input_measure}']))
             .reset_index(drop=True))
+    if input_measure == 'deaths':
+        em_data = pd.read_csv(em_path)
+        em_data = em_data.rename(columns={'value':'em_scalar'})
+        em_data = em_data.loc[:, ['location_id', 'em_scalar']]
+        data = data.merge(em_data, how='left')
+        data['em_scalar'] = data['em_scalar'].fillna(1)
+        data[f'cumulative_{input_measure}'] *= data['em_scalar']
+        del data['em_scalar']
+    data = helpers.aggregate_data_from_md(data, hierarchy, f'cumulative_{input_measure}')
     data[f'daily_{input_measure}'] = (data
                                       .groupby('location_id')[f'cumulative_{input_measure}']
                                       .apply(lambda x: x.diff())
@@ -137,8 +164,12 @@ def reported_epi(model_inputs_root: Path, input_measure: str) -> Tuple[pd.Series
     return cumulative_data, daily_data
 
 
-def hierarchy(model_inputs_root:Path) -> pd.DataFrame:
-    data_path = model_inputs_root / 'locations' / 'modeling_hierarchy.csv'
+def hierarchy(model_inputs_root:Path, covariates: bool = False) -> pd.DataFrame:
+    if not covariates:
+        data_path = model_inputs_root / 'locations' / 'modeling_hierarchy.csv'
+    else:
+        data_path = model_inputs_root / 'locations' / 'covariate_with_aggregates_hierarchy.csv'
+    
     data = pd.read_csv(data_path)
     data = data.sort_values('sort_order').reset_index(drop=True)
     
@@ -188,6 +219,10 @@ def assay_sensitivity(model_inputs_root: Path) -> pd.DataFrame:
                                     'AntigenAndAssay': 'assay',
                                     'Hospitalization_status': 'hospitalization_status',})
     peluso = peluso.loc[:, ['assay', 'hospitalization_status', 't', 'sensitivity']]
+    # only need to keep commercial assays
+    peluso = peluso.loc[~peluso['assay'].isin(['Neut-Monogram', 'RBD-LIPS', 'RBD-Split Luc',
+                                               'RBD-Lum', 'S-Lum', 'N(full)-Lum', 'N-LIPS',
+                                               'N(frag)-Lum', 'N-Split Luc'])]
     peluso['source'] = 'Peluso'
     
     # could try to manually apply hosp/non-hosp split
@@ -200,6 +235,6 @@ def assay_sensitivity(model_inputs_root: Path) -> pd.DataFrame:
     ])
     perez_saez['source'] = 'Perez-Saez'
     
-    sensitivity = pd.concat([peluso, perez_saez])
+    sensitivity = pd.concat([peluso, perez_saez]).reset_index(drop=True)
     
     return sensitivity

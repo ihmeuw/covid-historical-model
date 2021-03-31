@@ -40,18 +40,20 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
                                     'spline_knots':np.array([0., inflection_point, 1.]),
                                     'spline_degree':1,
                                     'prior_spline_maxder_uniform':np.array([[-np.inf, -0.],
-                                                                            [-1e-6  , -0.]])},
+                                                                            [-1e-4  , -0.]]),
+                                    'prior_spline_maxder_gaussian':np.array([[-2e3, 0.    ],
+                                                                             [1e3 , np.inf]]),},
                               },
                 're_vars': [],
                 'group_var': 'location_id',}
     pred_replace_dict = {}
     pred_exclude_vars = []
     level_lambdas = {
-        0: {'intercept': 100., 't': 10., 'obesity': 1.,},
-        1: {'intercept': 100., 't': 10., 'obesity': 1.,},
-        2: {'intercept': 100., 't': 10., 'obesity': 1.,},
-        3: {'intercept': 100., 't': 10., 'obesity': 1.,},
-        4: {'intercept': 100., 't': 10., 'obesity': 1.,},
+        0: {'intercept': 100., 't': 5., 'obesity': 1.,},
+        1: {'intercept': 100., 't': 5., 'obesity': 1.,},
+        2: {'intercept': 100., 't': 5., 'obesity': 1.,},
+        3: {'intercept': 100., 't': 5., 'obesity': 1.,},
+        4: {'intercept': 100., 't': 5., 'obesity': 1.,},
     }
     
     if var_args['group_var'] != 'location_id':

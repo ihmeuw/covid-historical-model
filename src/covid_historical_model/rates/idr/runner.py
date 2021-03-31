@@ -42,7 +42,7 @@ def runner(model_inputs_root: Path, testing_root: Path,
                      .sort_index()
                      .loc[:, 'seroprevalence']),
         population=input_data['population'].copy(),
-        hierarchy=input_data['hierarchy'].copy(),
+        hierarchy=input_data['cov_hierarchy'].copy(),
         test_range=[0.1] + list(range(1, 11)),
         verbose=verbose,
     )
