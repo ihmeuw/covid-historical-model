@@ -2,6 +2,7 @@ from typing import Tuple
 
 import pandas as pd
 
+from covid_historical_model.rates import age_standardization
 from covid_historical_model.durations.durations import EXPOSURE_TO_DEATH
 
 SEVERE_DISEASE_INFLATION = 1.3
@@ -12,15 +13,26 @@ def variants_vaccines(rate_age_pattern: pd.Series,
                       age_spec_population: pd.Series,
                       numerator: pd.Series,
                       rate: pd.Series,
-                      variant_prevalence: pd.Series,
+                      escape_variant_prevalence: pd.Series,
+                      severity_variant_prevalence: pd.Series,
                       vaccine_coverage: pd.DataFrame,
                       population: pd.Series,
                       escape_variant_rate_scalar: float = SEVERE_DISEASE_INFLATION,):
-    variant_prevalence = variant_prevalence.reset_index()
-    variant_prevalence['date'] += pd.Timedelta(days=EXPOSURE_TO_DEATH)
-    variant_prevalence = variant_prevalence.set_index(['location_id', 'date']).loc[:, 'variant_prevalence']
-    variant_prevalence = pd.concat([rate, variant_prevalence], axis=1)  # borrow axis
-    variant_prevalence = variant_prevalence['variant_prevalence'].fillna(0)
+    escape_variant_prevalence = escape_variant_prevalence.reset_index()
+    escape_variant_prevalence['date'] += pd.Timedelta(days=EXPOSURE_TO_DEATH)
+    escape_variant_prevalence = (escape_variant_prevalence
+                                 .set_index(['location_id', 'date'])
+                                 .loc[:, 'escape_variant_prevalence'])
+    escape_variant_prevalence = pd.concat([rate, escape_variant_prevalence], axis=1)  # borrow axis
+    escape_variant_prevalence = escape_variant_prevalence['escape_variant_prevalence'].fillna(0)
+    
+    severity_variant_prevalence = severity_variant_prevalence.reset_index()
+    severity_variant_prevalence['date'] += pd.Timedelta(days=EXPOSURE_TO_DEATH)
+    severity_variant_prevalence = (severity_variant_prevalence
+                                 .set_index(['location_id', 'date'])
+                                 .loc[:, 'severity_variant_prevalence'])
+    severity_variant_prevalence = pd.concat([rate, severity_variant_prevalence], axis=1)  # borrow axis
+    severity_variant_prevalence = severity_variant_prevalence['severity_variant_prevalence'].fillna(0)
 
     vaccine_coverage = vaccine_coverage.reset_index()
     vaccine_coverage['date'] += pd.Timedelta(days=EXPOSURE_TO_DEATH)
@@ -36,12 +48,15 @@ def variants_vaccines(rate_age_pattern: pd.Series,
     numerator += 1e-4
     numerator /= population
     denominator_a = (numerator / rate[numerator.index])
-    denominator_v = (numerator / (rate[numerator.index] * escape_variant_rate_scalar))
-    denominator_a *= (1 - variant_prevalence[denominator_a.index])
-    denominator_v *= variant_prevalence[denominator_v.index]
+    denominator_ev = (numerator / (rate[numerator.index] * escape_variant_rate_scalar))
+    denominator_sv = (numerator / (rate[numerator.index] * escape_variant_rate_scalar))
+    denominator_a *= (1 - (escape_variant_prevalence + severity_variant_prevalence)[denominator_a.index])
+    denominator_ev *= escape_variant_prevalence[denominator_ev.index]
+    denominator_sv *= severity_variant_prevalence[denominator_sv.index]
 
     numerator_a = (rate[denominator_a.index] * denominator_a)
-    numerator_v = (rate[denominator_v.index] * escape_variant_rate_scalar * denominator_v)
+    numerator_ev = (rate[denominator_ev.index] * escape_variant_rate_scalar * denominator_ev)
+    numerator_sv = (rate[denominator_sv.index] * escape_variant_rate_scalar * denominator_sv)
     
     numerator_lr_a, numerator_hr_a, denominator_lr_a, denominator_hr_a = adjust_by_variant_classification(
         numerator_a,
@@ -53,9 +68,9 @@ def variants_vaccines(rate_age_pattern: pd.Series,
         population,
         variant_suffix='wildtype',
     )
-    numerator_lr_v, numerator_hr_v, denominator_lr_v, denominator_hr_v = adjust_by_variant_classification(
-        numerator_v,
-        denominator_v,
+    numerator_lr_ev, numerator_hr_ev, denominator_lr_ev, denominator_hr_ev = adjust_by_variant_classification(
+        numerator_ev,
+        denominator_ev,
         rate_age_pattern,
         denom_age_pattern,
         age_spec_population,
@@ -63,10 +78,20 @@ def variants_vaccines(rate_age_pattern: pd.Series,
         population,
         variant_suffix='variant',
     )
-    numerator_lr = numerator_lr_a + numerator_lr_v
-    denominator_lr = denominator_lr_a + denominator_lr_v
-    numerator_hr = numerator_hr_a + numerator_hr_v
-    denominator_hr = denominator_hr_a + denominator_hr_v
+    numerator_lr_sv, numerator_hr_sv, denominator_lr_sv, denominator_hr_sv = adjust_by_variant_classification(
+        numerator_sv,
+        denominator_sv,
+        rate_age_pattern,
+        denom_age_pattern,
+        age_spec_population,
+        vaccine_coverage,
+        population,
+        variant_suffix='wildtype',
+    )
+    numerator_lr = numerator_lr_a + numerator_lr_ev + numerator_lr_sv
+    denominator_lr = denominator_lr_a + denominator_lr_ev + denominator_lr_sv
+    numerator_hr = numerator_hr_a + numerator_hr_ev + numerator_hr_sv
+    denominator_hr = denominator_hr_a + denominator_hr_ev + denominator_hr_sv
     
     rate = (numerator_lr + numerator_hr) / (denominator_lr + denominator_hr)
     rate_lr = numerator_lr / denominator_lr

@@ -9,7 +9,7 @@ from covid_historical_model.rates import idr
 RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map pred pred_fe')
 
 
-def runner(model_inputs_root: Path, testing_root: Path,
+def runner(model_inputs_root: Path, em_path: Path, testing_root: Path,
            seroprevalence: pd.DataFrame,
            ifr_data: pd.Series,
            pred_start_date: str = '2020-01-01',
@@ -18,7 +18,7 @@ def runner(model_inputs_root: Path, testing_root: Path,
     pred_start_date = pd.Timestamp(pred_start_date)
     pred_end_date = pd.Timestamp(pred_end_date)
 
-    input_data = idr.data.load_input_data(model_inputs_root, testing_root,
+    input_data = idr.data.load_input_data(model_inputs_root, em_path, testing_root,
                                           seroprevalence, verbose=verbose)
     model_data = idr.data.create_model_data(ifr_data=ifr_data, verbose=verbose, **input_data)
     pred_data = idr.data.create_pred_data(

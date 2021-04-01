@@ -5,13 +5,15 @@ import pandas as pd
 from covid_historical_model.etl.helpers import aggregate_data_from_md
 from covid_historical_model.durations.durations import EXPOSURE_TO_DEATH, EXPOSURE_TO_SEROPOSITIVE
 
+CROSS_VARIANT_IMMUNITY = 0.33
 
-def add_repeat_infections(variant_prevalence: pd.Series,
+
+def add_repeat_infections(escape_variant_prevalence: pd.Series,
                           daily_deaths: pd.Series, pred_ifr: pd.Series,
                           seroprevalence: pd.DataFrame,
                           hierarchy: pd.DataFrame,
                           population: pd.Series,
-                          cross_variant_immunity: float = 0.33,
+                          cross_variant_immunity: float = CROSS_VARIANT_IMMUNITY,
                           verbose: bool = True) -> pd.DataFrame:
     infections = (daily_deaths / pred_ifr).dropna().rename('infections')
     infections = infections.reset_index()
@@ -21,7 +23,7 @@ def add_repeat_infections(variant_prevalence: pd.Series,
                   .loc[:, 'infections'])
     
     obs_infections = infections.groupby(level=0).cumsum().dropna()
-    repeat_infections = ((obs_infections / population) * (1 - cross_variant_immunity) * infections * variant_prevalence).rename('infections')
+    repeat_infections = ((obs_infections / population) * (1 - cross_variant_immunity) * infections * escape_variant_prevalence).rename('infections')
     repeat_infections = repeat_infections.fillna(infections).dropna()
     ancestral_infections = (infections - repeat_infections).groupby(level=0).cumsum().dropna()
     
@@ -38,7 +40,7 @@ def add_repeat_infections(variant_prevalence: pd.Series,
     
     '''
     fig, ax = plt.subplots(4, figsize=(8, 8), sharex=True)
-    ax[0].plot(variant_prevalence.loc[196], color='red')
+    ax[0].plot(escape_variant_prevalence.loc[196], color='red')
     ax[0].set_ylabel('P1 + B.1.351\nprevalence')
 
     ax[1].plot(infections.loc[196].rolling(window=7, min_periods=7, center=True).mean())

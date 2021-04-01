@@ -6,7 +6,6 @@ import pandas as pd
 import numpy as np
 
 from covid_historical_model.etl import db, helpers
-from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
 
 
 def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFrame:
@@ -201,7 +200,7 @@ def population(model_inputs_root: Path, by_age: bool = False) -> pd.Series:
     return data
 
 
-def assay_sensitivity(model_inputs_root: Path) -> pd.DataFrame:
+def assay_sensitivity(model_inputs_root: Path, assay_day_0: int = 21,) -> pd.DataFrame:
     # for consistency, should switch to using official model-inputs path (once Perez-Saez are in there)
     model_inputs_root = Path('/home/j/Project/covid/data_intake/')
     
@@ -227,8 +226,8 @@ def assay_sensitivity(model_inputs_root: Path) -> pd.DataFrame:
     
     # could try to manually apply hosp/non-hosp split
     perez_saez = pd.concat([pd.read_excel(perez_saez_path) for perez_saez_path in perez_saez_paths])
-    perez_saez = perez_saez.loc[perez_saez['t'] >= EXPOSURE_TO_SEROPOSITIVE]
-    perez_saez['t'] -= EXPOSURE_TO_SEROPOSITIVE
+    perez_saez = perez_saez.loc[perez_saez['t'] >= assay_day_0]
+    perez_saez['t'] -= assay_day_0
     perez_saez = pd.concat([
         pd.concat([perez_saez, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=perez_saez.index)], axis=1),
         pd.concat([perez_saez, pd.DataFrame({'hospitalization_status':'Hospitalized'}, index=perez_saez.index)], axis=1)

@@ -117,16 +117,27 @@ def vaccine_coverage(vaccine_coverage_root: Path) -> pd.DataFrame:
     return data
 
 
-def escape_variant_scaleup(variant_scaleup_root: Path, verbose: bool = True) -> pd.Series:
+def variant_scaleup(variant_scaleup_root: Path, variant_type: str, verbose: bool = True) -> pd.Series:
     data_path = variant_scaleup_root / 'variant_reference.csv'
     data = pd.read_csv(data_path)
     data['date'] = pd.to_datetime(data['date'])
-    is_escape_variant = ~data['variant'].isin(['wild_type', 'B117'])
-    data = data.loc[is_escape_variant]
-    if verbose:
-        logger.info(f"Escape variants: {', '.join(data['variant'].unique())}")
-    data = data.rename(columns={'prevalence': 'variant_prevalence'})
     
-    data = data.groupby(['location_id', 'date'])['variant_prevalence'].sum()
+    if variant_type == 'escape':
+        is_escape_variant = ~data['variant'].isin(['wild_type', 'B117'])
+        data = data.loc[is_escape_variant]
+        if verbose:
+            logger.info(f"Escape variants: {', '.join(data['variant'].unique())}")
+        data = data.rename(columns={'prevalence': 'escape_variant_prevalence'})
+        data = data.groupby(['location_id', 'date'])['escape_variant_prevalence'].sum()
+    elif variant_type == 'severity':
+        is_variant = data['variant'].isin(['B117'])
+        data = data.loc[is_variant]
+        if verbose:
+            logger.info(f"Variants: {', '.join(data['variant'].unique())}")
+        data = data.rename(columns={'prevalence': 'severity_variant_prevalence'})
+        data = data.groupby(['location_id', 'date'])['severity_variant_prevalence'].sum()
+    else:
+        raise ValueError(f'Invalid variant type specified: {variant_type}')
+
     
     return data

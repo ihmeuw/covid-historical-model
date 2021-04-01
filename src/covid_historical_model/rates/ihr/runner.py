@@ -10,8 +10,10 @@ from covid_historical_model.rates import post
 RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map pred pred_fe pred_lr pred_hr')
 
 
-def runner(model_inputs_root: Path, age_pattern_root: Path, variant_scaleup_root: Path,
+def runner(model_inputs_root: Path, age_pattern_root: Path,
            seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
+           escape_variant_prevalence: pd.Series,
+           severity_variant_prevalence: pd.Series,
            day_0: str = '2020-03-15',
            pred_start_date: str = '2020-01-01',
            pred_end_date: str = '2021-12-31',
@@ -21,7 +23,10 @@ def runner(model_inputs_root: Path, age_pattern_root: Path, variant_scaleup_root
     pred_end_date = pd.Timestamp(pred_end_date)
 
     input_data = ihr.data.load_input_data(model_inputs_root, age_pattern_root,
-                                          seroprevalence, verbose=verbose)
+                                          seroprevalence, vaccine_coverage,
+                                          escape_variant_prevalence,
+                                          severity_variant_prevalence,
+                                          verbose=verbose)
     model_data = ihr.data.create_model_data(day_0=day_0, **input_data)
     pred_data = ihr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,
@@ -42,7 +47,8 @@ def runner(model_inputs_root: Path, age_pattern_root: Path, variant_scaleup_root
         age_spec_population=input_data['age_spec_population'].copy(),
         numerator=input_data['daily_hospitalizations'].copy(),
         rate=pred.copy(),
-        variant_prevalence=input_data['variant_prevalence'].copy(),
+        escape_variant_prevalence=input_data['escape_variant_prevalence'].copy(),
+        severity_variant_prevalence=input_data['severity_variant_prevalence'].copy(),
         vaccine_coverage=input_data['vaccine_coverage'].copy(),
         population=input_data['population'].copy(),
     )

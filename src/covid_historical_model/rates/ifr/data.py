@@ -10,8 +10,8 @@ from covid_historical_model.durations.durations import SERO_TO_DEATH
 
 
 def load_input_data(model_inputs_root: Path, em_path: Path, age_pattern_root: Path,
-                    variant_scaleup_root: Path,
                     seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
+                    escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
                     verbose: bool = True) -> Dict:
     # load data
     hierarchy = model_inputs.hierarchy(model_inputs_root)
@@ -20,7 +20,6 @@ def load_input_data(model_inputs_root: Path, em_path: Path, age_pattern_root: Pa
     cumulative_deaths, daily_deaths = model_inputs.reported_epi(model_inputs_root, 'deaths', hierarchy, em_path)
     sero_age_pattern = estimates.seroprevalence_age_pattern(age_pattern_root)
     ifr_age_pattern = estimates.ifr_age_pattern(age_pattern_root)
-    variant_prevalence = estimates.escape_variant_scaleup(variant_scaleup_root, verbose=verbose)
     covariates = [db.obesity(hierarchy)]
     
     return {'cumulative_deaths': cumulative_deaths,
@@ -31,7 +30,8 @@ def load_input_data(model_inputs_root: Path, em_path: Path, age_pattern_root: Pa
             'sero_age_pattern': sero_age_pattern,
             'ifr_age_pattern': ifr_age_pattern,
             'age_spec_population': age_spec_population,
-            'variant_prevalence': variant_prevalence,
+            'escape_variant_prevalence': escape_variant_prevalence,
+            'severity_variant_prevalence': severity_variant_prevalence,
             'hierarchy': hierarchy,
             'population': population,}
 

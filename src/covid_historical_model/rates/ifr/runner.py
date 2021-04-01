@@ -16,8 +16,9 @@ from covid_historical_model.rates import post
 RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map pred pred_fe pred_lr pred_hr')
 
 
-def runner(model_inputs_root: Path, em_path: Path, age_pattern_root: Path, variant_scaleup_root: Path,
+def runner(model_inputs_root: Path, em_path: Path, age_pattern_root: Path,
            orig_seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
+           escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
            day_inflection: str,
            day_0: str = '2020-03-15',
            pred_start_date: str = '2020-01-01',
@@ -28,8 +29,11 @@ def runner(model_inputs_root: Path, em_path: Path, age_pattern_root: Path, varia
     pred_start_date = pd.Timestamp(pred_start_date)
     pred_end_date = pd.Timestamp(pred_end_date)
 
-    input_data = ifr.data.load_input_data(model_inputs_root, em_path, age_pattern_root, variant_scaleup_root,
-                                          orig_seroprevalence, vaccine_coverage, verbose=verbose)
+    input_data = ifr.data.load_input_data(model_inputs_root, em_path, age_pattern_root,
+                                          orig_seroprevalence, vaccine_coverage,
+                                          escape_variant_prevalence,
+                                          severity_variant_prevalence,
+                                          verbose=verbose)
     model_data = ifr.data.create_model_data(day_0=day_0, **input_data)
     pred_data = ifr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,
@@ -47,7 +51,7 @@ def runner(model_inputs_root: Path, em_path: Path, age_pattern_root: Path, varia
     
     # account for escape variant re-infection
     reinfection_inflation_factor, seroprevalence = reinfection.add_repeat_infections(
-        input_data['variant_prevalence'].copy(),
+        input_data['escape_variant_prevalence'].copy(),
         input_data['daily_deaths'].copy(),
         pred.copy(),
         orig_seroprevalence.copy(),
@@ -57,8 +61,11 @@ def runner(model_inputs_root: Path, em_path: Path, age_pattern_root: Path, varia
     )
 
     # account for waning antibody detection
-    ihr_age_pattern = ihr.data.load_input_data(model_inputs_root, age_pattern_root, variant_scaleup_root,
-                                               seroprevalence, vaccine_coverage, verbose=verbose)['ihr_age_pattern']
+    ihr_age_pattern = ihr.data.load_input_data(model_inputs_root, age_pattern_root,
+                                               seroprevalence, vaccine_coverage,
+                                               escape_variant_prevalence,
+                                               severity_variant_prevalence,
+                                               verbose=verbose)['ihr_age_pattern']
     hospitalized_weights = age_standardization.get_all_age_rate(
         ihr_age_pattern, input_data['sero_age_pattern'],
         input_data['age_spec_population']
@@ -94,7 +101,8 @@ def runner(model_inputs_root: Path, em_path: Path, age_pattern_root: Path, varia
         age_spec_population=input_data['age_spec_population'].copy(),
         numerator=input_data['daily_deaths'].copy(),
         rate=pred.copy(),
-        variant_prevalence=input_data['variant_prevalence'].copy(),
+        escape_variant_prevalence=input_data['escape_variant_prevalence'].copy(),
+        severity_variant_prevalence=input_data['severity_variant_prevalence'].copy(),
         vaccine_coverage=input_data['vaccine_coverage'].copy(),
         population=input_data['population'].copy(),
     )
@@ -104,7 +112,8 @@ def runner(model_inputs_root: Path, em_path: Path, age_pattern_root: Path, varia
         age_spec_population=refit_input_data['age_spec_population'].copy(),
         numerator=refit_input_data['daily_deaths'].copy(),
         rate=refit_pred.copy(),
-        variant_prevalence=refit_input_data['variant_prevalence'].copy(),
+        escape_variant_prevalence=refit_input_data['escape_variant_prevalence'].copy(),
+        severity_variant_prevalence=refit_input_data['severity_variant_prevalence'].copy(),
         vaccine_coverage=refit_input_data['vaccine_coverage'].copy(),
         population=refit_input_data['population'].copy(),
     )
