@@ -22,21 +22,25 @@ def add_repeat_infections(escape_variant_prevalence: pd.Series,
                   .set_index(['location_id', 'date'])
                   .loc[:, 'infections'])
     
+    escape_variant_prevalence = pd.concat([infections, escape_variant_prevalence], axis=1)  # borrow axis
+    escape_variant_prevalence = escape_variant_prevalence['escape_variant_prevalence'].fillna(0)
+    
+    ancestral_infections = (infections * (1 - escape_variant_prevalence)).groupby(level=0).cumsum().dropna()
     obs_infections = infections.groupby(level=0).cumsum().dropna()
-    repeat_infections = ((obs_infections / population) * (1 - cross_variant_immunity) * infections * escape_variant_prevalence).rename('infections')
+    repeat_infections = ((ancestral_infections / population) * (1 - cross_variant_immunity) * infections * escape_variant_prevalence).rename('infections')
     repeat_infections = repeat_infections.fillna(infections).dropna()
-    ancestral_infections = (infections - repeat_infections).groupby(level=0).cumsum().dropna()
+    first_infections = (infections - repeat_infections).groupby(level=0).cumsum().dropna()
     
     obs_infections = aggregate_data_from_md(obs_infections.reset_index(), hierarchy, 'infections')
     obs_infections = (obs_infections
                       .set_index(['location_id', 'date'])
                       .loc[:, 'infections'])
-    ancestral_infections = aggregate_data_from_md(ancestral_infections.reset_index(), hierarchy, 'infections')
-    ancestral_infections = (ancestral_infections
-                            .set_index(['location_id', 'date'])
-                            .loc[:, 'infections'])
+    first_infections = aggregate_data_from_md(first_infections.reset_index(), hierarchy, 'infections')
+    first_infections = (first_infections
+                        .set_index(['location_id', 'date'])
+                        .loc[:, 'infections'])
     
-    inflation_factor = (obs_infections / ancestral_infections).rename('inflation_factor').dropna()
+    inflation_factor = (obs_infections / first_infections).rename('inflation_factor').dropna()
     
     '''
     fig, ax = plt.subplots(4, figsize=(8, 8), sharex=True)
@@ -49,7 +53,7 @@ def add_repeat_infections(escape_variant_prevalence: pd.Series,
     ax[1].set_ylabel('Daily infections')
 
     ax[2].plot(obs_infections.loc[196] / 58.56e6)
-    ax[2].plot(ancestral_infections.loc[196] / 58.56e6)
+    ax[2].plot(first_infections.loc[196] / 58.56e6)
     ax[2].set_ylabel('Cumulative infections (%)')
 
     ax[3].plot(inflation_factor.loc[196], color='purple')

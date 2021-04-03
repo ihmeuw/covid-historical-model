@@ -139,12 +139,13 @@ def reported_epi(model_inputs_root: Path, input_measure: str,
     data = (data.groupby('location_id', as_index=False)
             .apply(lambda x: helpers.fill_dates(x, [f'cumulative_{input_measure}']))
             .reset_index(drop=True))
-    if input_measure == 'deaths':
+    if input_measure == 'deaths' and em_path is not None:
         em_data = pd.read_csv(em_path)
         em_data = em_data.rename(columns={'value':'em_scalar'})
         em_data = em_data.loc[:, ['location_id', 'em_scalar']]
         data = data.merge(em_data, how='left')
         data['em_scalar'] = data['em_scalar'].fillna(1)
+        data['em_scalar'] = data['em_scalar'].clip(1, np.inf)
         data[f'cumulative_{input_measure}'] *= data['em_scalar']
         del data['em_scalar']
     data = helpers.aggregate_data_from_md(data, hierarchy, f'cumulative_{input_measure}')
@@ -201,9 +202,6 @@ def population(model_inputs_root: Path, by_age: bool = False) -> pd.Series:
 
 
 def assay_sensitivity(model_inputs_root: Path, assay_day_0: int = 21,) -> pd.DataFrame:
-    # for consistency, should switch to using official model-inputs path (once Perez-Saez are in there)
-    model_inputs_root = Path('/home/j/Project/covid/data_intake/')
-    
     # TODO: bootstrapping or something to incorporate uncertainty (would need to digitize this portion from Perez-Saez plots)?
     peluso_path = model_inputs_root / 'serology' / 'waning_immunity' / 'peluso_assay_sensitivity.xlsx'
     perez_saez_paths = [

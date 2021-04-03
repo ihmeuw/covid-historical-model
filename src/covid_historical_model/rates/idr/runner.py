@@ -5,13 +5,14 @@ from loguru import logger
 import pandas as pd
 
 from covid_historical_model.rates import idr
+from covid_historical_model.rates import squeeze
 
 RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map pred pred_fe')
 
 
 def runner(model_inputs_root: Path, em_path: Path, testing_root: Path,
-           seroprevalence: pd.DataFrame,
-           ifr_data: pd.Series,
+           seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
+           pred_ifr: pd.Series, reinfection_inflation_factor: pd.Series,
            pred_start_date: str = '2020-01-01',
            pred_end_date: str = '2021-12-31',
            verbose: bool = True,) -> namedtuple:
@@ -19,8 +20,8 @@ def runner(model_inputs_root: Path, em_path: Path, testing_root: Path,
     pred_end_date = pd.Timestamp(pred_end_date)
 
     input_data = idr.data.load_input_data(model_inputs_root, em_path, testing_root,
-                                          seroprevalence, verbose=verbose)
-    model_data = idr.data.create_model_data(ifr_data=ifr_data, verbose=verbose, **input_data)
+                                          seroprevalence, vaccine_coverage, verbose=verbose)
+    model_data = idr.data.create_model_data(pred_ifr=pred_ifr, verbose=verbose, **input_data)
     pred_data = idr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,
         **input_data
@@ -55,6 +56,17 @@ def runner(model_inputs_root: Path, em_path: Path, testing_root: Path,
                                                       x['idr_floor'].unique().item(),
                                                       ceiling=1.,))
             .rename('pred_idr'))
+    
+    pred = squeeze.squeeze(
+        daily=input_data['daily_cases'].copy(),
+        rate=pred.copy(),
+        population=input_data['population'].copy(),
+        reinfection_inflation_factor=(reinfection_inflation_factor
+                                      .set_index(['location_id', 'date'])
+                                      .loc[:, 'inflation_factor']
+                                      .copy()),
+        vaccine_coverage=input_data['vaccine_coverage'].copy(),
+    )
 
     dates_data = idr.model.determine_mean_date_of_infection(
         location_dates=model_data[['location_id', 'date']].drop_duplicates().values.tolist(),

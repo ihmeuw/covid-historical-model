@@ -58,7 +58,7 @@ def apply_waning_adjustment(model_inputs_root: Path,
                             seroprevalence: pd.DataFrame,
                             daily_deaths: pd.Series,
                             pred_ifr: pd.Series,
-                            verbose: bool = True,) -> pd.DataFrame:    
+                            verbose: bool = True,) -> pd.DataFrame:
     sensitivity = model_inputs.assay_sensitivity(model_inputs_root)
 
     assays = ['N-Abbott',  # IgG
@@ -89,7 +89,13 @@ def apply_waning_adjustment(model_inputs_root: Path,
     ).set_index(['assay', 'location_id', 't']).sort_index()
     
     seroprevalence = seroprevalence.loc[seroprevalence['is_outlier'] == 0]
-    test_matching = pd.read_csv('tests.csv', encoding='latin1')
+    
+    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+    ## DO THIS DIFFERENTLY...
+    test_matching = pd.read_csv('/'.join(__file__.split('/')[:-2]) + '/tests.csv',
+                                encoding='latin1')
+    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+    
     seroprevalence = seroprevalence.merge(test_matching, how='left')
     missing_match = seroprevalence['assay_match'].isnull()
     is_N = seroprevalence['test_target'] == 'nucleocapsid'
@@ -104,35 +110,35 @@ def apply_waning_adjustment(model_inputs_root: Path,
 
     assay_combinations = seroprevalence['assay_match'].unique().tolist()
 
-    assay_sensitivity_list = []
-    assay_seroprevalence_list = []
+    sensitivity_list = []
+    seroprevalence_list = []
     for assay_combination in assay_combinations:
-        assay_sensitivity = (sensitivity
+        ac_sensitivity = (sensitivity
                              .loc[assay_combination.split(', ')]
                              .reset_index()
                              .groupby(['location_id', 't'])['sensitivity'].mean())
-        assay_seroprevalence = (seroprevalence
-                                 .loc[seroprevalence['assay_match'] == assay_combination].copy())
-        assay_seroprevalence = waning_adjustment(
+        ac_seroprevalence = (seroprevalence
+                             .loc[seroprevalence['assay_match'] == assay_combination].copy())
+        ac_seroprevalence = waning_adjustment(
             pred_ifr.copy(),
             daily_deaths.copy(),
-            assay_sensitivity.copy(),
-            assay_seroprevalence.copy()
+            ac_sensitivity.copy(),
+            ac_seroprevalence.copy()
         )
         
-        assay_sensitivity = (assay_sensitivity
-                             .loc[assay_seroprevalence['location_id'].unique().tolist()]
-                             .reset_index())
-        assay_sensitivity['assay'] = assay_combination
-        assay_sensitivity_list.append(assay_sensitivity)
+        ac_sensitivity = (ac_sensitivity
+                          .loc[ac_seroprevalence['location_id'].unique().tolist()]
+                          .reset_index())
+        ac_sensitivity['assay'] = assay_combination
+        sensitivity_list.append(ac_sensitivity)
         
-        assay_seroprevalence['is_outlier'] = 0
-        assay_seroprevalence['assay'] = assay_combination
-        assay_seroprevalence_list.append(assay_seroprevalence)
-    assay_sensitivity = pd.concat(assay_sensitivity_list)
-    assay_seroprevalence = pd.concat(assay_seroprevalence_list)
+        ac_seroprevalence['is_outlier'] = 0
+        ac_seroprevalence['assay'] = assay_combination
+        seroprevalence_list.append(ac_seroprevalence)
+    sensitivity = pd.concat(sensitivity_list)
+    seroprevalence = pd.concat(seroprevalence_list)
     
-    return assay_sensitivity, assay_seroprevalence
+    return sensitivity, seroprevalence
 
 
 def fit_sensitivity_decay(t: np.array, sensitivity: np.array, increasing: bool, t_N: int = 720) -> pd.DataFrame:

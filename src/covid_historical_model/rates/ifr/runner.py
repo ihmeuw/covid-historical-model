@@ -1,10 +1,15 @@
+import sys
+import os
 from pathlib import Path
 from typing import Dict
 import itertools
 from collections import namedtuple
 from loguru import logger
+import dill as pickle
 
 import pandas as pd
+
+from covid_shared.cli_tools.logging import configure_logging_to_terminal
 
 from covid_historical_model.rates import ifr
 from covid_historical_model.rates import ihr
@@ -12,6 +17,7 @@ from covid_historical_model.rates import reinfection
 from covid_historical_model.rates import serology
 from covid_historical_model.rates import age_standardization
 from covid_historical_model.rates import post
+from covid_historical_model.rates import squeeze
 
 RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map pred pred_fe pred_lr pred_hr')
 
@@ -95,28 +101,31 @@ def runner(model_inputs_root: Path, em_path: Path, age_pattern_root: Path,
         **refit_input_data
     )
     
-    pred, pred_lr, pred_hr = post.variants_vaccines(
-        rate_age_pattern=input_data['ifr_age_pattern'].copy(),
-        denom_age_pattern=input_data['sero_age_pattern'].copy(),
-        age_spec_population=input_data['age_spec_population'].copy(),
-        numerator=input_data['daily_deaths'].copy(),
-        rate=pred.copy(),
-        escape_variant_prevalence=input_data['escape_variant_prevalence'].copy(),
-        severity_variant_prevalence=input_data['severity_variant_prevalence'].copy(),
-        vaccine_coverage=input_data['vaccine_coverage'].copy(),
-        population=input_data['population'].copy(),
-    )
     refit_pred, refit_pred_lr, refit_pred_hr = post.variants_vaccines(
         rate_age_pattern=refit_input_data['ifr_age_pattern'].copy(),
         denom_age_pattern=refit_input_data['sero_age_pattern'].copy(),
         age_spec_population=refit_input_data['age_spec_population'].copy(),
-        numerator=refit_input_data['daily_deaths'].copy(),
         rate=refit_pred.copy(),
         escape_variant_prevalence=refit_input_data['escape_variant_prevalence'].copy(),
         severity_variant_prevalence=refit_input_data['severity_variant_prevalence'].copy(),
         vaccine_coverage=refit_input_data['vaccine_coverage'].copy(),
         population=refit_input_data['population'].copy(),
     )
+    
+    lr_rr = refit_pred_lr / refit_pred
+    hr_rr = refit_pred_hr / refit_pred
+    refit_pred = squeeze.squeeze(
+        daily=refit_input_data['daily_deaths'].copy(),
+        rate=refit_pred.copy(),
+        population=refit_input_data['population'].copy(),
+        reinfection_inflation_factor=(reinfection_inflation_factor
+                                      .set_index(['location_id', 'date'])
+                                      .loc[:, 'inflation_factor']
+                                      .copy()),
+        vaccine_coverage=refit_input_data['vaccine_coverage'].copy(),
+    )
+    refit_pred_lr = lr_rr * refit_pred
+    refit_pred_hr = hr_rr * refit_pred
     
     results = RESULTS(
         seroprevalence=orig_seroprevalence,
@@ -125,8 +134,8 @@ def runner(model_inputs_root: Path, em_path: Path, age_pattern_root: Path,
         pred_location_map=pred_location_map,
         pred=pred,
         pred_fe=pred_fe,
-        pred_lr=pred_lr,
-        pred_hr=pred_hr,
+        pred_lr=None,
+        pred_hr=None,
     )
     refit_results = RESULTS(
         seroprevalence=seroprevalence,
@@ -149,3 +158,19 @@ def runner(model_inputs_root: Path, em_path: Path, age_pattern_root: Path,
     return {'raw_results': results, 'refit_results': refit_results,
             'reinfection_inflation_factor': reinfection_inflation_factor,
             'sensitivity': sensitivity, 'nrmse': nrmse,}
+
+
+def main(inputs_path: str, outputs_path: str):
+    with open(inputs_path, 'rb') as file:
+        inputs = pickle.load(file)
+        
+    outputs = runner(**inputs)
+    
+    with open(outputs_path, 'wb') as file:
+        pickle.dump({inputs['day_inflection']: outputs}, file)
+
+if __name__ == '__main__':
+    os.environ['OMP_NUM_THREADS'] = '6'
+    configure_logging_to_terminal(verbose=2)
+    
+    main(sys.argv[1], sys.argv[2])

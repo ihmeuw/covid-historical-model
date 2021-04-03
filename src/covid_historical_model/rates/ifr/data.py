@@ -59,7 +59,7 @@ def create_model_data(cumulative_deaths: pd.Series, daily_deaths: pd.Series,
         locdeaths = locdeaths.reset_index()
         locdeaths = locdeaths.loc[locdeaths['date'] <= survey_end_date]
         locdeaths['t'] = (locdeaths['date'] - day_0).dt.days
-        t = np.average(locdeaths['t'], weights=locdeaths['daily_deaths'] + 1e-4)
+        t = np.average(locdeaths['t'], weights=locdeaths['daily_deaths'] + 1e-6)
         mean_death_date = locdeaths.loc[locdeaths['t'] == int(np.round(t)), 'date'].item()
         time.append(
             pd.DataFrame(

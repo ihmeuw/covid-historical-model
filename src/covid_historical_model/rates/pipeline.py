@@ -1,17 +1,21 @@
 from typing import List, Tuple, Dict
 from pathlib import Path
 from loguru import logger
+import dill as pickle
 
 import pandas as pd
+import numpy as np
 
 from covid_historical_model.etl import estimates
 from covid_historical_model.rates import serology
 from covid_historical_model.rates import ifr
 from covid_historical_model.rates import idr
 from covid_historical_model.rates import ihr
+from covid_historical_model import cluster
 
 
-def pipeline(model_inputs_root: Path, em_path: Path,
+def pipeline(storage_dir: Path,
+             model_inputs_root: Path, em_path: Path,
              vaccine_coverage_root: Path, variant_scaleup_root: Path,
              age_pattern_root: Path, testing_root: Path,
              day_inflection_list: List[str] = ['2020-05-01', '2020-06-01', '2020-07-01',
@@ -24,18 +28,40 @@ def pipeline(model_inputs_root: Path, em_path: Path,
         model_inputs_root, vaccine_coverage['cumulative_all_effective'].rename('vaccinated')
     )
     
-    full_ifr_results = {}
+    if verbose:
+        logger.info('\n*************************************\n'
+                    f"IFR ESTIMATION -- testing inflection points: {', '.join(day_inflection_list)}\n"
+                    '*************************************')
+    job_args_map = {}
+    outputs_paths = []
     for day_inflection in day_inflection_list:
-        if verbose:
-            logger.info('\n*************************************\n'
-                        f'IFR ESTIMATION -- testing inflection point at {day_inflection}\n'
-                        '*************************************')
-        full_ifr_results.update({day_inflection: ifr.runner.runner(model_inputs_root, em_path, age_pattern_root,
-                                                                   seroprevalence.copy(), vaccine_coverage.copy(),
-                                                                   escape_variant_prevalence.copy(),
-                                                                   severity_variant_prevalence.copy(),
-                                                                   day_inflection,
-                                                                   verbose=verbose)})
+        inputs = {
+            'model_inputs_root':model_inputs_root,
+            'em_path':em_path,
+            'age_pattern_root':age_pattern_root,
+            'orig_seroprevalence':seroprevalence,
+            'vaccine_coverage':vaccine_coverage,
+            'escape_variant_prevalence':escape_variant_prevalence,
+            'severity_variant_prevalence':severity_variant_prevalence,
+            'day_inflection':day_inflection
+        }
+        
+        inputs_path = storage_dir / f'{day_inflection}_inputs.pkl'
+        with inputs_path.open('wb') as file:
+            pickle.dump(inputs, file, -1)
+        
+        outputs_path = storage_dir / f'{day_inflection}_outputs.pkl'
+        outputs_paths.append(outputs_path)
+        
+        job_args_map.update({day_inflection: [ifr.runner.__file__, inputs_path, outputs_path]})
+    
+    cluster.run_cluster_jobs('covid_ifr_model', storage_dir, job_args_map)
+
+    full_ifr_results = {}
+    for outputs_path in outputs_paths:
+        with outputs_path.open('rb') as file:
+            outputs = pickle.load(file)
+        full_ifr_results.update(outputs)
     
     if verbose:
         logger.info('\n*************************************\n'
@@ -48,8 +74,9 @@ def pipeline(model_inputs_root: Path, em_path: Path,
                     'IDR ESTIMATION\n'
                     '*************************************')
     idr_results = idr.runner.runner(model_inputs_root, em_path, testing_root,
-                                    adj_seroprevalence.copy(),
+                                    adj_seroprevalence.copy(), vaccine_coverage.copy(),
                                     ifr_results.pred.copy(),
+                                    reinfection_inflation_factor.copy(),
                                     verbose=verbose)
     
     if verbose:
@@ -59,9 +86,20 @@ def pipeline(model_inputs_root: Path, em_path: Path,
     ihr_results = ihr.runner.runner(model_inputs_root, age_pattern_root,
                                     adj_seroprevalence.copy(), vaccine_coverage.copy(),
                                     escape_variant_prevalence.copy(), severity_variant_prevalence.copy(),
+                                    reinfection_inflation_factor.copy(),
                                     verbose=verbose)
     
-    return seroprevalence, sensitivity, reinfection_inflation_factor, ifr_results, idr_results, ihr_results
+    if em_path is not None:
+        em_data = pd.read_csv(em_path)
+        em_data = em_data.rename(columns={'value':'em_scalar'})
+        em_data = em_data.loc[:, ['location_id', 'em_scalar']]
+        em_data['em_scalar'] = em_data['em_scalar'].fillna(1)
+        em_data['em_scalar'] = em_data['em_scalar'].clip(1, np.inf)
+    else:
+        em_data = vaccine_coverage.reset_index()[['location_id']].drop_duplicates().reset_index(drop=True)
+        em_data['em_scalar'] = 1
+    
+    return seroprevalence, sensitivity, reinfection_inflation_factor, ifr_results, idr_results, ihr_results, em_data
 
 
 def extract_ifr_results(full_ifr_results: Dict) -> Tuple:

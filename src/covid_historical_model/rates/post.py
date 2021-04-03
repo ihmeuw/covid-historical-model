@@ -5,13 +5,12 @@ import pandas as pd
 from covid_historical_model.rates import age_standardization
 from covid_historical_model.durations.durations import EXPOSURE_TO_DEATH
 
-SEVERE_DISEASE_INFLATION = 1.3
+SEVERE_DISEASE_INFLATION = 1.29
 
 
 def variants_vaccines(rate_age_pattern: pd.Series,
                       denom_age_pattern: pd.Series,
                       age_spec_population: pd.Series,
-                      numerator: pd.Series,
                       rate: pd.Series,
                       escape_variant_prevalence: pd.Series,
                       severity_variant_prevalence: pd.Series,
@@ -41,22 +40,20 @@ def variants_vaccines(rate_age_pattern: pd.Series,
     del vaccine_coverage['rate']
     vaccine_coverage = vaccine_coverage.fillna(0)
     
-    location_ids = rate.reset_index()['location_id'].unique().tolist()
-    location_ids = [l for l in location_ids if l in numerator.reset_index()['location_id'].unique().tolist()]
-    numerator = numerator.loc[location_ids]
-    
-    numerator += 1e-4
+    # not super necessary...
+    numerator = pd.Series(100, index=rate.index)
     numerator /= population
-    denominator_a = (numerator / rate[numerator.index])
-    denominator_ev = (numerator / (rate[numerator.index] * escape_variant_rate_scalar))
-    denominator_sv = (numerator / (rate[numerator.index] * escape_variant_rate_scalar))
+    
+    denominator_a = (numerator / rate)
+    denominator_ev = (numerator / (rate * escape_variant_rate_scalar))
+    denominator_sv = (numerator / (rate * escape_variant_rate_scalar))
     denominator_a *= (1 - (escape_variant_prevalence + severity_variant_prevalence)[denominator_a.index])
     denominator_ev *= escape_variant_prevalence[denominator_ev.index]
     denominator_sv *= severity_variant_prevalence[denominator_sv.index]
 
-    numerator_a = (rate[denominator_a.index] * denominator_a)
-    numerator_ev = (rate[denominator_ev.index] * escape_variant_rate_scalar * denominator_ev)
-    numerator_sv = (rate[denominator_sv.index] * escape_variant_rate_scalar * denominator_sv)
+    numerator_a = (rate * denominator_a)
+    numerator_ev = (rate * escape_variant_rate_scalar * denominator_ev)
+    numerator_sv = (rate * escape_variant_rate_scalar * denominator_sv)
     
     numerator_lr_a, numerator_hr_a, denominator_lr_a, denominator_hr_a = adjust_by_variant_classification(
         numerator_a,
@@ -110,14 +107,14 @@ def adjust_by_variant_classification(numerator: pd.Series,
                                      variant_suffix: str,):
     lr_rate_rr, hr_rate_rr = age_standardization.get_risk_group_rr(
         rate_age_pattern.copy(),
-        denom_age_pattern.copy(),
+        denom_age_pattern.copy()**0,  # REMOVE THIS IF WE WANT TO USE THE ACTUAL SERO AGE PATTERN
         age_spec_population.copy(),
     )
-    rate_lr = (numerator / denominator).fillna(0) * lr_rate_rr
-    rate_hr = (numerator / denominator).fillna(0) * hr_rate_rr
+    rate_lr = (numerator / denominator) * lr_rate_rr
+    rate_hr = (numerator / denominator) * hr_rate_rr
 
     lr_denom_rr, hr_denom_rr = age_standardization.get_risk_group_rr(
-        denom_age_pattern.copy(),
+        denom_age_pattern.copy()**0,  # REMOVE THIS IF WE WANT TO USE THE ACTUAL SERO AGE PATTERN
         denom_age_pattern.copy()**0,
         age_spec_population.copy(),
     )
@@ -141,10 +138,14 @@ def adjust_by_variant_classification(numerator: pd.Series,
     )
 
     numerator_lr *= population_lr
+    numerator_lr = numerator_lr.fillna(0)
     numerator_hr *= population_hr
+    numerator_hr = numerator_hr.fillna(0)
 
     denominator_lr *= population_lr
-    denominator_hr *= population_hr        
+    denominator_lr = denominator_lr.fillna(0)
+    denominator_hr *= population_hr
+    denominator_hr = denominator_hr.fillna(0)
 
     return numerator_lr, numerator_hr, denominator_lr, denominator_hr
 
