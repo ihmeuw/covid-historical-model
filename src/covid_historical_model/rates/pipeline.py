@@ -28,7 +28,7 @@ def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
     severity_variant_prevalence = estimates.variant_scaleup(variant_scaleup_root, 'severity', verbose=verbose)
     vaccine_coverage = estimates.vaccine_coverage(vaccine_coverage_root)
     seroprevalence = serology.load_seroprevalence_sub_vacccinated(
-        model_inputs_root, vaccine_coverage['cumulative_all_effective'].rename('vaccinated')
+        model_inputs_root, vaccine_coverage['cumulative_all_effective'].rename('vaccinated'), verbose=verbose
     )
     
     if verbose:

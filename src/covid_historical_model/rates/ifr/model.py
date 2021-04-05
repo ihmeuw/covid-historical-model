@@ -1,4 +1,4 @@
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List
 
 import pandas as pd
 import numpy as np
@@ -92,14 +92,39 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     return mr_model_dict, prior_dicts, pred.dropna(), pred_fe.dropna(), pred_location_map
 
 
-def map_pred_and_model_locations(pred_location_map: Dict, mr_model_dict: Dict, data: pd.Series) -> pd.DataFrame:
+def match_model_data(mr_model_dict: Dict, data: pd.Series,
+                     pred_location_map: Dict, model_location_id: int,
+                     date_req: pd.Timestamp = pd.Timestamp('2020-07-01'),
+                     obs_req: int = 2) -> Tuple[List, bool]:
+    '''
+    Must have `obs_req` observations after `date_req`.
+    '''
+    model_data_location_ids = mr_model_dict[model_location_id].data.to_df()['study_id'].unique().tolist()
+    data = data.loc[model_data_location_ids].reset_index()
+    
+    satisfies = (data['date'] >= date_req).sum() >= obs_req
+    
+    return model_data_location_ids, satisfies
+
+
+def map_pred_and_model_locations(pred_location_map: Dict, mr_model_dict: Dict,
+                                 data: pd.Series, hierarchy: pd.DataFrame) -> pd.DataFrame:
     nrmse_data = []
-    for pred_location_id, model_location_id in pred_location_map.items():
-        model_location_ids = mr_model_dict[model_location_id].data.to_df()['study_id'].unique().tolist()
+    for pred_location_id in pred_location_map.keys():
+        model_location_id = pred_location_id
+        searching = True
+        while searching:
+            model_location_id = pred_location_map[model_location_id]
+            model_data_location_ids, satisfies = match_model_data(
+                mr_model_dict, data.copy(), pred_location_map, model_location_id,
+            )
+            searching = not satisfies
+            if searching:
+                model_location_id = hierarchy.loc[hierarchy['location_id'] == model_location_id, 'parent_id'].item()
         nrmse_data.append(
-            pd.concat([data.loc[model_location_ids].reset_index(),
+            pd.concat([data.loc[model_data_location_ids].reset_index(),
                        pd.DataFrame({'pred_location_id':pred_location_id},
-                                    index=np.arange(len(data.loc[model_location_ids])))],
+                                    index=np.arange(len(data.loc[model_data_location_ids])))],
                       axis=1)
         )
     nrmse_data = pd.concat(nrmse_data).reset_index(drop=True)
@@ -111,7 +136,7 @@ def map_pred_and_model_locations(pred_location_map: Dict, mr_model_dict: Dict, d
 
 
 def get_nrmse(seroprevalence: pd.DataFrame, deaths: pd.Series,
-              pred: pd.Series, population: pd.Series,
+              pred: pd.Series, hierarchy: pd.DataFrame, population: pd.Series,
               pred_location_map: pd.Series, mr_model_dict: Dict) -> pd.Series:
     seroprevalence = (seroprevalence
                       .set_index(['location_id', 'date'])
@@ -127,10 +152,11 @@ def get_nrmse(seroprevalence: pd.DataFrame, deaths: pd.Series,
     
     residuals = seroprevalence.to_frame().join(infections)
     residuals = (residuals['seroprevalence'] - residuals['infections']).dropna().rename('residuals')
-    residuals = map_pred_and_model_locations(pred_location_map, mr_model_dict, residuals)
+    residuals = map_pred_and_model_locations(pred_location_map, mr_model_dict, residuals, hierarchy)
     residuals = residuals.loc[:, 'residuals']
-    seroprevalence = map_pred_and_model_locations(pred_location_map, mr_model_dict, seroprevalence)
+    seroprevalence = map_pred_and_model_locations(pred_location_map, mr_model_dict, seroprevalence, hierarchy)
     seroprevalence = seroprevalence.loc[:, 'seroprevalence']
+    seroprevalence = seroprevalence[residuals.index]
     rmse = np.sqrt((residuals ** 2).groupby(level=0).mean())
     
     s_min = seroprevalence.groupby(level=0).min()

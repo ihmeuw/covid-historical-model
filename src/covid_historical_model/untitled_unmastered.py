@@ -17,6 +17,7 @@ warnings.simplefilter('ignore')
 #######################################
 
 ## RATIO TODO:
+##     - what to do about infelction dates...
 ##     - bias covariate?
 ##     - for waning, do something to Perez-Saez to crosswalk for baseline sensitivity?
 ##     - ONLY CUMULATIVE IHR

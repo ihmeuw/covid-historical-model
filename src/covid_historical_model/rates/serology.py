@@ -347,13 +347,15 @@ def plotter(location_id: int, location_name: str,
                    marker='o', c=c, edgecolors=ec, s=100)
     sero_ax.legend(loc=2)
     sero_ax.set_ylabel('Seroprevalence')
+    sero_y_max = seroprevalence[['seroprevalence', 'seroprevalence_sub_vacc', 'reported_seroprevalence']].max(axis=1).max() * 1.05
+    sero_ax.set_ylim(0, sero_y_max)
     
     infec_ax = sero_ax.twinx()
     infec_ax.plot(infections, color=PLOT_INF_C, alpha=0.5)
     infec_ax.get_yaxis().set_ticks([])
+    inf_y_max = infections.max() * 1.05
+    infec_ax.set_ylim(0, inf_y_max)
 
-    y_max = seroprevalence[['seroprevalence', 'seroprevalence_sub_vacc', 'reported_seroprevalence']].max(axis=1).max() * 1.05
-    sero_ax.set_ylim(0, y_max)
     sero_ax.set_xlim(PLOT_START_DATE, PLOT_END_DATE)
     sero_ax.xaxis.set_major_locator(PLOT_DATE_LOCATOR)
     sero_ax.xaxis.set_major_formatter(PLOT_DATE_FORMATTER)
@@ -383,6 +385,8 @@ def plotter(location_id: int, location_name: str,
             sens_ax.scatter(sensitivity_data.loc[sensitivity_data['assay'] == a, 't'],
                             sensitivity_data.loc[sensitivity_data['assay'] == a, 'sensitivity'],
                             marker='.', color=c, s=100, alpha=0.25)
+    sens_ax.axvline((infections.index.max() -  PLOT_START_DATE).days,
+                    linestyle='--', color='darkgrey', alpha=0.75,)
     sens_ax.set_ylim(0, 1.05)
     sens_ax.set_ylabel('Sensitivity')
     sens_ax.set_xlabel('Time from exposure to test')

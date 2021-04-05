@@ -71,38 +71,36 @@ def plotter(location_id: int, location_name: str,
     del residuals
     
     modeled_location = location_id in ifr_results.mr_model_dict.keys()
+    filler_date_index = pd.Index([START_DATE], name='date')
 
     for i, (day_inflection, day_ifr_results) in enumerate(full_ifr_results.items()):
-        residuals = day_ifr_results['residuals'].loc[location_id].reset_index()
-        model_data_location_ids = residuals.reset_index()['location_id'].unique().tolist()
+        residuals = day_ifr_results['residuals'].loc[location_id].reset_index()  # first index is pred_location
+        if modeled_location
+            model_data_location_ids = (day_ifr_results['refit_results']
+                                       .mr_model_dict[location_id]
+                                       .data.to_df()['study_id'].unique().tolist())
+        else:
+            model_data_location_ids = []
 
         nrmse = day_ifr_results['nrmse'].loc[location_id]
         
-        if modeled_location:
-            raw_model_data = day_ifr_results['raw_results'].model_data
-            raw_model_data = raw_model_data.set_index(['location_id']).loc[model_data_location_ids]
-        else:
-            raw_model_data = day_ifr_results['raw_results'].model_data
-            raw_model_data = pd.DataFrame([], columns=raw_model_data.columns)
+        raw_model_data = day_ifr_results['raw_results'].model_data
+        raw_model_data = raw_model_data.set_index(['location_id']).loc[model_data_location_ids]
         
         raw_pred = day_ifr_results['raw_results'].pred_unadj
         try:
             raw_pred = raw_pred.loc[location_id]
         except KeyError:
-            raw_pred = pd.Series(np.nan, index=raw_model_data['date'])
+            raw_pred = pd.Series(np.nan, index=filler_date_index)
             
-        if modeled_location:
-            refit_model_data = day_ifr_results['refit_results'].model_data
-            refit_model_data = refit_model_data.set_index(['location_id']).loc[model_data_location_ids]
-        else:
-            refit_model_data = day_ifr_results['refit_results'].model_data
-            refit_model_data = pd.DataFrame([], columns=refit_model_data.columns)
+        refit_model_data = day_ifr_results['refit_results'].model_data
+        refit_model_data = refit_model_data.set_index(['location_id']).loc[model_data_location_ids]
         
         refit_pred = day_ifr_results['refit_results'].pred_unadj
         try:
             refit_pred = refit_pred.loc[location_id]
         except KeyError:
-            refit_pred = pd.Series(np.nan, index=refit_model_data['date'])
+            refit_pred = pd.Series(np.nan, index=filler_date_index)
 
         if day_inflection == best_ifr_models.loc[location_id].item():
             plot_title = f'{day_inflection}**\n{np.round(nrmse, 6)}'
@@ -149,12 +147,12 @@ def plotter(location_id: int, location_name: str,
         try:
             pred_ifr = pred_ifr.loc[location_id]
         except KeyError:
-            pred_ifr = pd.Series(np.nan, index=refit_model_data['date'])
+            pred_ifr = pd.Series(np.nan, index=filler_date_index)
 
         try:
             pct_inf = pct_inf.loc[location_id]
         except KeyError:
-            pct_inf = pd.Series(np.nan, index=refit_model_data['date'])
+            pct_inf = pd.Series(np.nan, index=filler_date_index)
 
         try:
             e_a = e_a.loc[location_id]
@@ -166,10 +164,10 @@ def plotter(location_id: int, location_name: str,
             ep_v = ep_v.loc[location_id]
             ep_v.index += pd.Timedelta(days=EXPOSURE_TO_DEATH)
         except KeyError:
-            e_a = pd.Series(np.nan, index=refit_model_data['date'])
-            ep_a = pd.Series(np.nan, index=refit_model_data['date'])
-            e_v = pd.Series(np.nan, index=refit_model_data['date'])
-            ep_v = pd.Series(np.nan, index=refit_model_data['date'])
+            e_a = pd.Series(np.nan, index=filler_date_index)
+            ep_a = pd.Series(np.nan, index=filler_date_index)
+            e_v = pd.Series(np.nan, index=filler_date_index)
+            ep_v = pd.Series(np.nan, index=filler_date_index)
 
         try:
             escape = escape_variant_prevalence.loc[location_id]
@@ -177,8 +175,8 @@ def plotter(location_id: int, location_name: str,
             severity = severity_variant_prevalence.loc[location_id]
             severity.index += pd.Timedelta(days=EXPOSURE_TO_DEATH)
         except KeyError:
-            escape = pd.Series(np.nan, index=refit_model_data['date'])
-            severity = pd.Series(np.nan, index=refit_model_data['date'])
+            escape = pd.Series(np.nan, index=filler_date_index)
+            severity = pd.Series(np.nan, index=filler_date_index)
 
         ifr_ax = fig.add_subplot(gs[2, i*n_dates:i*n_dates + n_dates])
         ifr_plot(ifr_ax, i, pred_ifr, group)

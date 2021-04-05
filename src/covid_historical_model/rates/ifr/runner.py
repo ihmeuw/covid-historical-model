@@ -162,6 +162,7 @@ def runner(model_inputs_root: Path, em_path: Path, age_pattern_root: Path,
     nrmse, residuals = ifr.model.get_nrmse(seroprevalence.copy(),
                                            refit_input_data['daily_deaths'].copy(),
                                            refit_pred.copy(),
+                                           refit_input_data['hierarchy'].copy(),
                                            refit_input_data['population'].copy(),
                                            refit_pred_location_map.copy(),
                                            refit_mr_model_dict.copy(),)
