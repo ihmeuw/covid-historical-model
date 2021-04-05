@@ -75,7 +75,7 @@ def plotter(location_id: int, location_name: str,
 
     for i, (day_inflection, day_ifr_results) in enumerate(full_ifr_results.items()):
         residuals = day_ifr_results['residuals'].loc[location_id].reset_index()  # first index is pred_location
-        if modeled_location
+        if modeled_location:
             model_data_location_ids = (day_ifr_results['refit_results']
                                        .mr_model_dict[location_id]
                                        .data.to_df()['study_id'].unique().tolist())

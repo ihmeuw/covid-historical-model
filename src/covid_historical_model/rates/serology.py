@@ -209,7 +209,10 @@ def fit_hospital_weighted_sensitivity_decay(sensitivity: pd.DataFrame, increasin
 def calulate_waning_factor(infections: pd.DataFrame, sensitivity: pd.DataFrame,
                            sero_date: pd.Timestamp) -> float:
     infections['t'] = (sero_date - infections['date']).dt.days
-    infections = infections.merge(sensitivity.reset_index())
+    infections = infections.loc[infections['t'] >= 0]
+    infections = infections.merge(sensitivity.reset_index(), how='left')
+    if infections['sensitivity'].isnull().any():
+        raise ValueError(f"Unmatched sero/sens points: {infections.loc[infections['sensitivity'].isnull()]}")
     waning_factor = infections['infections'].sum() / (infections['infections'] * infections['sensitivity']).sum()
     waning_factor = max(1, waning_factor)
 
@@ -282,7 +285,7 @@ def plotter(location_id: int, location_name: str,
     reinfection_inflation_factor = reinfection_inflation_factor.loc[reinfection_inflation_factor['location_id'] == location_id]
     adj_seroprevalence = ifr_results.seroprevalence.copy()
     adj_seroprevalence = adj_seroprevalence.loc[adj_seroprevalence['location_id'] == location_id]
-    infections = (ifr_results.daily_numerator / ifr_results.pred).rename('infections').loc[location_id]
+    infections = (ifr_results.daily_numerator / ifr_results.pred).rename('infections').loc[location_id].dropna()
     infections.index -= pd.Timedelta(days=SERO_TO_DEATH)
     sensitivity = sensitivity.loc[sensitivity['location_id'] == location_id]
     effectively_vaccinated = vaccine_coverage.loc[location_id, 'cumulative_all_effective'] / population.loc[location_id]
@@ -386,7 +389,7 @@ def plotter(location_id: int, location_name: str,
                             sensitivity_data.loc[sensitivity_data['assay'] == a, 'sensitivity'],
                             marker='.', color=c, s=100, alpha=0.25)
     sens_ax.axvline((infections.index.max() -  PLOT_START_DATE).days,
-                    linestyle='--', color='darkgrey', alpha=0.75,)
+                    linestyle='--', color='darkgrey',)
     sens_ax.set_ylim(0, 1.05)
     sens_ax.set_ylabel('Sensitivity')
     sens_ax.set_xlabel('Time from exposure to test')
