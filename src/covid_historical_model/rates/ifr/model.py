@@ -43,6 +43,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
                                                                             [-1e-4  , -0.]]),
                                     'prior_spline_maxder_gaussian':np.array([[-2e3, 0.    ],
                                                                              [1e3 , np.inf]]),},
+                               'obesity':{'prior_beta_uniform': np.array([np.log(1.3), np.log(1.3)])},
                               },
                 're_vars': [],
                 'group_var': 'location_id',}
@@ -142,4 +143,4 @@ def get_nrmse(seroprevalence: pd.DataFrame, deaths: pd.Series,
     
     nrmse.index = nrmse.index.rename('location_id')
     
-    return nrmse
+    return nrmse, residuals

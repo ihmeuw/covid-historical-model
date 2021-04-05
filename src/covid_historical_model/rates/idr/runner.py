@@ -7,7 +7,7 @@ import pandas as pd
 from covid_historical_model.rates import idr
 from covid_historical_model.rates import squeeze
 
-RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map pred pred_fe')
+RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map daily_numerator pred pred_fe')
 
 
 def runner(model_inputs_root: Path, em_path: Path, testing_root: Path,
@@ -83,6 +83,7 @@ def runner(model_inputs_root: Path, em_path: Path, testing_root: Path,
         model_data=model_data,
         mr_model_dict=mr_model_dict,
         pred_location_map=pred_location_map,
+        daily_numerator=input_data['daily_cases'].copy(),
         pred=pred,
         pred_fe=pred_fe,
     )

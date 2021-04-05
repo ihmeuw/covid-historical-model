@@ -20,19 +20,19 @@ def squeeze(daily: pd.Series, rate: pd.Series,
     cumul_infections = cumul_infections.groupby(level=0).max()
     seroprevalence = seroprevalence.groupby(level=0).max()
     
-    vaccine_coverage = vaccine_coverage.join(daily, how='right')['cumulative_all_effective'].fillna(0)
-    vaccine_coverage = vaccine_coverage.groupby(level=0).max()
-    vaccine_coverage /= population
-    
-    limits = population * ceiling
     ## don't worry about vaccinations for now...
+    # vaccine_coverage = vaccine_coverage.join(daily, how='right')['cumulative_all_effective'].fillna(0)
+    # vaccine_coverage = vaccine_coverage.groupby(level=0).max()
+    # vaccine_coverage /= population
     # limits = ceiling * (1 - vaccine_coverage)
     # limits *= population
+    
+    limits = population * ceiling
     
     excess = (seroprevalence - limits).dropna().clip(0, np.inf)
     excess_scaling_factor = (cumul_infections - excess) / cumul_infections
     excess_scaling_factor = excess_scaling_factor.fillna(1)
     
-    rate /= excess_scaling_factor
+    rate = (rate / excess_scaling_factor).fillna(rate)
     
     return rate.dropna()

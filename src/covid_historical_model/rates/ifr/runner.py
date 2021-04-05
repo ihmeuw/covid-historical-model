@@ -19,7 +19,9 @@ from covid_historical_model.rates import age_standardization
 from covid_historical_model.rates import post
 from covid_historical_model.rates import squeeze
 
-RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map pred pred_fe pred_lr pred_hr')
+RESULTS = namedtuple('Results',
+                     'seroprevalence model_data mr_model_dict pred_location_map daily_numerator ' \
+                     'pred pred_unadj pred_fe pred_lr pred_hr pct_inf_lr pct_inf_hr')
 
 
 def runner(model_inputs_root: Path, em_path: Path, age_pattern_root: Path,
@@ -100,8 +102,9 @@ def runner(model_inputs_root: Path, em_path: Path, age_pattern_root: Path,
         verbose=verbose,
         **refit_input_data
     )
+    refit_pred_unadj = refit_pred.copy()
     
-    refit_pred, refit_pred_lr, refit_pred_hr = post.variants_vaccines(
+    refit_pred, refit_pred_lr, refit_pred_hr, pct_inf_lr, pct_inf_hr = post.variants_vaccines(
         rate_age_pattern=refit_input_data['ifr_age_pattern'].copy(),
         denom_age_pattern=refit_input_data['sero_age_pattern'].copy(),
         age_spec_population=refit_input_data['age_spec_population'].copy(),
@@ -132,41 +135,49 @@ def runner(model_inputs_root: Path, em_path: Path, age_pattern_root: Path,
         model_data=model_data,
         mr_model_dict=mr_model_dict,
         pred_location_map=pred_location_map,
+        daily_numerator=input_data['daily_deaths'].copy(),
         pred=pred,
+        pred_unadj=pred,
         pred_fe=pred_fe,
         pred_lr=None,
         pred_hr=None,
+        pct_inf_lr=None,
+        pct_inf_hr=None,
     )
     refit_results = RESULTS(
         seroprevalence=seroprevalence,
         model_data=refit_model_data,
         mr_model_dict=refit_mr_model_dict,
         pred_location_map=refit_pred_location_map,
+        daily_numerator=refit_input_data['daily_deaths'].copy(),
         pred=refit_pred,
+        pred_unadj=refit_pred_unadj,
         pred_fe=refit_pred_fe,
         pred_lr=refit_pred_lr,
         pred_hr=refit_pred_hr,
+        pct_inf_lr=pct_inf_lr,
+        pct_inf_hr=pct_inf_hr,
     )
     
-    nrmse = ifr.model.get_nrmse(seroprevalence.copy(),
-                                refit_input_data['daily_deaths'].copy(),
-                                refit_pred.copy(),
-                                refit_input_data['population'].copy(),
-                                refit_pred_location_map.copy(),
-                                refit_mr_model_dict.copy(),)
+    nrmse, residuals = ifr.model.get_nrmse(seroprevalence.copy(),
+                                           refit_input_data['daily_deaths'].copy(),
+                                           refit_pred.copy(),
+                                           refit_input_data['population'].copy(),
+                                           refit_pred_location_map.copy(),
+                                           refit_mr_model_dict.copy(),)
 
     return {'raw_results': results, 'refit_results': refit_results,
             'reinfection_inflation_factor': reinfection_inflation_factor,
-            'sensitivity': sensitivity, 'nrmse': nrmse,}
+            'sensitivity': sensitivity, 'nrmse': nrmse, 'residuals': residuals,}
 
 
 def main(inputs_path: str, outputs_path: str):
-    with open(inputs_path, 'rb') as file:
+    with Path(inputs_path).open('rb') as file:
         inputs = pickle.load(file)
         
     outputs = runner(**inputs)
     
-    with open(outputs_path, 'wb') as file:
+    with Path(outputs_path).open('wb') as file:
         pickle.dump({inputs['day_inflection']: outputs}, file)
 
 if __name__ == '__main__':

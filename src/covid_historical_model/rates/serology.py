@@ -1,13 +1,30 @@
 from pathlib import Path
 from loguru import logger
+from collections import namedtuple
 
 import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
 
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import matplotlib.dates as mdates
+import seaborn as sns
 
-from covid_historical_model.durations.durations import SERO_TO_DEATH, EXPOSURE_TO_SEROPOSITIVE
+from covid_historical_model.durations.durations import SERO_TO_DEATH, EXPOSURE_TO_SEROPOSITIVE, EXPOSURE_TO_DEATH
 from covid_historical_model.etl import model_inputs
+from covid_historical_model.utils.misc import text_wrap
+
+PLOT_DATE_LOCATOR = mdates.AutoDateLocator(maxticks=10)
+PLOT_DATE_FORMATTER = mdates.ConciseDateFormatter(PLOT_DATE_LOCATOR, show_offset=False)
+
+PLOT_C_LIST  = ['cornflowerblue', 'lightcoral', 'mediumseagreen', 'plum'         , 'navajowhite', 'paleturquoise']
+PLOT_EC_LIST = ['mediumblue'    , 'darkred'   , 'darkgreen'     , 'rebeccapurple', 'orange'     , 'teal']
+
+PLOT_INF_C = 'darkgrey'
+
+PLOT_START_DATE = pd.Timestamp('2020-03-01')
+PLOT_END_DATE = pd.Timestamp('2021-06-01')
 
 
 def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.Series,
@@ -249,3 +266,137 @@ def waning_adjustment(pred_ifr: pd.Series, daily_deaths: pd.Series, sensitivity:
     seroprevalence = seroprevalence.merge(orig_date)
     
     return seroprevalence
+
+
+def plotter(location_id: int, location_name: str,
+            out_path: Path,
+            seroprevalence: pd.DataFrame, ifr_results: namedtuple,
+            reinfection_inflation_factor: pd.Series,
+            vaccine_coverage: pd.DataFrame,
+            sensitivity: pd.DataFrame,
+            sensitivity_data: pd.DataFrame,
+            population: pd.Series,
+            **kwargs,):
+    # subset location
+    seroprevalence = seroprevalence.loc[seroprevalence['location_id'] == location_id]
+    reinfection_inflation_factor = reinfection_inflation_factor.loc[reinfection_inflation_factor['location_id'] == location_id]
+    adj_seroprevalence = ifr_results.seroprevalence.copy()
+    adj_seroprevalence = adj_seroprevalence.loc[adj_seroprevalence['location_id'] == location_id]
+    infections = (ifr_results.daily_numerator / ifr_results.pred).rename('infections').loc[location_id]
+    infections.index -= pd.Timedelta(days=SERO_TO_DEATH)
+    sensitivity = sensitivity.loc[sensitivity['location_id'] == location_id]
+    effectively_vaccinated = vaccine_coverage.loc[location_id, 'cumulative_all_effective'] / population.loc[location_id]
+
+    # remove repeat infections we added earlier
+    adj_seroprevalence = adj_seroprevalence.merge(reinfection_inflation_factor)
+    adj_seroprevalence['inflation_factor'] = adj_seroprevalence['inflation_factor'].fillna(1)
+    adj_seroprevalence['seroprevalence'] /= adj_seroprevalence['inflation_factor']
+    del adj_seroprevalence['inflation_factor']
+
+    # combine sero data
+    seroprevalence = seroprevalence.rename(columns={'seroprevalence':'seroprevalence_sub_vacc'})
+    seroprevalence = (seroprevalence
+                      .merge(adj_seroprevalence.loc[:, ['data_id', 'seroprevalence', 'assay']], how='left'))
+
+    # make assay table
+    assay_table = (seroprevalence
+                   .loc[seroprevalence['is_outlier'] == 0,
+                        ['data_id', 'test_name', 'test_target', 'isotype', 'assay']])
+    for t_col in ['test_name', 'test_target', 'isotype']:
+        assay_table[t_col] = assay_table[t_col].fillna('Not assigned')
+    assay_table['assay'] = assay_table['assay'].fillna('N/A')
+    assay_table = assay_table.groupby(['test_name', 'test_target', 'isotype', 'assay'])['data_id'].apply(list).reset_index()
+    assay_table = assay_table.rename(columns={'test_name': 'Test label',
+                                              'test_target': 'Antigen target',
+                                              'isotype': 'Isotype',
+                                              'assay': 'Mapped assay(s)',
+                                              'data_id': 'data_id_list'})
+    assay_table['Test label'] = assay_table['Test label'].apply(lambda x: text_wrap(x))
+    assay_table['Mapped assay(s)'] = assay_table['Mapped assay(s)'].apply(lambda x: text_wrap(x, ', '))
+
+    data_id_list = assay_table['data_id_list'].to_list()
+    assays = assay_table['Mapped assay(s)'].to_list()
+    cell_text = assay_table.values[:,:-1].tolist()
+    col_labels = assay_table.columns[:-1]
+    cell_colors = PLOT_C_LIST[:len(assay_table)]
+    cell_colors = [[cc] * len(col_labels) for cc in cell_colors]
+
+    fig = plt.figure(figsize=(16, 10), constrained_layout=True)
+    gs = fig.add_gridspec(3, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1])
+
+    sero_ax = fig.add_subplot(gs[0:2, 0])
+
+    inliers = seroprevalence.loc[seroprevalence['seroprevalence'].notnull()]
+    sero_ax.scatter(inliers['date'], inliers['reported_seroprevalence'],
+                    marker='s', c='none', edgecolors='black', s=100, alpha=0.5, label='Reported')
+    sero_ax.scatter(inliers['date'], inliers['seroprevalence_sub_vacc'],
+                    marker='^', c='none', edgecolors='black', s=100, alpha=0.5, label='No vaccinated')
+    sero_ax.scatter(inliers['date'], inliers['seroprevalence'],
+                    marker='o', c='none', edgecolors='black', s=100, alpha=0.5, label='No vaccinated, waning-adjusted')
+    outliers = seroprevalence.loc[seroprevalence['seroprevalence'].isnull()]
+    sero_ax.scatter(outliers['date'], outliers['reported_seroprevalence'],
+                    marker='x', c='black', s=100, alpha=0.5, label='Outlier')
+
+    for data_ids, c, ec in zip(data_id_list, PLOT_C_LIST, PLOT_EC_LIST):
+        plot_data = seroprevalence.loc[seroprevalence['data_id'].isin(data_ids)]
+        sero_ax.scatter(plot_data['date'], plot_data['reported_seroprevalence'],
+                   marker='s', c='none', edgecolors=ec, s=100)
+        sero_ax.scatter(plot_data['date'], plot_data['seroprevalence_sub_vacc'],
+                   marker='^', c='none', edgecolors=ec, s=100)
+        sero_ax.scatter(plot_data['date'], plot_data['seroprevalence'],
+                   marker='o', c=c, edgecolors=ec, s=100)
+    sero_ax.legend(loc=2)
+    sero_ax.set_ylabel('Seroprevalence')
+    
+    infec_ax = sero_ax.twinx()
+    infec_ax.plot(infections, color=PLOT_INF_C, alpha=0.5)
+    infec_ax.get_yaxis().set_ticks([])
+
+    y_max = seroprevalence[['seroprevalence', 'seroprevalence_sub_vacc', 'reported_seroprevalence']].max(axis=1).max() * 1.05
+    sero_ax.set_ylim(0, y_max)
+    sero_ax.set_xlim(PLOT_START_DATE, PLOT_END_DATE)
+    sero_ax.xaxis.set_major_locator(PLOT_DATE_LOCATOR)
+    sero_ax.xaxis.set_major_formatter(PLOT_DATE_FORMATTER)
+
+    table_ax = fig.add_subplot(gs[2, :])
+    table_ax.axis('tight')
+    table_ax.axis('off')
+    table = table_ax.table(cellText=cell_text,
+                     cellColours=cell_colors,
+                     colLabels=col_labels,
+                     colWidths=[0.3, 0.1, 0.1, 0.3],
+                     cellLoc='left',
+                     loc='center',)
+    table.scale(1, 3)
+    table.set_fontsize(20)
+
+
+    sens_ax = fig.add_subplot(gs[0, 1])
+    for i, (assay, c) in enumerate(zip(assays, PLOT_C_LIST)):
+        assay_sensitivity = sensitivity.loc[sensitivity['assay'] == assay.replace('\n', '')]    
+        if assay_sensitivity.empty:
+            raise ValueError(f'Unable to find sensitivity curve for {assay}')
+        sens_ax.plot(assay_sensitivity['t'],
+                     assay_sensitivity['sensitivity'],
+                     color=c, linewidth=2)
+        for a in assay.split(', '):
+            sens_ax.scatter(sensitivity_data.loc[sensitivity_data['assay'] == a, 't'],
+                            sensitivity_data.loc[sensitivity_data['assay'] == a, 'sensitivity'],
+                            marker='.', color=c, s=100, alpha=0.25)
+    sens_ax.set_ylim(0, 1.05)
+    sens_ax.set_ylabel('Sensitivity')
+    sens_ax.set_xlabel('Time from exposure to test')
+
+    vacc_ax = fig.add_subplot(gs[1, 1])
+    vacc_ax.plot(effectively_vaccinated * 100, color='black')
+    vacc_ax.set_ylabel('Vaccinated (%)')
+    vacc_ax.set_xlim(PLOT_START_DATE, PLOT_END_DATE)
+    vacc_ax.xaxis.set_major_locator(PLOT_DATE_LOCATOR)
+    vacc_ax.xaxis.set_major_formatter(PLOT_DATE_FORMATTER)
+
+    fig.suptitle(f'{location_name} ({location_id})', fontsize=24)
+    if out_path is None:
+        fig.show()
+    else:
+        fig.savefig(out_path, bbox_inches='tight')
+        plt.close(fig)

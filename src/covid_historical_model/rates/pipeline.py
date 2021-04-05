@@ -6,15 +6,18 @@ import dill as pickle
 import pandas as pd
 import numpy as np
 
-from covid_historical_model.etl import estimates
+from covid_historical_model.etl import model_inputs, estimates
 from covid_historical_model.rates import serology
+from covid_historical_model.rates import age_standardization
 from covid_historical_model.rates import ifr
 from covid_historical_model.rates import idr
 from covid_historical_model.rates import ihr
 from covid_historical_model import cluster
+from covid_historical_model.rates import location_plots
+from covid_historical_model.utils.pdf_merger import pdf_merger
 
 
-def pipeline(storage_dir: Path,
+def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
              model_inputs_root: Path, em_path: Path,
              vaccine_coverage_root: Path, variant_scaleup_root: Path,
              age_pattern_root: Path, testing_root: Path,
@@ -67,7 +70,7 @@ def pipeline(storage_dir: Path,
         logger.info('\n*************************************\n'
                     'IFR ESTIMATION -- determining best models and compiling adjusted seroprevalence\n'
                     '*************************************')
-    ifr_results, adj_seroprevalence, sensitivity, reinfection_inflation_factor = extract_ifr_results(full_ifr_results)
+    ifr_nrmse, best_ifr_models, ifr_results, adj_seroprevalence, sensitivity, reinfection_inflation_factor = extract_ifr_results(full_ifr_results)
 
     if verbose:
         logger.info('\n*************************************\n'
@@ -88,7 +91,44 @@ def pipeline(storage_dir: Path,
                                     escape_variant_prevalence.copy(), severity_variant_prevalence.copy(),
                                     reinfection_inflation_factor.copy(),
                                     verbose=verbose)
+        
+    # stuff for plotting
+    hierarchy = model_inputs.hierarchy(model_inputs_root)
+    population = model_inputs.population(model_inputs_root)
+    age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
+    population_lr, population_hr = age_standardization.get_risk_group_populations(age_spec_population)
+    sensitivity_data = model_inputs.assay_sensitivity(model_inputs_root)
+    del age_spec_population
     
+    plot_inputs = {
+        'best_ifr_models': best_ifr_models.set_index('location_id'),
+        'seroprevalence': seroprevalence,
+        'sensitivity': sensitivity,
+        'sensitivity_data': sensitivity_data,
+        'reinfection_inflation_factor': reinfection_inflation_factor,
+        'full_ifr_results': full_ifr_results,
+        'ifr_results': ifr_results,
+        'vaccine_coverage': vaccine_coverage,
+        'escape_variant_prevalence': escape_variant_prevalence,
+        'severity_variant_prevalence': severity_variant_prevalence,
+        'population': population,
+        'population_lr': population_lr,
+        'population_hr': population_hr,
+        'hierarchy': hierarchy,
+    }
+    inputs_path = storage_dir / f'plot_inputs.pkl'
+    with inputs_path.open('wb') as file:
+        pickle.dump(plot_inputs, file, -1)
+    
+    job_args_map = {
+        location_id: [location_plots.__file__, location_id, inputs_path, plots_dir] \
+        for location_id in hierarchy['location_id'].to_list()
+    }
+    cluster.run_cluster_jobs('covid_rates_plot', storage_dir, job_args_map)
+    compile_pdfs(plots_dir, out_dir, hierarchy, 'ifr', suffixes=['ifr'])
+    compile_pdfs(plots_dir, out_dir, hierarchy, 'serology', suffixes=['sero'])
+    
+    # load EM path to store for 
     if em_path is not None:
         em_data = pd.read_csv(em_path)
         em_data = em_data.rename(columns={'value':'em_scalar'})
@@ -99,7 +139,7 @@ def pipeline(storage_dir: Path,
         em_data = vaccine_coverage.reset_index()[['location_id']].drop_duplicates().reset_index(drop=True)
         em_data['em_scalar'] = 1
     
-    return seroprevalence, sensitivity, reinfection_inflation_factor, ifr_results, idr_results, ihr_results, em_data
+    return seroprevalence, reinfection_inflation_factor, ifr_results, idr_results, ihr_results, em_data
 
 
 def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
@@ -122,10 +162,14 @@ def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
     model_data = []
     mr_model_dict = {}
     pred_location_map = {}
+    daily_numerator = []
     pred = []
+    pred_unadj = []
     pred_fe = []
     pred_lr = []
     pred_hr = []
+    pct_inf_lr = []
+    pct_inf_hr = []
     for location_id, day_inflection in zip(best_models['location_id'], best_models['day_inflection']):
         loc_seroprevalence = full_ifr_results[day_inflection]['refit_results'].seroprevalence
         loc_seroprevalence = loc_seroprevalence.loc[loc_seroprevalence['location_id'] == location_id]
@@ -154,11 +198,23 @@ def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
             pass
         
         try:
+            loc_daily_numerator = full_ifr_results[day_inflection]['refit_results'].daily_numerator.loc[[location_id]]
+            daily_numerator.append(loc_daily_numerator)
+        except KeyError:
+            pass
+        
+        try:
             loc_pred = full_ifr_results[day_inflection]['refit_results'].pred.loc[[location_id]]
             pred.append(loc_pred)
         except KeyError:
             pass
 
+        try:
+            loc_pred_unadj = full_ifr_results[day_inflection]['refit_results'].pred_unadj.loc[[location_id]]
+            pred_unadj.append(loc_pred_unadj)
+        except KeyError:
+            pass
+        
         try:
             loc_pred_fe = full_ifr_results[day_inflection]['refit_results'].pred_fe.loc[[location_id]]
             pred_fe.append(loc_pred_fe)
@@ -176,6 +232,19 @@ def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
             pred_hr.append(loc_pred_hr)
         except KeyError:
             pass
+        
+        try:
+            loc_pct_inf_lr = full_ifr_results[day_inflection]['refit_results'].pct_inf_lr.loc[[location_id]]
+            pct_inf_lr.append(loc_pct_inf_lr)
+        except KeyError:
+            pass
+        
+        try:
+            loc_pct_inf_hr = full_ifr_results[day_inflection]['refit_results'].pct_inf_hr.loc[[location_id]]
+            pct_inf_hr.append(loc_pct_inf_hr)
+        except KeyError:
+            pass
+        
     sensitivity = sensitivity.reset_index(drop=True)
     reinfection_inflation_factor = pd.concat(reinfection_inflation_factor).reset_index(drop=True)
     ifr_results = ifr.runner.RESULTS(
@@ -183,11 +252,31 @@ def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
         model_data=pd.concat(model_data).reset_index(drop=True),
         mr_model_dict=mr_model_dict,
         pred_location_map=pred_location_map,
+        daily_numerator=pd.concat(daily_numerator),
         pred=pd.concat(pred),
+        pred_unadj=pd.concat(pred_unadj),
         pred_fe=pd.concat(pred_fe),
         pred_lr=pd.concat(pred_lr),
         pred_hr=pd.concat(pred_hr),
+        pct_inf_lr=pd.concat(pct_inf_lr),
+        pct_inf_hr=pd.concat(pct_inf_hr),
     )
     seroprevalence = ifr_results.seroprevalence.copy()
 
-    return ifr_results, seroprevalence, sensitivity, reinfection_inflation_factor
+    return nrmse, best_models, ifr_results, seroprevalence, sensitivity, reinfection_inflation_factor
+
+
+def compile_pdfs(plots_dir: Path, out_dir: Path, hierarchy: pd.DataFrame,
+                 outfile_prefix: str, suffixes: List[str],):
+    possible_pdfs = [[f'{l}_{s}.pdf' for s in suffixes] for l in hierarchy['location_id']]
+    possible_pdfs = [ll for l in possible_pdfs for ll in l]
+    existing_pdfs = [str(x).split('/')[-1] for x in plots_dir.iterdir() if x.is_file()]
+    pdf_paths = [pdf for pdf in possible_pdfs if pdf in existing_pdfs]
+    pdf_location_ids = [int(pdf_path.split('_')[0]) for pdf_path in pdf_paths]
+    pdf_location_names = [hierarchy.loc[hierarchy['location_id'] == location_id, 'location_name'].item() for location_id in pdf_location_ids]
+    pdf_parent_ids = [hierarchy.loc[hierarchy['location_id'] == location_id, 'parent_id'].item() for location_id in pdf_location_ids]
+    pdf_parent_names = [hierarchy.loc[hierarchy['location_id'] == parent_id, 'location_name'].item() for parent_id in pdf_parent_ids]
+    pdf_levels = [hierarchy.loc[hierarchy['location_id'] == location_id, 'level'].item() for location_id in pdf_location_ids]
+    pdf_paths = [str(plots_dir / pdf_path) for pdf_path in pdf_paths]
+    pdf_out_path = out_dir / f'{outfile_prefix}_{str(out_dir).split("/")[-1]}.pdf'
+    pdf_merger(pdf_paths, pdf_location_names, pdf_parent_names, pdf_levels, str(pdf_out_path))

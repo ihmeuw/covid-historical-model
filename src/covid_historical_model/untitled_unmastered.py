@@ -1,5 +1,6 @@
 from pathlib import Path
 import yaml
+import dill as pickle
 
 import pandas as pd
 
@@ -15,33 +16,34 @@ warnings.simplefilter('ignore')
 #### TRY TRIMMING IN GLOBAL MODEL? ####
 #######################################
 
-## TODO:
+## RATIO TODO:
+##     - bias covariate?
+##     - for waning, do something to Perez-Saez to crosswalk for baseline sensitivity?
 ##     - ONLY CUMULATIVE IHR
+##     - slope in IHR?
 ##     - log cluster jobs
 ##     - NAs in IES inputs?
-##     - for places (SSA) where we re-set the floor, don't force it for places where we have data (i.e., ZAF)
-##          * check that we don't get tens in places w/o data
 ##     - make sure we don't have NAs on dates that matter for ratios
-##     - splines in Jeffrey
-##          (a) try higher degree, fewer knot-days?
-##          (b) would it work to fix them e.g. every month?
-##          (c) fix uncertainty
-##     - apply variants/vaccines to IHR
-##     - is 10% OK for floor?
+##     - check that we don't get IDR floor == 10% in places w/o data
+##          * is 10% OK for floor anywhere??? should see how often
 ##     - make text matching in serology data more robust (e.g. to spelling mistakes)
 ##     - formalize test matching in `serology.apply_waning_adjustment`
 ##     - review all sensitivity curves
-##     - why is mean date of death/hosp slightly different?
+##     - why is mean date of death slightly different?
 ##     - stuff written down in IHME notebook
-##     - make sure we predict everywhere (why NAs in pred data?)
 ##     - think through ...
 ##          (a) how final models are selected for IFR (namely, anything undesirable wrt parent models)
 ##          (b) is sero data inconsistent between IFR and IHR/IDR?
 ##     - existing to-do's in IDR model
 ##     - use fit to find tests where we have multiple? would be a little harder...
 ##     - mark model data NAs as outliers, drop that way (in general, make it clear what data is and is not included)
-##     - change date for plotting IDR (done?)
 ##     - remove unused model data in runner after modeling
+
+## JEFFREY TODO:
+##     - splines
+##          (a) try higher degree, fewer knot-days?
+##          (b) would it work to fix them e.g. every month?
+##          (c) "fix" uncertainty
 
 # Path('/ihme/scratch/users/rmbarber/covid-19/rates-tmp-2021-04-02.03')
 
@@ -53,18 +55,28 @@ def main(out_dir: Path,
          testing_root: Path = Path('/ihme/covid-19/testing-outputs/best'),
          em_path: Path = Path('/ihme/scratch/users/rmbarber/covid-19/scalars_from_prescaled_combined.csv'),):
     ## working dir
-    shell_tools.mkdir(out_dir)
     storage_dir = out_dir / 'intermediate'
+    results_dir = out_dir / 'results'
+    plots_dir = out_dir / 'plots'
+    shell_tools.mkdir(out_dir)
     shell_tools.mkdir(storage_dir)
+    shell_tools.mkdir(results_dir)
+    shell_tools.mkdir(plots_dir)
 
     ## run models
-    seroprevalence, sensitivity, reinfection_inflation_factor, ifr_results, idr_results, ihr_results, em_data = pipeline(
-        storage_dir,
+    seroprevalence, reinfection_inflation_factor, ifr_results, idr_results, ihr_results, em_data = pipeline(
+        out_dir, storage_dir, plots_dir,
         model_inputs_root, em_path,
         vaccine_coverage_root, variant_scaleup_root,
         age_pattern_root,
         testing_root,
     )
+    with (results_dir / 'ifr_results.pkl').open('wb') as file:
+        pickle.dump(ifr_results, file, -1)
+    with (results_dir / 'idr_results.pkl').open('wb') as file:
+        pickle.dump(idr_results, file, -1)
+    with (results_dir / 'ihr_results.pkl').open('wb') as file:
+        pickle.dump(ihr_results, file, -1)
 
     ## save IFR
     ifr = pd.concat([ifr_results.pred.rename('ifr'),
@@ -142,8 +154,6 @@ def main(out_dir: Path,
     seroprevalence.to_csv(out_dir / 'sero_data.csv', index=False)
 
     reinfection_inflation_factor.reset_index().to_csv(out_dir / 'reinfection_data.csv', index=False)
-
-    sensitivity.to_csv(out_dir / 'sensitivity_data.csv', index=False)
 
     testing.to_csv(out_dir / 'test_data.csv', index=False)
 

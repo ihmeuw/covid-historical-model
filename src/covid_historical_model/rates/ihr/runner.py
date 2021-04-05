@@ -8,7 +8,7 @@ from covid_historical_model.rates import ihr
 from covid_historical_model.rates import post
 from covid_historical_model.rates import squeeze
 
-RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map pred pred_fe pred_lr pred_hr')
+RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map daily_numerator pred pred_fe pred_lr pred_hr')
 
 
 def runner(model_inputs_root: Path, age_pattern_root: Path,
@@ -43,7 +43,7 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
         **input_data
     )
     
-    pred, pred_lr, pred_hr = post.variants_vaccines(
+    pred, pred_lr, pred_hr, *_ = post.variants_vaccines(
         rate_age_pattern=input_data['ihr_age_pattern'].copy(),
         denom_age_pattern=input_data['sero_age_pattern'].copy(),
         age_spec_population=input_data['age_spec_population'].copy(),
@@ -75,6 +75,7 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
         model_data=model_data,
         mr_model_dict=mr_model_dict,
         pred_location_map=pred_location_map,
+        daily_numerator=input_data['daily_hospitalizations'].copy(),
         pred=pred,
         pred_fe=pred_fe,
         pred_lr=pred_lr,
