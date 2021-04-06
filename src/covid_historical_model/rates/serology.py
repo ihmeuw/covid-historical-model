@@ -34,9 +34,9 @@ def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.
     population = model_inputs.population(model_inputs_root)
     vaccinated /= population
     
-    vaccinated = vaccinated.reset_index()
-    vaccinated['date'] += pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
-    vaccinated = vaccinated.set_index(['location_id', 'date'])
+    # vaccinated = vaccinated.reset_index()
+    # vaccinated['date'] += pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
+    # vaccinated = vaccinated.set_index(['location_id', 'date'])
     
     if verbose:
         logger.info('Removing effectively vaccinated from reported seroprevalence.')
@@ -47,15 +47,15 @@ def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.
 
 def remove_vaccinated(seroprevalence: pd.DataFrame,
                       vaccinated: pd.Series,) -> pd.DataFrame:
-    ## remove vaccinated based on end date? otherwise use commented out bits here
-    # seroprevalence = seroprevalence.rename(columns={'date':'end_date'})
-    # seroprevalence['n_midpoint_days'] = (seroprevalence['end_date'] - seroprevalence['start_date']).dt.days / 2
-    # seroprevalence['n_midpoint_days'] = seroprevalence['n_midpoint_days'].astype(int)
-    # seroprevalence['date'] = seroprevalence.apply(lambda x: x['end_date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
+    # to go back to end dat merge, get rid of bits above and below merge in this chunk
+    seroprevalence = seroprevalence.rename(columns={'date':'end_date'})
+    seroprevalence['n_midpoint_days'] = (seroprevalence['end_date'] - seroprevalence['start_date']).dt.days / 2
+    seroprevalence['n_midpoint_days'] = seroprevalence['n_midpoint_days'].astype(int)
+    seroprevalence['date'] = seroprevalence.apply(lambda x: x['end_date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
     seroprevalence = seroprevalence.merge(vaccinated.reset_index(), how='left')
-    # del seroprevalence['date']
-    # del seroprevalence['n_midpoint_days']
-    # seroprevalence = seroprevalence.rename(columns={'end_date':'date'})
+    del seroprevalence['date']
+    del seroprevalence['n_midpoint_days']
+    seroprevalence = seroprevalence.rename(columns={'end_date':'date'})
     seroprevalence['vaccinated'] = seroprevalence['vaccinated'].fillna(0)
     
     seroprevalence.loc[seroprevalence['test_target'] != 'spike', 'vaccinated'] = 0
