@@ -35,8 +35,7 @@ def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.
     vaccinated /= population
     
     vaccinated = vaccinated.reset_index()
-    # assume this is date of seroconversion?
-    # vaccinated['date'] += pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
+    vaccinated['date'] += pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
     vaccinated = vaccinated.set_index(['location_id', 'date'])
     
     if verbose:
@@ -113,20 +112,20 @@ def apply_waning_adjustment(model_inputs_root: Path,
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
     seroprevalence = seroprevalence.merge(assay_map, how='left')
-    missing_match = seroprevalence['assay_match'].isnull()
+    missing_match = seroprevalence['assay_map'].isnull()
     is_N = seroprevalence['test_target'] == 'nucleocapsid'
     is_S = seroprevalence['test_target'] == 'spike'
     is_other = ~(is_N | is_S)
-    seroprevalence.loc[missing_match & is_N, 'assay_match'] = 'N-Roche, N-Abbott'
-    seroprevalence.loc[missing_match & is_S, 'assay_match'] = 'S-Roche, S-Ortho Ig, S-Ortho IgG, S-DiaSorin, S-EuroImmun'
-    seroprevalence.loc[missing_match & is_other, 'assay_match'] = 'N-Roche, ' \
+    seroprevalence.loc[missing_match & is_N, 'assay_map'] = 'N-Roche, N-Abbott'
+    seroprevalence.loc[missing_match & is_S, 'assay_map'] = 'S-Roche, S-Ortho Ig, S-Ortho IgG, S-DiaSorin, S-EuroImmun'
+    seroprevalence.loc[missing_match & is_other, 'assay_map'] = 'N-Roche, ' \
                                                                   'N-Abbott, ' \
                                                                   'S-Roche, S-Ortho Ig, ' \
                                                                   'S-Ortho IgG, S-DiaSorin, S-EuroImmun' 
-    if seroprevalence['assay_match'].isnull().any():
-        raise ValueError(f"Unmapped seroprevalence data: {seroprevalence.loc[seroprevalence['assay_match'].isnull()]}")
+    if seroprevalence['assay_map'].isnull().any():
+        raise ValueError(f"Unmapped seroprevalence data: {seroprevalence.loc[seroprevalence['assay_map'].isnull()]}")
 
-    assay_combinations = seroprevalence['assay_match'].unique().tolist()
+    assay_combinations = seroprevalence['assay_map'].unique().tolist()
 
     sensitivity_list = []
     seroprevalence_list = []
@@ -136,7 +135,7 @@ def apply_waning_adjustment(model_inputs_root: Path,
                              .reset_index()
                              .groupby(['location_id', 't'])['sensitivity'].mean())
         ac_seroprevalence = (seroprevalence
-                             .loc[seroprevalence['assay_match'] == assay_combination].copy())
+                             .loc[seroprevalence['assay_map'] == assay_combination].copy())
         ac_seroprevalence = waning_adjustment(
             pred_ifr.copy(),
             daily_deaths.copy(),

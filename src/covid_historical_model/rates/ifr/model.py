@@ -30,7 +30,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     model_data['intercept'] = 1
 
     inflection_point = (day_inflection - day_0).days
-    inflection_point /= model_data['t'].max()
+    inflection_point /= model_data['t'].values.ptp()
 
     var_args = {'dep_var': 'logit_ifr',
                 'dep_var_se': 'logit_ifr_se',
@@ -40,9 +40,10 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
                                     'spline_knots':np.array([0., inflection_point, 1.]),
                                     'spline_degree':1,
                                     'prior_spline_maxder_uniform':np.array([[-np.inf, -0.],
-                                                                            [-1e-4  , -0.]]),
-                                    'prior_spline_maxder_gaussian':np.array([[-2e3, 0.    ],
-                                                                             [0.01, np.inf]]),},
+                                                                            [-1e-6  , -0.]]),
+                                    'prior_spline_maxder_gaussian':np.array([[-2e-3, 0.    ],
+                                                                             [0.01  , np.inf]]),
+                                   },
                                'obesity':{'prior_beta_uniform': np.array([np.log(1.3), np.log(1.3)])},
                               },
                 're_vars': [],

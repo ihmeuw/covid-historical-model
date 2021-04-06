@@ -4,7 +4,7 @@ import dill as pickle
 
 import pandas as pd
 
-from covid_shared import shell_tools
+from covid_shared import cli_tools, shell_tools
 
 from covid_historical_model.rates.pipeline import pipeline
 from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
@@ -17,17 +17,19 @@ warnings.simplefilter('ignore')
 #######################################
 
 ## IMPORTANT TODO:
-##     - cli
 ##     - Connecticut fit?
 ##     - how to fill where we have no assay information
+##     - checks on EM file
 ##     - bias covariate?
 ##     - for waning, do something to Perez-Saez to crosswalk for baseline sensitivity?
 ##     - ONLY CUMULATIVE IHR
 ##     - NAs in IES inputs?
+##     - more missing locations in IES?
 ##     - why is mean date of death slightly different?
 ##     - where do we get 10% floors...
 
 ## RATIO FUTURE TODO:
+##     - try trimming in certain levels (probably just global)? might screw up spline, might not
 ##     - slope in IHR?
 ##     - log cluster jobs
 ##     - make sure we don't have NAs on dates that matter for ratios
@@ -42,26 +44,21 @@ warnings.simplefilter('ignore')
 ##     - mark model data NAs as outliers, drop that way (in general, make it clear what data is and is not included)
 ##     - remove unused model data in runner after modeling
 
-## JEFFREY TODO:
+## JEFFREY FUTURE TODO:
 ##     - splines
 ##          (a) try higher degree, fewer knot-days?
 ##          (b) would it work to fix them e.g. every month?
 ##          (c) "fix" uncertainty
 
-# Path('/ihme/scratch/users/rmbarber/covid-19/rates-tmp-2021-04-02.03')
-
-def main(out_dir: Path,
-         model_inputs_root: Path = Path('/ihme/covid-19/model-inputs/best'),
-         vaccine_coverage_root: Path = Path('/ihme/covid-19/vaccine-coverage/best'),
-         variant_scaleup_root: Path = Path('/ihme/covid-19/variant-scaleup/best'),
-         age_pattern_root: Path = Path('/ihme/covid-19-2/age-specific-rates/best'),
-         testing_root: Path = Path('/ihme/covid-19/testing-outputs/best'),
-         em_path: Path = Path('/ihme/scratch/users/rmbarber/covid-19/scalars_from_prescaled_combined.csv'),):
+def main(app_metadata: cli_tools.Metadata, out_dir: Path,
+         model_inputs_root: Path,
+         vaccine_coverage_root: Path, variant_scaleup_root: Path,
+         age_pattern_root: Path, testing_root: Path,
+         em_path: Path,):
     ## working dir
     storage_dir = out_dir / 'intermediate'
     results_dir = out_dir / 'results'
     plots_dir = out_dir / 'plots'
-    shell_tools.mkdir(out_dir)
     shell_tools.mkdir(storage_dir)
     shell_tools.mkdir(results_dir)
     shell_tools.mkdir(plots_dir)

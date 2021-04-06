@@ -24,6 +24,10 @@ def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
              day_inflection_list: List[str] = ['2020-05-01', '2020-06-01', '2020-07-01',
                                                '2020-08-01', '2020-09-01', '2020-10-01', '2020-11-01'],
              verbose: bool = True,) -> Tuple:
+    if verbose:
+        logger.info('\n*************************************\n'
+                    f"PRE-LOADING SPECIFIED DATASETS\n"
+                    '*************************************')
     escape_variant_prevalence = estimates.variant_scaleup(variant_scaleup_root, 'escape', verbose=verbose)
     severity_variant_prevalence = estimates.variant_scaleup(variant_scaleup_root, 'severity', verbose=verbose)
     vaccine_coverage = estimates.vaccine_coverage(vaccine_coverage_root)
