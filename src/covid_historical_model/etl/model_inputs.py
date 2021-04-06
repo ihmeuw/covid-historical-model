@@ -11,7 +11,7 @@ from covid_historical_model.etl import db, helpers
 def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFrame:
     # load
     data_path = model_inputs_root / 'serology' / 'global_serology_summary.csv'
-    data = pd.read_csv(data_path, encoding='latin1')
+    data = pd.read_csv(data_path)
     if verbose:
         logger.info(f'Initial observation count: {len(data)}')
 

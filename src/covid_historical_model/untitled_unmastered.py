@@ -16,21 +16,23 @@ warnings.simplefilter('ignore')
 #### TRY TRIMMING IN GLOBAL MODEL? ####
 #######################################
 
-## RATIO TODO:
-##     - what to do about infelction dates...
+## IMPORTANT TODO:
+##     - cli
+##     - Connecticut fit?
+##     - how to fill where we have no assay information
 ##     - bias covariate?
 ##     - for waning, do something to Perez-Saez to crosswalk for baseline sensitivity?
 ##     - ONLY CUMULATIVE IHR
+##     - NAs in IES inputs?
+##     - why is mean date of death slightly different?
+##     - where do we get 10% floors...
+
+## RATIO FUTURE TODO:
 ##     - slope in IHR?
 ##     - log cluster jobs
-##     - NAs in IES inputs?
 ##     - make sure we don't have NAs on dates that matter for ratios
-##     - check that we don't get IDR floor == 10% in places w/o data
-##          * is 10% OK for floor anywhere??? should see how often
 ##     - make text matching in serology data more robust (e.g. to spelling mistakes)
 ##     - formalize test matching in `serology.apply_waning_adjustment`
-##     - review all sensitivity curves
-##     - why is mean date of death slightly different?
 ##     - stuff written down in IHME notebook
 ##     - think through ...
 ##          (a) how final models are selected for IFR (namely, anything undesirable wrt parent models)

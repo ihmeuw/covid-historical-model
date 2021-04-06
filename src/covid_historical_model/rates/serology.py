@@ -109,11 +109,10 @@ def apply_waning_adjustment(model_inputs_root: Path,
     
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     ## DO THIS DIFFERENTLY...
-    test_matching = pd.read_csv('/'.join(__file__.split('/')[:-2]) + '/tests.csv',
-                                encoding='latin1')
+    assay_map = pd.read_excel('/'.join(__file__.split('/')[:-2]) + '/maps/assay_map.xlsx')
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
-    seroprevalence = seroprevalence.merge(test_matching, how='left')
+    seroprevalence = seroprevalence.merge(assay_map, how='left')
     missing_match = seroprevalence['assay_match'].isnull()
     is_N = seroprevalence['test_target'] == 'nucleocapsid'
     is_S = seroprevalence['test_target'] == 'spike'
@@ -124,6 +123,8 @@ def apply_waning_adjustment(model_inputs_root: Path,
                                                                   'N-Abbott, ' \
                                                                   'S-Roche, S-Ortho Ig, ' \
                                                                   'S-Ortho IgG, S-DiaSorin, S-EuroImmun' 
+    if seroprevalence['assay_match'].isnull().any():
+        raise ValueError(f"Unmapped seroprevalence data: {seroprevalence.loc[seroprevalence['assay_match'].isnull()]}")
 
     assay_combinations = seroprevalence['assay_match'].unique().tolist()
 
