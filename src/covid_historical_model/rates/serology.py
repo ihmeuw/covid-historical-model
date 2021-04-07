@@ -49,13 +49,16 @@ def remove_vaccinated(seroprevalence: pd.DataFrame,
                       vaccinated: pd.Series,) -> pd.DataFrame:
     # to go back to end dat merge, get rid of bits above and below merge in this chunk
     seroprevalence = seroprevalence.rename(columns={'date':'end_date'})
-    seroprevalence['n_midpoint_days'] = (seroprevalence['end_date'] - seroprevalence['start_date']).dt.days / 2
-    seroprevalence['n_midpoint_days'] = seroprevalence['n_midpoint_days'].astype(int)
-    seroprevalence['date'] = seroprevalence.apply(lambda x: x['end_date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
+    seroprevalence = seroprevalence.rename(columns={'start_date':'date'})
+    # seroprevalence['n_midpoint_days'] = (seroprevalence['end_date'] - seroprevalence['start_date']).dt.days / 2
+    # seroprevalence['n_midpoint_days'] = seroprevalence['n_midpoint_days'].astype(int)
+    # seroprevalence['date'] = seroprevalence.apply(lambda x: x['end_date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
     seroprevalence = seroprevalence.merge(vaccinated.reset_index(), how='left')
-    del seroprevalence['date']
-    del seroprevalence['n_midpoint_days']
+    # del seroprevalence['date']
+    # del seroprevalence['n_midpoint_days']
+    # seroprevalence = seroprevalence.rename(columns={'end_date':'date'})
     seroprevalence = seroprevalence.rename(columns={'end_date':'date'})
+    seroprevalence = seroprevalence.rename(columns={'date':'start_date'})
     seroprevalence['vaccinated'] = seroprevalence['vaccinated'].fillna(0)
     
     seroprevalence.loc[seroprevalence['test_target'] != 'spike', 'vaccinated'] = 0
@@ -119,9 +122,9 @@ def apply_waning_adjustment(model_inputs_root: Path,
     seroprevalence.loc[missing_match & is_N, 'assay_map'] = 'N-Roche, N-Abbott'
     seroprevalence.loc[missing_match & is_S, 'assay_map'] = 'S-Roche, S-Ortho Ig, S-Ortho IgG, S-DiaSorin, S-EuroImmun'
     seroprevalence.loc[missing_match & is_other, 'assay_map'] = 'N-Roche, ' \
-                                                                  'N-Abbott, ' \
-                                                                  'S-Roche, S-Ortho Ig, ' \
-                                                                  'S-Ortho IgG, S-DiaSorin, S-EuroImmun' 
+                                                                'N-Abbott, ' \
+                                                                'S-Roche, S-Ortho Ig, ' \
+                                                                'S-Ortho IgG, S-DiaSorin, S-EuroImmun' 
     if seroprevalence['assay_map'].isnull().any():
         raise ValueError(f"Unmapped seroprevalence data: {seroprevalence.loc[seroprevalence['assay_map'].isnull()]}")
 
