@@ -17,17 +17,12 @@ warnings.simplefilter('ignore')
 #######################################
 
 ## IMPORTANT TODO:
-##     - reinfection NAs
-##     - Connecticut fit?
-##     - how to fill where we have no assay information
+##     - reinfection NAs (probably 0 deaths)
+##     - best way to fill where we have no assay information
 ##     - checks on EM file
 ##     - bias covariate?
 ##     - for waning, do something to Perez-Saez to crosswalk for baseline sensitivity?
-##     - ONLY CUMULATIVE IHR
 ##     - NAs in IES inputs?
-##     - more missing locations in IES?
-##     - why is mean date of death slightly different?
-##     - where do we get 10% floors...
 
 ## RATIO FUTURE TODO:
 ##     - try trimming in certain levels (probably just global)? might screw up spline, might not
@@ -46,6 +41,8 @@ warnings.simplefilter('ignore')
 ##     - remove unused model data in runner after modeling
 
 ## JEFFREY FUTURE TODO:
+##     - add smarter logic around dropping leading 0s
+##     - plot dropped data
 ##     - splines
 ##          (a) try higher degree, fewer knot-days?
 ##          (b) would it work to fix them e.g. every month?
