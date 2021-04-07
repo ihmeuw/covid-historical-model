@@ -132,16 +132,8 @@ def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
     compile_pdfs(plots_dir, out_dir, hierarchy, 'ifr', suffixes=['ifr'])
     compile_pdfs(plots_dir, out_dir, hierarchy, 'serology', suffixes=['sero'])
     
-    # # will need to load EM data
-    # if excess_mortality:
-    #     em_data = pd.read_csv(em_path)
-    #     em_data = em_data.rename(columns={'value':'em_scalar'})
-    #     em_data = em_data.loc[:, ['location_id', 'em_scalar']]
-    #     em_data['em_scalar'] = em_data['em_scalar'].fillna(1)
-    #     em_data['em_scalar'] = em_data['em_scalar'].clip(1, np.inf)
-    # else:
-    em_data = vaccine_coverage.reset_index()[['location_id']].drop_duplicates().reset_index(drop=True)
-    em_data['em_scalar'] = 1
+    # will need to load EM data
+    em_data = estimates.terminal_excess_mortailty(model_inputs_root, excess_mortality)
     
     return seroprevalence, reinfection_inflation_factor, ifr_results, idr_results, ihr_results, em_data
 
