@@ -9,14 +9,15 @@ from covid_historical_model.etl import db, model_inputs, estimates
 from covid_historical_model.durations.durations import SERO_TO_DEATH
 
 
-def load_input_data(model_inputs_root: Path, age_pattern_root: Path,
+def load_input_data(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Path,
+                    seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
+                    escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
                     verbose: bool = True) -> Dict:
     # load data
-    seroprevalence = model_inputs.seroprevalence(model_inputs_root, verbose=verbose)
     hierarchy = model_inputs.hierarchy(model_inputs_root)
     population = model_inputs.population(model_inputs_root)
     age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
-    cumulative_deaths, daily_deaths = model_inputs.reported_epi(model_inputs_root, 'deaths')
+    cumulative_deaths, daily_deaths = model_inputs.reported_epi(model_inputs_root, 'deaths', hierarchy, excess_mortality)
     sero_age_pattern = estimates.seroprevalence_age_pattern(age_pattern_root)
     ifr_age_pattern = estimates.ifr_age_pattern(age_pattern_root)
     covariates = [db.obesity(hierarchy)]
@@ -24,10 +25,13 @@ def load_input_data(model_inputs_root: Path, age_pattern_root: Path,
     return {'cumulative_deaths': cumulative_deaths,
             'daily_deaths': daily_deaths,
             'seroprevalence': seroprevalence,
+            'vaccine_coverage': vaccine_coverage,
             'covariates': covariates,
             'sero_age_pattern': sero_age_pattern,
             'ifr_age_pattern': ifr_age_pattern,
             'age_spec_population': age_spec_population,
+            'escape_variant_prevalence': escape_variant_prevalence,
+            'severity_variant_prevalence': severity_variant_prevalence,
             'hierarchy': hierarchy,
             'population': population,}
 
@@ -55,7 +59,7 @@ def create_model_data(cumulative_deaths: pd.Series, daily_deaths: pd.Series,
         locdeaths = locdeaths.reset_index()
         locdeaths = locdeaths.loc[locdeaths['date'] <= survey_end_date]
         locdeaths['t'] = (locdeaths['date'] - day_0).dt.days
-        t = np.average(locdeaths['t'], weights=locdeaths['daily_deaths'] + 1e-4)
+        t = np.average(locdeaths['t'], weights=locdeaths['daily_deaths'] + 1e-6)
         mean_death_date = locdeaths.loc[locdeaths['t'] == int(np.round(t)), 'date'].item()
         time.append(
             pd.DataFrame(

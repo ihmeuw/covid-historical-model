@@ -34,3 +34,22 @@ def parent_inheritance(data: pd.DataFrame, hierarchy: pd.DataFrame) -> pd.DataFr
                     pass
     
     return data
+
+
+def text_wrap(text: str, splitter: str = ' ', line_length: int = 30) -> str:
+    new_text = ''
+    line = 0
+    for w in text.split(splitter):
+        new_text += f'{w}'
+        new_text += splitter
+        line += len(w)
+        if line > line_length:
+            new_text += '\n'
+            line = 0
+            
+    if line == 0:
+        new_text = new_text[:-(1 + len(splitter))]
+    else:
+        new_text = new_text[:-len(splitter)]
+    
+    return new_text

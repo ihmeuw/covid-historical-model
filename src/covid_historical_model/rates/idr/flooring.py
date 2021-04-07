@@ -9,16 +9,16 @@ import numpy as np
 def manual_floor_setting(rmse: pd.DataFrame,
                          best_floor: pd.Series,
                          hierarchy: pd.DataFrame,
+                         data_locations: List[int],
                          verbose: bool = True) -> Tuple[pd.DataFrame, pd.Series]:
     if verbose:
-        logger.warning('Manually setting IDR floor of 0.1% for the following SSA locations...')
+        logger.warning('Manually setting IDR floor of 0.1% for SSA locations.')
     is_ssa_location = hierarchy['path_to_top_parent'].apply(lambda x: '166' in x.split(','))
     ssa_location_ids = hierarchy.loc[is_ssa_location, 'location_id'].to_list()
+    ssa_location_ids = [l for l in ssa_location_ids if l not in data_locations]
     
     for ssa_location_id in ssa_location_ids:
         if best_floor[ssa_location_id] > 0.001:
-            if verbose:
-                logger.warning(f'... {ssa_location_id}')
             best_floor[ssa_location_id] = 0.001
             is_ssa_rmse = rmse['location_id'] == ssa_location_id
             rmse.loc[is_ssa_rmse, 'rmse'] = np.nan
@@ -48,7 +48,9 @@ def find_idr_floor(pred: pd.Series,
     
     best_floor = rmse.groupby('location_id').apply(lambda x: x.sort_values('rmse')['floor'].values[0]).rename('idr_floor')
     
-    rmse, best_floor = manual_floor_setting(rmse, best_floor, hierarchy, verbose)
+    rmse, best_floor = manual_floor_setting(rmse, best_floor, hierarchy,
+                                            serosurveys.reset_index()['location_id'].unique().tolist(),
+                                            verbose)
     
     return rmse, best_floor
 
@@ -69,6 +71,7 @@ def test_floor_value(pred: pd.Series,
                      population: pd.Series,
                      hierarchy: pd.DataFrame,
                      floor: float,
+                     min_children: int = 5,
                      verbose: bool = True,) -> pd.DataFrame:
     if verbose:
         logger.info(f'Testing IDR floor of {round(floor*100, 1)}%.')
@@ -89,8 +92,6 @@ def test_floor_value(pred: pd.Series,
                       name='rmse',
                       index=pd.Index([], name='location_id'))
     location_ids = hierarchy.sort_values(['level', 'sort_order'])['location_id']
-    if (137 in location_ids or 138 in location_ids) and verbose:
-        logger.warning('Using global floor for NA/ME region.')
     for location_id in tqdm(location_ids):
         in_path = hierarchy['path_to_top_parent'].apply(lambda x: str(location_id) in x.split(','))
         child_ids = hierarchy.loc[in_path, 'location_id'].to_list()
@@ -99,8 +100,8 @@ def test_floor_value(pred: pd.Series,
         # check if location_id is present
         if location_id in serosurveys.reset_index()['location_id'].to_list():
             rmse = np.sqrt((residuals[location_id]**2).mean())
-        # check if children are present (excluding NA/ME super region and region)
-        elif location_id not in [137, 138] and any([l in serosurveys.reset_index()['location_id'].to_list() for l in child_ids]):
+        # check if at least `min_children` children are present
+        elif serosurveys.reset_index()['location_id'].isin(child_ids).sum() >= min_children:
             child_residuals = residuals.reset_index()
             child_residuals = (child_residuals
                                .loc[child_residuals['location_id'].isin(child_ids)]

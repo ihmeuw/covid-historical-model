@@ -1,4 +1,5 @@
 from pathlib import Path
+from loguru import logger
 
 import pandas as pd
 import numpy as np
@@ -27,10 +28,11 @@ def testing(testing_root: Path) -> pd.DataFrame:
     data = data.dropna()
     data = data.sort_values(['location_id', 'date']).reset_index(drop=True)
     data['testing_capacity'] = data.groupby('location_id')['daily_tests'].cummax()
-    
-    data = data.loc[:, ['location_id', 'date',
-                        'daily_tests', 'testing_capacity',
-                        'cumulative_tests',]]
+
+    data = (data
+            .set_index(['location_id', 'date'])
+            .sort_index()
+            .loc[:, ['daily_tests', 'testing_capacity', 'cumulative_tests']])
     
     return data
 
@@ -46,6 +48,7 @@ def ihr_age_pattern(age_pattern_root: Path) -> pd.Series:
 
     data = (data
             .set_index(['age_group_years_start', 'age_group_years_end'])
+            .sort_index()
             .loc[:, 'ihr'])
     
     return data
@@ -61,6 +64,7 @@ def ifr_age_pattern(age_pattern_root: Path) -> pd.Series:
 
     data = (data
             .set_index(['age_group_years_start', 'age_group_years_end'])
+            .sort_index()
             .loc[:, 'ifr'])
     
     return data
@@ -77,9 +81,87 @@ def seroprevalence_age_pattern(age_pattern_root: Path) -> pd.Series:
 
     data = (data
             .set_index(['age_group_years_start', 'age_group_years_end'])
+            .sort_index()
             .loc[:, 'seroprevalence'])
     
     return data
 
-def vaccinations(vaccine_coverage_root: Path) -> pd.DataFrame:
+
+def vaccine_coverage(vaccine_coverage_root: Path) -> pd.DataFrame:
+    data_path = vaccine_coverage_root / 'slow_scenario_vaccine_coverage.csv'
+    data = pd.read_csv(data_path)
+    data['date'] = pd.to_datetime(data['date'])
     
+    keep_columns = [
+        # total seroconverted (all and by three groups)
+        'cumulative_all_effective',
+        'cumulative_essential_effective',
+        'cumulative_adults_effective',
+        'cumulative_elderly_effective',
+        
+        # elderly (mutually exclusive)
+        'cumulative_hr_effective_wildtype',
+        'cumulative_hr_effective_protected_wildtype',
+        'cumulative_hr_effective_variant',
+        'cumulative_hr_effective_protected_variant',
+    
+        # other adults (mutually exclusive)
+        'cumulative_lr_effective_wildtype',
+        'cumulative_lr_effective_protected_wildtype',
+        'cumulative_lr_effective_variant',
+        'cumulative_lr_effective_protected_variant',
+    ]
+    
+    data = (data
+            .set_index(['location_id', 'date'])
+            .sort_index()
+            .loc[:, keep_columns])
+    
+    return data
+
+
+def variant_scaleup(variant_scaleup_root: Path, variant_type: str, verbose: bool = True) -> pd.Series:
+    data_path = variant_scaleup_root / 'variant_reference.csv'
+    data = pd.read_csv(data_path)
+    data['date'] = pd.to_datetime(data['date'])
+    
+    if variant_type == 'escape':
+        is_escape_variant = ~data['variant'].isin(['wild_type', 'B117'])
+        data = data.loc[is_escape_variant]
+        if verbose:
+            logger.info(f"Escape variants: {', '.join(data['variant'].unique())}")
+        data = data.rename(columns={'prevalence': 'escape_variant_prevalence'})
+        data = data.groupby(['location_id', 'date'])['escape_variant_prevalence'].sum()
+    elif variant_type == 'severity':
+        is_variant = data['variant'].isin(['B117'])
+        data = data.loc[is_variant]
+        if verbose:
+            logger.info(f"Variants: {', '.join(data['variant'].unique())}")
+        data = data.rename(columns={'prevalence': 'severity_variant_prevalence'})
+        data = data.groupby(['location_id', 'date'])['severity_variant_prevalence'].sum()
+    else:
+        raise ValueError(f'Invalid variant type specified: {variant_type}')
+
+    
+    return data
+
+
+def terminal_excess_mortailty(model_inputs_root: Path, excess_mortality: bool,) -> pd.DataFrame:
+    data_path = model_inputs_root / 'raw_formatted' / 'location_scalars.csv'
+    data = pd.read_csv(data_path)
+    data['date'] = pd.to_datetime(data['start_date'])
+    data = data.rename(columns={'value':'em_scalar'})
+    data = data.loc[:, ['location_id', 'date', 'em_scalar']]
+    data = data.sort_values(['location_id', 'date']).reset_index()
+    
+    if not excess_mortality:
+        data['em_scalar'] = 1
+        
+    # pull out last data
+    data = (data
+            .groupby('location_id')
+            .apply(lambda x: x['em_scalar'].values[-1])
+            .rename('em_scalar')
+            .reset_index())
+    
+    return data

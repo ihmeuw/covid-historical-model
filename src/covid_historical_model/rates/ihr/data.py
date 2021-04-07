@@ -10,25 +10,31 @@ from covid_historical_model.durations.durations import ADMISSION_TO_SERO
 
 
 def load_input_data(model_inputs_root: Path, age_pattern_root: Path,
-                    seroprevalence: pd.DataFrame = None, verbose: bool = True) -> Dict:
+                    seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
+                    escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
+                    verbose: bool = True) -> Dict:
     # load data
-    if seroprevalence is None:
-        seroprevalence = model_inputs.seroprevalence(model_inputs_root, verbose=verbose)
     hierarchy = model_inputs.hierarchy(model_inputs_root)
     population = model_inputs.population(model_inputs_root)
     age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
-    cumulative_hospitalizations, daily_hospitalizations = model_inputs.reported_epi(model_inputs_root, 'hospitalizations')
+    cumulative_hospitalizations, daily_hospitalizations = model_inputs.reported_epi(
+        model_inputs_root, 'hospitalizations', hierarchy
+    )
     sero_age_pattern = estimates.seroprevalence_age_pattern(age_pattern_root)
     ihr_age_pattern = estimates.ihr_age_pattern(age_pattern_root)
+    
     covariates = []
     
     return {'cumulative_hospitalizations': cumulative_hospitalizations,
             'daily_hospitalizations': daily_hospitalizations,
             'seroprevalence': seroprevalence,
+            'vaccine_coverage': vaccine_coverage,
             'covariates': covariates,
             'sero_age_pattern': sero_age_pattern,
             'ihr_age_pattern': ihr_age_pattern,
             'age_spec_population': age_spec_population,
+            'escape_variant_prevalence': escape_variant_prevalence,
+            'severity_variant_prevalence': severity_variant_prevalence,
             'hierarchy': hierarchy,
             'population': population,}
 
@@ -57,7 +63,7 @@ def create_model_data(cumulative_hospitalizations: pd.Series,
         lochosps = lochosps.reset_index()
         lochosps = lochosps.loc[lochosps['date'] <= survey_end_date]
         lochosps['t'] = (lochosps['date'] - day_0).dt.days
-        t = np.average(lochosps['t'], weights=lochosps['daily_hospitalizations'] + 1e-4)
+        t = np.average(lochosps['t'], weights=lochosps['daily_hospitalizations'] + 1e-6)
         mean_hospitalization_date = lochosps.loc[lochosps['t'] == int(np.round(t)), 'date'].item()
         time.append(
             pd.DataFrame(

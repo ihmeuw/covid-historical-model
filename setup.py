@@ -73,8 +73,8 @@ if __name__ == "__main__":
             'dev': [doc_requirements, test_requirements, internal_requirements]
         },
 
-        # entry_points={'console_scripts': [
-        #     'XXX=covid_historical_model.cli:XXX'
-        # ]},
+        entry_points={'console_scripts': [
+            'rates_pipeline=covid_historical_model.cli:rates_pipeline'
+        ]},
         zip_safe=False,
     )

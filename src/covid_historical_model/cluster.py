@@ -104,11 +104,8 @@ def decode_status(job_status):
 
 def get_drmaa():
     try:
+        os.environ['DRMAA_LIBRARY_PATH'] = '/opt/sge/lib/lx-amd64/libdrmaa.so'
         import drmaa
     except (RuntimeError, OSError):
-        if 'SGE_CLUSTER_NAME' in os.environ:
-            os.environ['DRMAA_LIBRARY_PATH'] = '/opt/sge/lib/lx-amd64/libdrmaa.so'
-            import drmaa
-        else:
-            drmaa = object()
+        raise Exception("drmaa could not be imported!")
     return drmaa

@@ -31,7 +31,7 @@ def run_cascade(model_data: pd.DataFrame,
     cascade_hierarchy = [(level, cascade_hierarchy.loc[cascade_hierarchy['level'] == level, 'location_id'].to_list()) for level in sorted(cascade_hierarchy['level'].unique())]
     
     uninformative_prior_dict = {fe_var:{} for fe_var in var_args['fe_vars']}
-    mr_model_dicts = {}
+    mr_model_dict = {}
     prior_dicts = {1:uninformative_prior_dict}
     global_mr_data = mrbrt.create_mr_data(model_data,
                                           var_args['dep_var'], var_args['dep_var_se'],
@@ -39,7 +39,7 @@ def run_cascade(model_data: pd.DataFrame,
     for level, location_ids in cascade_hierarchy:
         if verbose:
             logger.info(f'Modeling hierarchy level {level} ({len(location_ids)} location-models).')
-        level_mr_model_dicts, level_prior_dict = run_level(
+        level_mr_model_dict, level_prior_dict = run_level(
             level_lambda=level_lambdas[level],
             level=level,
             location_ids=location_ids,
@@ -53,10 +53,10 @@ def run_cascade(model_data: pd.DataFrame,
         )
         if level == 0:
             prior_dicts = {}
-        mr_model_dicts.update(level_mr_model_dicts)
+        mr_model_dict.update(level_mr_model_dict)
         prior_dicts.update(level_prior_dict)
         
-    return mr_model_dicts, prior_dicts
+    return mr_model_dict, prior_dicts
 
 
 def run_level(level_lambda: Dict,
@@ -69,7 +69,7 @@ def run_level(level_lambda: Dict,
               child_cutoff_level: int,
               global_mr_data: mrbrt.MRData,
               verbose: bool,):
-    level_mr_model_dicts = {}
+    level_mr_model_dict = {}
     level_prior_dicts = {}
     for location_id in location_ids:
         parent_id = hierarchy.loc[hierarchy['location_id'] == location_id, 'parent_id'].item()
@@ -89,10 +89,10 @@ def run_level(level_lambda: Dict,
             var_args=var_args,
             verbose=verbose,
         )
-        level_mr_model_dicts.update({location_id:location_mr_model})
+        level_mr_model_dict.update({location_id:location_mr_model})
         level_prior_dicts.update({location_id:location_prior_dict})
     
-    return level_mr_model_dicts, level_prior_dicts
+    return level_mr_model_dict, level_prior_dicts
 
 
 def run_location(model_data: pd.DataFrame, prior_dict: Dict, level_lambda: int, global_mr_data: mrbrt.MRData, var_args: Dict,
@@ -133,7 +133,7 @@ def find_nearest_modeled_parent(path_to_top_parent_str = str,
 
 def predict_cascade(pred_data: pd.DataFrame,
                     hierarchy: pd.DataFrame,
-                    mr_model_dicts: Dict,
+                    mr_model_dict: Dict,
                     pred_replace_dict: Dict,
                     pred_exclude_vars: List,
                     var_args: Dict,
@@ -141,7 +141,7 @@ def predict_cascade(pred_data: pd.DataFrame,
     if verbose:
         logger.info('Compiling predictions.')
     random_effects = pd.DataFrame(index=pd.Index([], name='location_id'))
-    modeled_locations = list(mr_model_dicts.keys())
+    modeled_locations = list(mr_model_dict.keys())
     model_location_map = {l: find_nearest_modeled_parent(p, modeled_locations) for l, p in \
                           zip(hierarchy['location_id'].to_list(), hierarchy['path_to_top_parent'].to_list())}
     
@@ -155,7 +155,7 @@ def predict_cascade(pred_data: pd.DataFrame,
         location_pred_fe, _ = mrbrt.predict(
             pred_data=pred_data.loc[pred_data['location_id'] == location_id].reset_index(drop=True).copy(),
             hierarchy=hierarchy,
-            mr_model=mr_model_dicts[global_model_location_id],
+            mr_model=mr_model_dict[global_model_location_id],
             pred_replace_dict=pred_replace_dict,
             pred_exclude_vars=pred_exclude_vars,
             verbose=verbose,
@@ -170,7 +170,7 @@ def predict_cascade(pred_data: pd.DataFrame,
         location_pred, _ = mrbrt.predict(
             pred_data=pred_data.loc[pred_data['location_id'] == location_id].reset_index(drop=True).copy(),
             hierarchy=hierarchy,
-            mr_model=mr_model_dicts[model_location_id],
+            mr_model=mr_model_dict[model_location_id],
             pred_replace_dict=pred_replace_dict,
             pred_exclude_vars=pred_exclude_vars,
             verbose=verbose,

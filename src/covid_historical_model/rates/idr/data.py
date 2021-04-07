@@ -12,34 +12,32 @@ from covid_historical_model.durations.durations import (
 )
 
 
-def load_input_data(model_inputs_root: Path, testing_root: Path,
-                    seroprevalence: pd.DataFrame = None,
+def load_input_data(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
+                    seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
                     verbose: bool = True) -> Dict:
     # load data
-    if seroprevalence is None:
-        seroprevalence = model_inputs.seroprevalence(model_inputs_root, verbose=verbose)
     hierarchy = model_inputs.hierarchy(model_inputs_root)
+    cov_hierarchy = model_inputs.hierarchy(model_inputs_root, covariates=True)
     population = model_inputs.population(model_inputs_root)
-    cumulative_cases, daily_cases = model_inputs.reported_epi(model_inputs_root, 'cases')
-    _, daily_deaths = model_inputs.reported_epi(model_inputs_root, 'deaths')
-    testing_capacity = estimates.testing(testing_root)
-    testing_capacity = (testing_capacity
-                        .set_index(['location_id', 'date'])
-                        .sort_index()
-                        .loc[:, 'testing_capacity'])
+    cumulative_cases, daily_cases = model_inputs.reported_epi(model_inputs_root, 'cases', hierarchy)
+    _, daily_deaths = model_inputs.reported_epi(model_inputs_root, 'deaths', hierarchy, excess_mortality)
+    testing_capacity = estimates.testing(testing_root)['testing_capacity']
+
     covariates = []
     
     return {'cumulative_cases': cumulative_cases,
             'daily_cases': daily_cases,
             'daily_deaths': daily_deaths,
             'seroprevalence': seroprevalence,
+            'vaccine_coverage': vaccine_coverage,
             'testing_capacity': testing_capacity,
             'covariates': covariates,
             'hierarchy': hierarchy,
+            'cov_hierarchy': cov_hierarchy,
             'population': population,}
 
 
-def create_infections_from_deaths(daily_deaths: pd.Series, ifr_data: pd.Series,) -> pd.Series:
+def create_infections_from_deaths(daily_deaths: pd.Series, pred_ifr: pd.Series,) -> pd.Series:
     daily_deaths = (daily_deaths
                     .reset_index()
                     .groupby('location_id')
@@ -47,7 +45,7 @@ def create_infections_from_deaths(daily_deaths: pd.Series, ifr_data: pd.Series,)
                                             index=x['date']))
                     .dropna())
 
-    infections = (daily_deaths / ifr_data).rename('infections').dropna().sort_index().reset_index()
+    infections = (daily_deaths / pred_ifr).rename('infections').dropna().sort_index().reset_index()
     infections['date'] -= pd.Timedelta(days=EXPOSURE_TO_DEATH)
     infections = infections.set_index(['location_id', 'date'])
             
@@ -78,7 +76,7 @@ def create_model_data(cumulative_cases: pd.Series,
                       daily_cases: pd.Series,
                       seroprevalence: pd.DataFrame,
                       testing_capacity: pd.Series,
-                      daily_deaths: pd.Series, ifr_data: pd.Series,
+                      daily_deaths: pd.Series, pred_ifr: pd.Series,
                       covariates: List,
                       hierarchy: pd.DataFrame, population: pd.Series,
                       verbose: bool = True,
@@ -92,10 +90,11 @@ def create_model_data(cumulative_cases: pd.Series,
                 .dropna()
                 .rename('idr'))
     
-    infections = create_infections_from_deaths(daily_deaths, ifr_data)
+    infections = create_infections_from_deaths(daily_deaths, pred_ifr)
     infections = infections.reset_index()
     
     testing_capacity = testing_capacity.reset_index()
+    testing_capacity['date'] -= pd.Timedelta(days=EXPOSURE_TO_CASE)
     sero_location_dates = seroprevalence[['location_id', 'date']].drop_duplicates()
     sero_location_dates = list(zip(sero_location_dates['location_id'], sero_location_dates['date']))
     infwavg_testing_capacity = []
@@ -137,12 +136,12 @@ def create_model_data(cumulative_cases: pd.Series,
     return model_data.reset_index()
 
 
-def create_pred_data(hierarchy: pd.DataFrame, population: pd.Series,
+def create_pred_data(cov_hierarchy: pd.DataFrame, population: pd.Series,
                      testing_capacity: pd.Series,
                      covariates: List[pd.Series],
                      pred_start_date: pd.Timestamp, pred_end_date: pd.Timestamp,
                      **kwargs):
-    pred_data = pd.DataFrame(list(itertools.product(hierarchy['location_id'].to_list(),
+    pred_data = pd.DataFrame(list(itertools.product(cov_hierarchy['location_id'].to_list(),
                                                list(pd.date_range(pred_start_date, pred_end_date)))),
                          columns=['location_id', 'date'])
     pred_data['intercept'] = 1
