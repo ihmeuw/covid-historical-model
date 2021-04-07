@@ -38,10 +38,9 @@ warnings.simplefilter('ignore')
               default=paths.BEST_LINK,
               help=('Which version of the testing estimates to use. '
                     'May be a full path or relative to the standard testing root.'))
-@click.option('-e', '--excess-mortality-path',
-              type=click.Path(file_okay=True),
-              help=('Which version of the excess mortality scalar file. '
-                    'Will change this once included in ETL.'))
+@click.option('-u', '--use-unscaled',
+              is_flag=True,
+              help=('Whether to use unscaled (i.e., no excess-mortality correction) data.'))
 @click.option('-o', '--output-root',
               type=click.Path(file_okay=False),
               # default=paths.PAST_INFECTIONS_ROOT,
@@ -57,7 +56,7 @@ def rates_pipeline(run_metadata,
                    model_inputs_version,
                    vaccine_coverage_version, variant_scaleup_version,
                    age_pattern_root, testing_version,
-                   excess_mortality_path,
+                   use_unscaled,
                    output_root,
                    mark_dir_as_best, production_tag,
                    verbose, with_debugger):
@@ -73,11 +72,6 @@ def rates_pipeline(run_metadata,
                                                       last_stage_root=paths.TESTING_OUTPUT_ROOT)
     # age pattern
     age_pattern_root = Path(age_pattern_root).resolve()
-    # excess mortality
-    if excess_mortality_path == 'None':
-        excess_mortality_path = None
-    else:
-        excess_mortality_path = Path(excess_mortality_path).resolve()
     run_metadata.update_from_path('model_inputs_metadata', model_inputs_root / paths.METADATA_FILE_NAME)
     run_metadata.update_from_path('vaccines_metadata', vaccine_coverage_root / paths.METADATA_FILE_NAME)
     run_metadata.update_from_path('variants_metadata', variant_scaleup_root / paths.METADATA_FILE_NAME)
@@ -96,7 +90,7 @@ def rates_pipeline(run_metadata,
                            variant_scaleup_root=variant_scaleup_root,
                            age_pattern_root=age_pattern_root,
                            testing_root=testing_root,
-                           em_path=excess_mortality_path,)
+                           excess_mortality=not use_unscaled,)
 
     cli_tools.finish_application(run_metadata, app_metadata, run_directory,
                                  mark_dir_as_best, production_tag)

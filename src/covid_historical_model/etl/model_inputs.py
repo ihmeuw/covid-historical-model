@@ -1,11 +1,65 @@
 from pathlib import Path
-from typing import Tuple
+from typing import Dict, Tuple
 from loguru import logger
 
 import pandas as pd
 import numpy as np
 
 from covid_historical_model.etl import db, helpers
+
+
+def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str) -> Tuple[pd.DataFrame, Dict]:
+    manipulation_metadata = {}
+    if input_measure == 'cases':
+        is_peru = data['location_id'] == 123
+        data = data.loc[~is_peru].reset_index(drop=True)
+        manipulation_metadata['peru'] = 'dropped all cases'
+        
+        is_ecuador = data['location_id'] == 122
+        data = data.loc[~is_ecuador].reset_index(drop=True)
+        manipulation_metadata['ecuador'] = 'dropped all cases'
+        
+        is_kazakhstan = data['location_id'] == 36
+        data = data.loc[~is_kazakhstan].reset_index(drop=True)
+        manipulation_metadata['kazakhstan'] = 'dropped all cases'
+
+    elif input_measure == 'hospitalizations':
+        is_argentina = data['location_id'] == 97
+        data = data.loc[~is_argentina].reset_index(drop=True)
+        manipulation_metadata['argentina'] = 'dropped all hospitalizations'
+
+        is_vietnam = data['location_id'] == 20
+        data = data.loc[~is_vietnam].reset_index(drop=True)
+        manipulation_metadata['vietnam'] = 'dropped all hospitalizations'
+
+        is_murcia = data['location_id'] == 60366
+        data = data.loc[~is_murcia].reset_index(drop=True)
+        manipulation_metadata['murcia'] = 'dropped all hospitalizations'
+
+        pakistan_location_ids = hierarchy.loc[hierarchy['path_to_top_parent'].apply(lambda x: '165' in x.split(',')),
+                                              'location_id'].to_list()
+        is_pakistan = data['location_id'].isin(pakistan_location_ids)
+        data = data.loc[~is_pakistan].reset_index(drop=True)
+        manipulation_metadata['pakistan'] = 'dropped all hospitalizations'
+        
+        # only for IHR...
+        is_netherlands = data['location_id'] == 89
+        data = data.loc[~is_netherlands].reset_index(drop=True)
+        manipulation_metadata['netherlands'] = 'dropped all hospitalizations'
+        
+        # only for IHR...
+        is_jordan = data['location_id'] == 144
+        data = data.loc[~is_jordan].reset_index(drop=True)
+        manipulation_metadata['jordan'] = 'dropped all hospitalizations'
+    
+    elif input_measure == 'deaths':
+        pass
+    
+    else:
+        raise ValueError(f'Input measure {input_measure} does not have a protocol for exclusions.')
+    
+    return data, manipulation_metadata
+
 
 
 def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFrame:
@@ -125,12 +179,15 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
 
 
 def reported_epi(model_inputs_root: Path, input_measure: str,
-                 hierarchy: pd.DataFrame, em_path: Path = None,) -> Tuple[pd.Series, pd.Series]:
+                 hierarchy: pd.DataFrame, excess_mortality: bool = True,) -> Tuple[pd.Series, pd.Series]:
     data_path = model_inputs_root / 'use_at_your_own_risk' / 'full_data_extra_hospital.csv'
     data = pd.read_csv(data_path)
-    data = data.rename(columns={'Deaths':'cumulative_deaths',
-                                'Confirmed':'cumulative_cases',
+    data = data.rename(columns={'Confirmed':'cumulative_cases',
                                 'Hospitalizations':'cumulative_hospitalizations',})
+    if input_measure == 'deaths' and excess_mortality:
+        data = data.rename(columns={'Deaths':'cumulative_deaths',})
+    else:
+        data = data.rename(columns={'UNSCALED Deaths':'cumulative_deaths',})
     data['date'] = pd.to_datetime(data['Date'])
     keep_cols = ['location_id', 'date', f'cumulative_{input_measure}']
     data = data.loc[:, keep_cols].dropna()
@@ -139,15 +196,7 @@ def reported_epi(model_inputs_root: Path, input_measure: str,
     data = (data.groupby('location_id', as_index=False)
             .apply(lambda x: helpers.fill_dates(x, [f'cumulative_{input_measure}']))
             .reset_index(drop=True))
-    if input_measure == 'deaths' and em_path is not None:
-        em_data = pd.read_csv(em_path)
-        em_data = em_data.rename(columns={'value':'em_scalar'})
-        em_data = em_data.loc[:, ['location_id', 'em_scalar']]
-        data = data.merge(em_data, how='left')
-        data['em_scalar'] = data['em_scalar'].fillna(1)
-        data['em_scalar'] = data['em_scalar'].clip(1, np.inf)
-        data[f'cumulative_{input_measure}'] *= data['em_scalar']
-        del data['em_scalar']
+    data, manipulation_metadata = evil_doings(data, hierarchy, input_measure)
     data = helpers.aggregate_data_from_md(data, hierarchy, f'cumulative_{input_measure}')
     data[f'daily_{input_measure}'] = (data
                                       .groupby('location_id')[f'cumulative_{input_measure}']

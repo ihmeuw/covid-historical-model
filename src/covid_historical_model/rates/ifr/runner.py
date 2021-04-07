@@ -24,7 +24,7 @@ RESULTS = namedtuple('Results',
                      'pred pred_unadj pred_fe pred_lr pred_hr pct_inf_lr pct_inf_hr')
 
 
-def runner(model_inputs_root: Path, em_path: Path, age_pattern_root: Path,
+def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Path,
            orig_seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
            escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
            day_inflection: str,
@@ -37,7 +37,7 @@ def runner(model_inputs_root: Path, em_path: Path, age_pattern_root: Path,
     pred_start_date = pd.Timestamp(pred_start_date)
     pred_end_date = pd.Timestamp(pred_end_date)
 
-    input_data = ifr.data.load_input_data(model_inputs_root, em_path, age_pattern_root,
+    input_data = ifr.data.load_input_data(model_inputs_root, excess_mortality, age_pattern_root,
                                           orig_seroprevalence, vaccine_coverage,
                                           escape_variant_prevalence,
                                           severity_variant_prevalence,

@@ -93,8 +93,11 @@ def vaccine_coverage(vaccine_coverage_root: Path) -> pd.DataFrame:
     data['date'] = pd.to_datetime(data['date'])
     
     keep_columns = [
-        # total seroconverted
+        # total seroconverted (all and by three groups)
         'cumulative_all_effective',
+        'cumulative_essential_effective',
+        'cumulative_adults_effective',
+        'cumulative_elderly_effective',
         
         # elderly (mutually exclusive)
         'cumulative_hr_effective_wildtype',

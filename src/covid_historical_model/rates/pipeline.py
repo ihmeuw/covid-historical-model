@@ -18,7 +18,7 @@ from covid_historical_model.utils.pdf_merger import pdf_merger
 
 
 def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
-             model_inputs_root: Path, em_path: Path,
+             model_inputs_root: Path, excess_mortality: bool,
              vaccine_coverage_root: Path, variant_scaleup_root: Path,
              age_pattern_root: Path, testing_root: Path,
              day_inflection_list: List[str] = ['2020-05-01', '2020-06-01', '2020-07-01',
@@ -32,7 +32,7 @@ def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
     severity_variant_prevalence = estimates.variant_scaleup(variant_scaleup_root, 'severity', verbose=verbose)
     vaccine_coverage = estimates.vaccine_coverage(vaccine_coverage_root)
     seroprevalence = serology.load_seroprevalence_sub_vacccinated(
-        model_inputs_root, vaccine_coverage['cumulative_all_effective'].rename('vaccinated'), verbose=verbose
+        model_inputs_root, vaccine_coverage.copy(), verbose=verbose
     )
     
     if verbose:
@@ -43,14 +43,14 @@ def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
     outputs_paths = []
     for day_inflection in day_inflection_list:
         inputs = {
-            'model_inputs_root':model_inputs_root,
-            'em_path':em_path,
-            'age_pattern_root':age_pattern_root,
-            'orig_seroprevalence':seroprevalence,
-            'vaccine_coverage':vaccine_coverage,
-            'escape_variant_prevalence':escape_variant_prevalence,
-            'severity_variant_prevalence':severity_variant_prevalence,
-            'day_inflection':day_inflection
+            'model_inputs_root': model_inputs_root,
+            'excess_mortality': excess_mortality,
+            'age_pattern_root': age_pattern_root,
+            'orig_seroprevalence': seroprevalence,
+            'vaccine_coverage': vaccine_coverage,
+            'escape_variant_prevalence': escape_variant_prevalence,
+            'severity_variant_prevalence': severity_variant_prevalence,
+            'day_inflection': day_inflection
         }
         
         inputs_path = storage_dir / f'{day_inflection}_inputs.pkl'
@@ -80,7 +80,7 @@ def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
         logger.info('\n*************************************\n'
                     'IDR ESTIMATION\n'
                     '*************************************')
-    idr_results = idr.runner.runner(model_inputs_root, em_path, testing_root,
+    idr_results = idr.runner.runner(model_inputs_root, excess_mortality, testing_root,
                                     adj_seroprevalence.copy(), vaccine_coverage.copy(),
                                     ifr_results.pred.copy(),
                                     reinfection_inflation_factor.copy(),
@@ -132,16 +132,16 @@ def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
     compile_pdfs(plots_dir, out_dir, hierarchy, 'ifr', suffixes=['ifr'])
     compile_pdfs(plots_dir, out_dir, hierarchy, 'serology', suffixes=['sero'])
     
-    # load EM path to store for 
-    if em_path is not None:
-        em_data = pd.read_csv(em_path)
-        em_data = em_data.rename(columns={'value':'em_scalar'})
-        em_data = em_data.loc[:, ['location_id', 'em_scalar']]
-        em_data['em_scalar'] = em_data['em_scalar'].fillna(1)
-        em_data['em_scalar'] = em_data['em_scalar'].clip(1, np.inf)
-    else:
-        em_data = vaccine_coverage.reset_index()[['location_id']].drop_duplicates().reset_index(drop=True)
-        em_data['em_scalar'] = 1
+    # # will need to load EM data
+    # if excess_mortality:
+    #     em_data = pd.read_csv(em_path)
+    #     em_data = em_data.rename(columns={'value':'em_scalar'})
+    #     em_data = em_data.loc[:, ['location_id', 'em_scalar']]
+    #     em_data['em_scalar'] = em_data['em_scalar'].fillna(1)
+    #     em_data['em_scalar'] = em_data['em_scalar'].clip(1, np.inf)
+    # else:
+    em_data = vaccine_coverage.reset_index()[['location_id']].drop_duplicates().reset_index(drop=True)
+    em_data['em_scalar'] = 1
     
     return seroprevalence, reinfection_inflation_factor, ifr_results, idr_results, ihr_results, em_data
 

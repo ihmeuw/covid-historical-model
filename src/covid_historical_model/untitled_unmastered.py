@@ -54,7 +54,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
          model_inputs_root: Path,
          vaccine_coverage_root: Path, variant_scaleup_root: Path,
          age_pattern_root: Path, testing_root: Path,
-         em_path: Path,):
+         excess_mortality: bool,):
     ## working dir
     storage_dir = out_dir / 'intermediate'
     results_dir = out_dir / 'results'
@@ -66,7 +66,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ## run models
     seroprevalence, reinfection_inflation_factor, ifr_results, idr_results, ihr_results, em_data = pipeline(
         out_dir, storage_dir, plots_dir,
-        model_inputs_root, em_path,
+        model_inputs_root, excess_mortality,
         vaccine_coverage_root, variant_scaleup_root,
         age_pattern_root,
         testing_root,

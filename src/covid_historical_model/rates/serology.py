@@ -31,7 +31,19 @@ def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.
                                         verbose: bool = True) -> pd.DataFrame:
     seroprevalence = model_inputs.seroprevalence(model_inputs_root, verbose=verbose)
     
+    ## ## ## ## ## #### ## ## ## ## ## ## ## ## ## ## ##
+    ## tweaks
+    # only take some old age from Danish blood bank data
+    age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
+    pct_65_69 = age_spec_population.loc[78, 65].sum() / age_spec_population.loc[78, 65:].sum()
+    danish_sub_70plus = (vaccinated.loc[[78], 'cumulative_adults_effective'] + \
+        vaccinated.loc[[78], 'cumulative_essential_effective'] + \
+        (pct_65_69 * vaccinated.loc[[78], 'cumulative_elderly_effective'])).rename('cumulative_all_effective')
+    vaccinated.loc[[78], 'cumulative_all_effective'] = danish_sub_70plus
+    ## ## ## ## ## #### ## ## ## ## ## ## ## ## ## ## ##
+    
     population = model_inputs.population(model_inputs_root)
+    vaccinated = vaccinated['cumulative_all_effective'].rename('vaccinated')
     vaccinated /= population
     
     # vaccinated = vaccinated.reset_index()
@@ -57,8 +69,8 @@ def remove_vaccinated(seroprevalence: pd.DataFrame,
     # del seroprevalence['date']
     # del seroprevalence['n_midpoint_days']
     # seroprevalence = seroprevalence.rename(columns={'end_date':'date'})
-    seroprevalence = seroprevalence.rename(columns={'end_date':'date'})
     seroprevalence = seroprevalence.rename(columns={'date':'start_date'})
+    seroprevalence = seroprevalence.rename(columns={'end_date':'date'})
     seroprevalence['vaccinated'] = seroprevalence['vaccinated'].fillna(0)
     
     seroprevalence.loc[seroprevalence['test_target'] != 'spike', 'vaccinated'] = 0

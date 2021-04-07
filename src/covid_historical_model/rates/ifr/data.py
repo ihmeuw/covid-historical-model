@@ -9,7 +9,7 @@ from covid_historical_model.etl import db, model_inputs, estimates
 from covid_historical_model.durations.durations import SERO_TO_DEATH
 
 
-def load_input_data(model_inputs_root: Path, em_path: Path, age_pattern_root: Path,
+def load_input_data(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Path,
                     seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
                     escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
                     verbose: bool = True) -> Dict:
@@ -17,7 +17,7 @@ def load_input_data(model_inputs_root: Path, em_path: Path, age_pattern_root: Pa
     hierarchy = model_inputs.hierarchy(model_inputs_root)
     population = model_inputs.population(model_inputs_root)
     age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
-    cumulative_deaths, daily_deaths = model_inputs.reported_epi(model_inputs_root, 'deaths', hierarchy, em_path)
+    cumulative_deaths, daily_deaths = model_inputs.reported_epi(model_inputs_root, 'deaths', hierarchy, excess_mortality)
     sero_age_pattern = estimates.seroprevalence_age_pattern(age_pattern_root)
     ifr_age_pattern = estimates.ifr_age_pattern(age_pattern_root)
     covariates = [db.obesity(hierarchy)]

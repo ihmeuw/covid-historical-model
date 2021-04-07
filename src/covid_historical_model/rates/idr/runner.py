@@ -10,7 +10,7 @@ from covid_historical_model.rates import squeeze
 RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map daily_numerator pred pred_fe')
 
 
-def runner(model_inputs_root: Path, em_path: Path, testing_root: Path,
+def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
            seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
            pred_ifr: pd.Series, reinfection_inflation_factor: pd.Series,
            pred_start_date: str = '2020-01-01',
@@ -19,7 +19,7 @@ def runner(model_inputs_root: Path, em_path: Path, testing_root: Path,
     pred_start_date = pd.Timestamp(pred_start_date)
     pred_end_date = pd.Timestamp(pred_end_date)
 
-    input_data = idr.data.load_input_data(model_inputs_root, em_path, testing_root,
+    input_data = idr.data.load_input_data(model_inputs_root, excess_mortality, testing_root,
                                           seroprevalence, vaccine_coverage, verbose=verbose)
     model_data = idr.data.create_model_data(pred_ifr=pred_ifr, verbose=verbose, **input_data)
     pred_data = idr.data.create_pred_data(
