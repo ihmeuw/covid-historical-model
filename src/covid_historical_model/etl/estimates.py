@@ -163,5 +163,6 @@ def terminal_excess_mortailty(model_inputs_root: Path, excess_mortality: bool,) 
             .apply(lambda x: x['em_scalar'].values[-1])
             .rename('em_scalar')
             .reset_index())
+    data['scaled'] = excess_mortality
     
     return data

@@ -137,7 +137,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
 
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     ## write outputs
-    em_data.to_csv(out_dir / 'excess_mortalilty.csv', index=False)
+    em_data.to_csv(out_dir / 'excess_mortality.csv', index=False)
 
     ifr.to_csv(out_dir / 'allage_ifr_by_loctime.csv', index=False)
     ifr_risk_adjustment.to_csv(out_dir / 'terminal_ifr.csv', index=False)
