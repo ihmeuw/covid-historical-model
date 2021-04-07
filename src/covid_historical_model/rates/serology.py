@@ -35,7 +35,7 @@ def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.
     ## tweaks
     # only take some old age from Danish blood bank data
     age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
-    pct_65_69 = age_spec_population.loc[78, 65].sum() / age_spec_population.loc[78, 65:].sum()
+    pct_65_69 = age_spec_population.loc[78, 65].item() / age_spec_population.loc[78, 65:].sum()
     danish_sub_70plus = (vaccinated.loc[[78], 'cumulative_adults_effective'] + \
         vaccinated.loc[[78], 'cumulative_essential_effective'] + \
         (pct_65_69 * vaccinated.loc[[78], 'cumulative_elderly_effective'])).rename('cumulative_all_effective')

@@ -17,6 +17,7 @@ warnings.simplefilter('ignore')
 #######################################
 
 ## IMPORTANT TODO:
+##     - reinfection NAs
 ##     - Connecticut fit?
 ##     - how to fill where we have no assay information
 ##     - checks on EM file

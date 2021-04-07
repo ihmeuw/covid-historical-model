@@ -71,6 +71,7 @@ def test_floor_value(pred: pd.Series,
                      population: pd.Series,
                      hierarchy: pd.DataFrame,
                      floor: float,
+                     min_children: int = 5,
                      verbose: bool = True,) -> pd.DataFrame:
     if verbose:
         logger.info(f'Testing IDR floor of {round(floor*100, 1)}%.')
@@ -91,8 +92,6 @@ def test_floor_value(pred: pd.Series,
                       name='rmse',
                       index=pd.Index([], name='location_id'))
     location_ids = hierarchy.sort_values(['level', 'sort_order'])['location_id']
-    if (137 in location_ids or 138 in location_ids) and verbose:
-        logger.warning('Using global floor for NA/ME region.')
     for location_id in tqdm(location_ids):
         in_path = hierarchy['path_to_top_parent'].apply(lambda x: str(location_id) in x.split(','))
         child_ids = hierarchy.loc[in_path, 'location_id'].to_list()
@@ -101,8 +100,8 @@ def test_floor_value(pred: pd.Series,
         # check if location_id is present
         if location_id in serosurveys.reset_index()['location_id'].to_list():
             rmse = np.sqrt((residuals[location_id]**2).mean())
-        # check if children are present (excluding NA/ME super region and region)
-        elif location_id not in [137, 138] and any([l in serosurveys.reset_index()['location_id'].to_list() for l in child_ids]):
+        # check if at least `min_children` children are present
+        elif serosurveys.reset_index()['location_id'].isin(child_ids).sum() >= min_children:
             child_residuals = residuals.reset_index()
             child_residuals = (child_residuals
                                .loc[child_residuals['location_id'].isin(child_ids)]
