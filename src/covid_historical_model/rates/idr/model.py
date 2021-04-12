@@ -16,6 +16,9 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     model_data['idr_se'] = 1
     model_data['logit_idr_se'] = 1
     model_data['intercept'] = 1
+    
+    # lose 0s and 1s
+    model_data = model_data.loc[model_data['logit_idr'].notnull()]
 
     var_args = {'dep_var': 'logit_idr',
                 'dep_var_se': 'logit_idr_se',
@@ -26,6 +29,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
                               },
                 're_vars': [],
                 'group_var': 'location_id',}
+    global_prior_dict = {}
     pred_replace_dict = {'log_testing_rate_capacity': 'log_infwavg_testing_rate_capacity',}
     pred_exclude_vars = []
     level_lambdas = {
@@ -48,6 +52,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
         model_data=model_data.copy(),
         hierarchy=hierarchy.copy(),
         var_args=var_args.copy(),
+        global_prior_dict=global_prior_dict.copy(),
         level_lambdas=level_lambdas.copy(),
         verbose=False,
     )

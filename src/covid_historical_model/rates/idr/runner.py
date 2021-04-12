@@ -44,7 +44,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
                      .loc[:, 'seroprevalence']),
         population=input_data['population'].copy(),
         hierarchy=input_data['cov_hierarchy'].copy(),
-        test_range=[0.1] + list(range(1, 11)),
+        test_range=[0.01, 0.1] + list(range(1, 11)),
         verbose=verbose,
     )
     

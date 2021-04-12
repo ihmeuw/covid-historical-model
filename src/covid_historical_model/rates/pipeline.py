@@ -52,6 +52,8 @@ def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
             'severity_variant_prevalence': severity_variant_prevalence,
             'day_inflection': day_inflection
         }
+        # ifr.runner.runner(**inputs)
+        # raise ValueError('STOP')
         
         inputs_path = storage_dir / f'{day_inflection}_inputs.pkl'
         with inputs_path.open('wb') as file:
@@ -135,7 +137,9 @@ def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
     # will need to load EM data
     em_data = estimates.terminal_excess_mortailty(model_inputs_root, excess_mortality)
     
-    return seroprevalence, reinfection_inflation_factor, ifr_results, idr_results, ihr_results, em_data
+    return seroprevalence, reinfection_inflation_factor, ifr_nrmse, best_ifr_models, \
+           ifr_results, idr_results, ihr_results, \
+           em_data, vaccine_coverage, escape_variant_prevalence, severity_variant_prevalence
 
 
 def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
@@ -166,6 +170,7 @@ def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
     pred_hr = []
     pct_inf_lr = []
     pct_inf_hr = []
+    age_stand_scaling_factor = []
     for location_id, day_inflection in zip(best_models['location_id'], best_models['day_inflection']):
         loc_seroprevalence = full_ifr_results[day_inflection]['refit_results'].seroprevalence
         loc_seroprevalence = loc_seroprevalence.loc[loc_seroprevalence['location_id'] == location_id]
@@ -241,6 +246,12 @@ def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
         except KeyError:
             pass
         
+        try:
+            loc_age_stand_scaling_factor = full_ifr_results[day_inflection]['refit_results'].age_stand_scaling_factor.loc[[location_id]]
+            age_stand_scaling_factor.append(loc_age_stand_scaling_factor)
+        except KeyError:
+            pass
+        
     sensitivity = sensitivity.reset_index(drop=True)
     reinfection_inflation_factor = pd.concat(reinfection_inflation_factor).reset_index(drop=True)
     ifr_results = ifr.runner.RESULTS(
@@ -256,6 +267,7 @@ def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
         pred_hr=pd.concat(pred_hr),
         pct_inf_lr=pd.concat(pct_inf_lr),
         pct_inf_hr=pd.concat(pct_inf_hr),
+        age_stand_scaling_factor=pd.concat(age_stand_scaling_factor),
     )
     seroprevalence = ifr_results.seroprevalence.copy()
 

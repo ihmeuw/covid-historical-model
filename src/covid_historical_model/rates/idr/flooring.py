@@ -71,10 +71,10 @@ def test_floor_value(pred: pd.Series,
                      population: pd.Series,
                      hierarchy: pd.DataFrame,
                      floor: float,
-                     min_children: int = 5,
+                     min_children: int = 3,
                      verbose: bool = True,) -> pd.DataFrame:
     if verbose:
-        logger.info(f'Testing IDR floor of {round(floor*100, 1)}%.')
+        logger.info(f'Testing IDR floor of {round(floor*100, 2)}%.')
     
     pred = (pred
             .groupby(level=0)
