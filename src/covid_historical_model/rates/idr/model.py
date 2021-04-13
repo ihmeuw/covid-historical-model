@@ -68,7 +68,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     )
     
     pred = expit(pred).rename(pred.name.replace('logit_', ''))
-    pred_fe = expit(pred_fe).rename(pred.name.replace('logit_', ''))
+    pred_fe = expit(pred_fe).rename(pred_fe.name.replace('logit_', ''))
 
     return mr_model_dict, prior_dicts, pred.dropna(), pred_fe.dropna(), pred_location_map
 

@@ -55,15 +55,15 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     pred_exclude_vars = []
     level_lambdas = {
         0: {'intercept': 1.  , 't': 0.1, 'obesity': 1.,},
-        1: {'intercept': 1.  , 't': 0.1, 'obesity': 1.,},
-        2: {'intercept': 100., 't': 1. , 'obesity': 1.,},
-        3: {'intercept': 100., 't': 1. , 'obesity': 1.,},
-        4: {'intercept': 100., 't': 1. , 'obesity': 1.,},
+        1: {'intercept': 5.  , 't': 0.5, 'obesity': 1.,},
+        2: {'intercept': 100., 't': 10., 'obesity': 1.,},
+        3: {'intercept': 100., 't': 10., 'obesity': 1.,},
+        4: {'intercept': 100., 't': 10., 'obesity': 1.,},
     }
     
     if var_args['group_var'] != 'location_id':
         raise ValueError('NRMSE data assignment assumes `study_id` == `location_id` (`location_id` must be group_var).')
-        
+    
     # SUPPRESSING CASCADE CONSOLE OUTPUT
     model_data_cols = ['location_id', 'date', var_args['dep_var'],
                        var_args['dep_var_se']] + var_args['fe_vars']
@@ -89,7 +89,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     )
     
     pred = expit(pred).rename(pred.name.replace('logit_', ''))
-    pred_fe = expit(pred_fe).rename(pred.name.replace('logit_', ''))
+    pred_fe = expit(pred_fe).rename(pred_fe.name.replace('logit_', ''))
     
     pred /= age_stand_scaling_factor
     pred_fe /= age_stand_scaling_factor

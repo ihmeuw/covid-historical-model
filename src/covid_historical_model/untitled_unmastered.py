@@ -17,7 +17,7 @@ warnings.simplefilter('ignore')
 #######################################
 
 ## IMPORTANT TODO:
-##     - try w/ actual SEs
+##     - what range covariate for time? might not work since we need to specify distribution
 ##     - multiple locations after July 1 for date selection (currently just 1)? unless only one child?
 ##     - S Asia slope...?
 ##     - reinfection NAs (probably 0 deaths) -> add checks for location/date matching

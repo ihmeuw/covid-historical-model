@@ -76,7 +76,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     )
     
     pred = expit(pred).rename(pred.name.replace('logit_', ''))
-    pred_fe = expit(pred_fe).rename(pred.name.replace('logit_', ''))
+    pred_fe = expit(pred_fe).rename(pred_fe.name.replace('logit_', ''))
     
     pred /= age_stand_scaling_factor
     pred_fe /= age_stand_scaling_factor
