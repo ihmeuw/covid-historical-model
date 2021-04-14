@@ -92,6 +92,11 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     
     data['bias'] = helpers.str_fmt(data['bias']).replace(('unchecked', 'not specified'), np.nan).astype(float)
     
+    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+    ## MANUAL OUTLIERS ##
+    data.loc[data['location_id'] == 492, 'manual_outlier'] = 1
+    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+    
     outliers = []
     data['manual_outlier'] = data['manual_outlier'].fillna(0)
     manual_outlier = data['manual_outlier']
