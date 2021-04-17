@@ -8,7 +8,8 @@ from covid_historical_model.rates import ihr
 from covid_historical_model.rates import post
 from covid_historical_model.rates import squeeze
 
-RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map ' \
+RESULTS = namedtuple('Results',
+                     'seroprevalence model_data mr_model_dict pred_location_map level_lambdas ' \
                      'daily_numerator pred pred_unadj pred_fe pred_lr pred_hr age_stand_scaling_factor')
 
 
@@ -37,7 +38,7 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
     )
     
     # check what NAs in data might be about, get rid of them in safer way
-    mr_model_dict, prior_dicts, pred, pred_fe, pred_location_map, age_stand_scaling_factor = ihr.model.run_model(
+    mr_model_dict, prior_dicts, pred, pred_fe, pred_location_map, age_stand_scaling_factor, level_lambdas = ihr.model.run_model(
         model_data=model_data.copy(),
         pred_data=pred_data.copy(),
         verbose=verbose,
@@ -77,6 +78,7 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
         model_data=model_data,
         mr_model_dict=mr_model_dict,
         pred_location_map=pred_location_map,
+        level_lambdas=level_lambdas,
         daily_numerator=input_data['daily_hospitalizations'].copy(),
         pred=pred,
         pred_unadj=pred_unadj,

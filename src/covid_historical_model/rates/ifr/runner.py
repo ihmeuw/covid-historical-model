@@ -20,7 +20,7 @@ from covid_historical_model.rates import post
 from covid_historical_model.rates import squeeze
 
 RESULTS = namedtuple('Results',
-                     'seroprevalence model_data mr_model_dict pred_location_map daily_numerator ' \
+                     'seroprevalence model_data mr_model_dict pred_location_map daily_numerator level_lambdas ' \
                      'pred pred_unadj pred_fe pred_lr pred_hr pct_inf_lr pct_inf_hr age_stand_scaling_factor')
 
 
@@ -49,7 +49,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
     )
     
     # check what NAs in pred data might be about, get rid of them in safer way
-    mr_model_dict, prior_dicts, pred, pred_fe, pred_location_map, age_stand_scaling_factor = ifr.model.run_model(
+    mr_model_dict, prior_dicts, pred, pred_fe, pred_location_map, age_stand_scaling_factor, level_lambdas = ifr.model.run_model(
         model_data=model_data.copy(),
         pred_data=pred_data.copy(),
         day_0=day_0, day_inflection=day_inflection,
@@ -96,7 +96,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
 
     # check what NAs in pred data might be about, get rid of them in safer way
     refit_mr_model_dict, refit_prior_dicts, refit_pred, refit_pred_fe, \
-    refit_pred_location_map, refit_age_stand_scaling_factor = ifr.model.run_model(
+    refit_pred_location_map, refit_age_stand_scaling_factor, refit_level_lambdas = ifr.model.run_model(
         model_data=refit_model_data.copy(),
         pred_data=refit_pred_data.dropna().copy(),
         day_0=day_0, day_inflection=day_inflection,
@@ -136,6 +136,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
         model_data=model_data,
         mr_model_dict=mr_model_dict,
         pred_location_map=pred_location_map,
+        level_lambdas=level_lambdas,
         daily_numerator=input_data['daily_deaths'].copy(),
         pred=pred,
         pred_unadj=pred,
@@ -151,6 +152,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
         model_data=refit_model_data,
         mr_model_dict=refit_mr_model_dict,
         pred_location_map=refit_pred_location_map,
+        level_lambdas=refit_level_lambdas,
         daily_numerator=refit_input_data['daily_deaths'].copy(),
         pred=refit_pred,
         pred_unadj=refit_pred_unadj,

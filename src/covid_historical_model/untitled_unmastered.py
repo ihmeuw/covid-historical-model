@@ -12,14 +12,10 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
 import warnings
 warnings.simplefilter('ignore')
 
-#######################################
-#### TRY TRIMMING IN GLOBAL MODEL? ####
-#######################################
-
 ## IMPORTANT TODO:
+##     - try trimming in global model?
 ##     - what range covariate for time? might not work since we need to specify distribution
 ##     - multiple locations after July 1 for date selection (currently just 1)? unless only one child?
-##     - S Asia slope...?
 ##     - reinfection NAs (probably 0 deaths) -> add checks for location/date matching
 ##     - other NAs in IES inputs?
 ##     - best way to fill where we have no assay information
@@ -102,6 +98,10 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ifr_data = ifr_data.loc[:, ['location_id', 'date', 'ifr', 'is_outlier']]
     
     ifr_age_stand = ifr_results.age_stand_scaling_factor.reset_index()
+    
+    ifr_level_lambdas = pd.DataFrame(ifr_results.level_lambdas).T
+    ifr_level_lambdas.index.name = 'hierarchy_level'
+    ifr_level_lambdas = ifr_level_lambdas.reset_index()
 
     ## save IHR
     ihr = pd.concat([ihr_results.pred.rename('ihr'),
@@ -117,6 +117,10 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ihr_data = ihr_data.loc[:, ['location_id', 'date', 'ihr', 'is_outlier']]
     
     ihr_age_stand = ihr_results.age_stand_scaling_factor.reset_index()
+    
+    ihr_level_lambdas = pd.DataFrame(ihr_results.level_lambdas).T
+    ihr_level_lambdas.index.name = 'hierarchy_level'
+    ihr_level_lambdas = ihr_level_lambdas.reset_index()
 
     ## save IDR
     idr = pd.concat([idr_results.pred.rename('idr'),
@@ -128,6 +132,11 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     idr_data = idr_data.rename(columns={'mean_death_date':'date'})
     idr_data['is_outlier'] = 0
     idr_data = idr_data.loc[:, ['location_id', 'date', 'idr', 'is_outlier']]
+    
+    idr_level_lambdas = pd.DataFrame(idr_results.level_lambdas).T
+    idr_level_lambdas.index.name = 'hierarchy_level'
+    idr_level_lambdas = idr_level_lambdas.reset_index()
+
 
     ## save serology
     seroprevalence = seroprevalence.rename(columns={'seroprevalence':'seroprev_mean_no_vacc',
@@ -153,17 +162,18 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ifr_risk_adjustment.to_csv(out_dir / 'terminal_ifr.csv', index=False)
     ifr_data.to_csv(out_dir / 'ifr_model_data.csv', index=False)
     ifr_age_stand.to_csv(out_dir / 'ifr_age_stand_data.csv', index=False)
-    
+    ifr_level_lambdas.to_csv(out_dir / 'ifr_level_lambdas.csv', index=False)
     ifr_nrmse.to_csv(out_dir / 'ifr_nrmse.csv', index=False)
-    
     best_ifr_models.to_csv(out_dir / 'best_ifr_models.csv', index=False)
 
     ihr.to_csv(out_dir / 'allage_ihr_by_loctime.csv', index=False)
     ihr_data.to_csv(out_dir / 'ihr_model_data.csv', index=False)
     ihr_age_stand.to_csv(out_dir / 'ihr_age_stand_data.csv', index=False)
+    ihr_level_lambdas.to_csv(out_dir / 'ihr_level_lambdas.csv', index=False)
 
     idr.to_csv(out_dir / 'pred_idr.csv', index=False)
     idr_data.to_csv(out_dir / 'idr_plot_data.csv', index=False)
+    idr_level_lambdas.to_csv(out_dir / 'idr_level_lambdas.csv', index=False)
 
     seroprevalence.to_csv(out_dir / 'sero_data.csv', index=False)
 

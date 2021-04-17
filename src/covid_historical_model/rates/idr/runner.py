@@ -7,7 +7,9 @@ import pandas as pd
 from covid_historical_model.rates import idr
 from covid_historical_model.rates import squeeze
 
-RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map daily_numerator pred pred_fe')
+RESULTS = namedtuple('Results',
+                     'seroprevalence model_data mr_model_dict pred_location_map level_lambdas ' \
+                     'daily_numerator pred pred_fe')
 
 
 def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
@@ -28,7 +30,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
     )
     
     # check what NAs in pred data might be about, get rid of them in safer way
-    mr_model_dict, prior_dicts, pred, pred_fe, pred_location_map = idr.model.run_model(
+    mr_model_dict, prior_dicts, pred, pred_fe, pred_location_map, level_lambdas = idr.model.run_model(
         model_data=model_data.copy(),
         pred_data=pred_data.copy(),
         verbose=verbose,
@@ -83,6 +85,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
         model_data=model_data,
         mr_model_dict=mr_model_dict,
         pred_location_map=pred_location_map,
+        level_lambdas=level_lambdas,
         daily_numerator=input_data['daily_cases'].copy(),
         pred=pred,
         pred_fe=pred_fe,

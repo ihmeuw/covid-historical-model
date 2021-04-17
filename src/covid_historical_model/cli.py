@@ -26,13 +26,11 @@ warnings.simplefilter('ignore')
               default=paths.BEST_LINK,
               help=('Which version of the variant scaleup estimates to use. '
                     'May be a full path or relative to the standard variant scaleup root.'))
-@click.option('-a', '--age-pattern-root',
+@click.option('-a', '--age-pattern-version',
               type=click.Path(file_okay=False),
-              # default=paths.BEST_LINK,
-              # help=('Which version of the age pattern estimates to use. '
-              #       'May be a full path or relative to the standard age pattern root.'))
+              default=paths.BEST_LINK,
               help=('Which version of the age pattern estimates to use. '
-                    'MUST BE FULL PATH (need to add to covid-shared).'))
+                    'May be a full path or relative to the standard age pattern root.'))
 @click.option('-t', '--testing-version',
               type=click.Path(file_okay=False),
               default=paths.BEST_LINK,
@@ -43,8 +41,10 @@ warnings.simplefilter('ignore')
               help=('Whether to use unscaled (i.e., no excess-mortality correction) data.'))
 @click.option('-o', '--output-root',
               type=click.Path(file_okay=False),
-              # default=paths.PAST_INFECTIONS_ROOT,
-              show_default=True)
+              default=paths.HISTORICAL_MODEL_ROOT,
+              show_default=True,
+              help=('Directory containing versioned results structure (will create structure '
+                    'if not already present).'))
 @click.option('-b', '--mark-best', 'mark_dir_as_best',
               is_flag=True,
               help='Marks the new outputs as best in addition to marking them as latest.')
@@ -55,7 +55,7 @@ warnings.simplefilter('ignore')
 def rates_pipeline(run_metadata,
                    model_inputs_version,
                    vaccine_coverage_version, variant_scaleup_version,
-                   age_pattern_root, testing_version,
+                   age_pattern_version, testing_version,
                    use_unscaled,
                    output_root,
                    mark_dir_as_best, production_tag,
@@ -68,13 +68,14 @@ def rates_pipeline(run_metadata,
                                                                last_stage_root=paths.VACCINE_COVERAGE_OUTPUT_ROOT)
     variant_scaleup_root = cli_tools.get_last_stage_directory(variant_scaleup_version,
                                                               last_stage_root=paths.VARIANT_OUTPUT_ROOT)
+    age_pattern_root = cli_tools.get_last_stage_directory(age_pattern_version,
+                                                          last_stage_root=paths.AGE_SPECIFIC_RATES_ROOT)
     testing_root = cli_tools.get_last_stage_directory(testing_version,
                                                       last_stage_root=paths.TESTING_OUTPUT_ROOT)
-    # age pattern
-    age_pattern_root = Path(age_pattern_root).resolve()
     run_metadata.update_from_path('model_inputs_metadata', model_inputs_root / paths.METADATA_FILE_NAME)
     run_metadata.update_from_path('vaccines_metadata', vaccine_coverage_root / paths.METADATA_FILE_NAME)
     run_metadata.update_from_path('variants_metadata', variant_scaleup_root / paths.METADATA_FILE_NAME)
+    # run_metadata.update_from_path('age_pattern_metadata', age_pattern_root / paths.METADATA_FILE_NAME)
     run_metadata.update_from_path('testing_metadata', testing_root / paths.METADATA_FILE_NAME)
 
     output_root = Path(output_root).resolve()

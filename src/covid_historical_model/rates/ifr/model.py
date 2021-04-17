@@ -94,7 +94,8 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     pred /= age_stand_scaling_factor
     pred_fe /= age_stand_scaling_factor
 
-    return mr_model_dict, prior_dicts, pred.dropna(), pred_fe.dropna(), pred_location_map, age_stand_scaling_factor
+    return mr_model_dict, prior_dicts, pred.dropna(), pred_fe.dropna(), pred_location_map, \
+           age_stand_scaling_factor, level_lambdas
 
 
 def match_model_data(mr_model_dict: Dict, data: pd.Series,

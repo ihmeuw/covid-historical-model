@@ -172,6 +172,8 @@ def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
     pct_inf_hr = []
     age_stand_scaling_factor = []
     for location_id, day_inflection in zip(best_models['location_id'], best_models['day_inflection']):
+        if location_id == 1:
+            level_lambdas = full_ifr_results[day_inflection]['refit_results'].level_lambdas
         loc_seroprevalence = full_ifr_results[day_inflection]['refit_results'].seroprevalence
         loc_seroprevalence = loc_seroprevalence.loc[loc_seroprevalence['location_id'] == location_id]
         seroprevalence.append(loc_seroprevalence)
@@ -259,6 +261,7 @@ def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
         model_data=pd.concat(model_data).reset_index(drop=True),
         mr_model_dict=mr_model_dict,
         pred_location_map=pred_location_map,
+        level_lambdas=level_lambdas,
         daily_numerator=pd.concat(daily_numerator),
         pred=pd.concat(pred),
         pred_unadj=pd.concat(pred_unadj),
