@@ -7,6 +7,7 @@ import pandas as pd
 from covid_historical_model.rates import ihr
 from covid_historical_model.rates import post
 from covid_historical_model.rates import squeeze
+from covid_historical_model.durations.durations import EXPOSURE_TO_ADMISSION
 
 RESULTS = namedtuple('Results',
                      'seroprevalence model_data mr_model_dict pred_location_map level_lambdas ' \
@@ -51,6 +52,7 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
         denom_age_pattern=input_data['sero_age_pattern'].copy(),
         age_spec_population=input_data['age_spec_population'].copy(),
         rate=pred.copy(),
+        day_shift=EXPOSURE_TO_ADMISSION,
         escape_variant_prevalence=input_data['escape_variant_prevalence'].copy(),
         severity_variant_prevalence=input_data['severity_variant_prevalence'].copy(),
         vaccine_coverage=input_data['vaccine_coverage'].copy(),
@@ -62,6 +64,7 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
     pred = squeeze.squeeze(
         daily=input_data['daily_hospitalizations'].copy(),
         rate=pred.copy(),
+        day_shift=EXPOSURE_TO_ADMISSION,
         population=input_data['population'].copy(),
         reinfection_inflation_factor=(reinfection_inflation_factor
                                       .set_index(['location_id', 'date'])

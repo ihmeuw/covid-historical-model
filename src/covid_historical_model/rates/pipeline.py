@@ -139,7 +139,8 @@ def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
     
     return seroprevalence, reinfection_inflation_factor, ifr_nrmse, best_ifr_models, \
            ifr_results, idr_results, ihr_results, \
-           em_data, vaccine_coverage, escape_variant_prevalence, severity_variant_prevalence
+           em_data, vaccine_coverage, escape_variant_prevalence, severity_variant_prevalence, \
+           hierarchy, population
 
 
 def extract_ifr_results(full_ifr_results: Dict) -> Tuple:

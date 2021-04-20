@@ -18,6 +18,7 @@ from covid_historical_model.rates import serology
 from covid_historical_model.rates import age_standardization
 from covid_historical_model.rates import post
 from covid_historical_model.rates import squeeze
+from covid_historical_model.durations.durations import EXPOSURE_TO_DEATH
 
 RESULTS = namedtuple('Results',
                      'seroprevalence model_data mr_model_dict pred_location_map daily_numerator level_lambdas ' \
@@ -110,6 +111,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
         denom_age_pattern=refit_input_data['sero_age_pattern'].copy(),
         age_spec_population=refit_input_data['age_spec_population'].copy(),
         rate=refit_pred.copy(),
+        day_shift=EXPOSURE_TO_DEATH,
         escape_variant_prevalence=refit_input_data['escape_variant_prevalence'].copy(),
         severity_variant_prevalence=refit_input_data['severity_variant_prevalence'].copy(),
         vaccine_coverage=refit_input_data['vaccine_coverage'].copy(),
@@ -121,6 +123,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
     refit_pred = squeeze.squeeze(
         daily=refit_input_data['daily_deaths'].copy(),
         rate=refit_pred.copy(),
+        day_shift=EXPOSURE_TO_DEATH,
         population=refit_input_data['population'].copy(),
         reinfection_inflation_factor=(reinfection_inflation_factor
                                       .set_index(['location_id', 'date'])

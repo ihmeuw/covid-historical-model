@@ -94,6 +94,7 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     ## MANUAL OUTLIERS ##
+    # lose Hong Kong point
     data.loc[data['location_id'] == 492, 'manual_outlier'] = 1
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     

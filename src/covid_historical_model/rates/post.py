@@ -3,7 +3,6 @@ from typing import Tuple, List
 import pandas as pd
 
 from covid_historical_model.rates import age_standardization
-from covid_historical_model.durations.durations import EXPOSURE_TO_DEATH
 
 SEVERE_DISEASE_INFLATION = 1.29
 
@@ -12,13 +11,14 @@ def variants_vaccines(rate_age_pattern: pd.Series,
                       denom_age_pattern: pd.Series,
                       age_spec_population: pd.Series,
                       rate: pd.Series,
+                      day_shift: int,
                       escape_variant_prevalence: pd.Series,
                       severity_variant_prevalence: pd.Series,
                       vaccine_coverage: pd.DataFrame,
                       population: pd.Series,
                       variant_rate_scalar: float = SEVERE_DISEASE_INFLATION,):
     escape_variant_prevalence = escape_variant_prevalence.reset_index()
-    escape_variant_prevalence['date'] += pd.Timedelta(days=EXPOSURE_TO_DEATH)
+    escape_variant_prevalence['date'] += pd.Timedelta(days=day_shift)
     escape_variant_prevalence = (escape_variant_prevalence
                                  .set_index(['location_id', 'date'])
                                  .loc[:, 'escape_variant_prevalence'])
@@ -26,7 +26,7 @@ def variants_vaccines(rate_age_pattern: pd.Series,
     escape_variant_prevalence = escape_variant_prevalence['escape_variant_prevalence'].fillna(0)
     
     severity_variant_prevalence = severity_variant_prevalence.reset_index()
-    severity_variant_prevalence['date'] += pd.Timedelta(days=EXPOSURE_TO_DEATH)
+    severity_variant_prevalence['date'] += pd.Timedelta(days=day_shift)
     severity_variant_prevalence = (severity_variant_prevalence
                                  .set_index(['location_id', 'date'])
                                  .loc[:, 'severity_variant_prevalence'])
@@ -34,7 +34,7 @@ def variants_vaccines(rate_age_pattern: pd.Series,
     severity_variant_prevalence = severity_variant_prevalence['severity_variant_prevalence'].fillna(0)
 
     vaccine_coverage = vaccine_coverage.reset_index()
-    vaccine_coverage['date'] += pd.Timedelta(days=EXPOSURE_TO_DEATH)
+    vaccine_coverage['date'] += pd.Timedelta(days=day_shift)
     vaccine_coverage = vaccine_coverage.set_index(['location_id', 'date'])
     vaccine_coverage = pd.concat([rate.rename('rate'), vaccine_coverage], axis=1)  # borrow axis
     del vaccine_coverage['rate']

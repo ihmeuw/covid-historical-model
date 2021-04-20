@@ -68,6 +68,9 @@ def add_repeat_infections(escape_variant_prevalence: pd.Series,
     inflation_factor['date'] += pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
     
     seroprevalence = seroprevalence.merge(inflation_factor, how='left')
+    seroprevalence['inflation_factor'] = seroprevalence['inflation_factor'].fillna(1)
+    
+    inflation_factor['date'] -= pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
     
     seroprevalence['seroprevalence'] *= seroprevalence['inflation_factor']
     

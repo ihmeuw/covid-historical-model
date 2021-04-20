@@ -64,7 +64,8 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ## run models
     seroprevalence, reinfection_inflation_factor, ifr_nrmse, best_ifr_models, \
     ifr_results, idr_results, ihr_results, em_data, \
-    vaccine_coverage, escape_variant_prevalence, severity_variant_prevalence = pipeline(
+    vaccine_coverage, escape_variant_prevalence, severity_variant_prevalence, \
+    hierarchy, population = pipeline(
         out_dir, storage_dir, plots_dir,
         model_inputs_root, excess_mortality,
         vaccine_coverage_root, variant_scaleup_root,
@@ -156,6 +157,9 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
 
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     ## write outputs
+    hierarchy.to_csv(out_dir / 'hierarchy.csv', index=False)
+    population.reset_index().to_csv(out_dir / 'population.csv', index=False)
+    
     em_data.to_csv(out_dir / 'excess_mortality.csv', index=False)
 
     ifr.to_csv(out_dir / 'allage_ifr_by_loctime.csv', index=False)

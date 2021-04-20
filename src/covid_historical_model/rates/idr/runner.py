@@ -6,6 +6,7 @@ import pandas as pd
 
 from covid_historical_model.rates import idr
 from covid_historical_model.rates import squeeze
+from covid_historical_model.durations.durations import EXPOSURE_TO_CASE
 
 RESULTS = namedtuple('Results',
                      'seroprevalence model_data mr_model_dict pred_location_map level_lambdas ' \
@@ -62,6 +63,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
     pred = squeeze.squeeze(
         daily=input_data['daily_cases'].copy(),
         rate=pred.copy(),
+        day_shift=EXPOSURE_TO_CASE,
         population=input_data['population'].copy(),
         reinfection_inflation_factor=(reinfection_inflation_factor
                                       .set_index(['location_id', 'date'])
