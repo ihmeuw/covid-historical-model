@@ -60,11 +60,13 @@ def create_model_data(cumulative_hospitalizations: pd.Series,
     time = []
     for location_id, survey_end_date in loc_dates:
         lochosps = daily_hospitalizations.loc[location_id]
+        lochosps = lochosps.clip(0, np.inf)
         lochosps = lochosps.reset_index()
         lochosps = lochosps.loc[lochosps['date'] <= survey_end_date]
         lochosps['t'] = (lochosps['date'] - day_0).dt.days
         t = np.average(lochosps['t'], weights=lochosps['daily_hospitalizations'] + 1e-6)
-        mean_hospitalization_date = lochosps.loc[lochosps['t'] == int(np.round(t)), 'date'].item()
+        t = int(np.round(t))
+        mean_hospitalization_date = lochosps.loc[lochosps['t'] == t, 'date'].item()
         time.append(
             pd.DataFrame(
                 {'t':t, 'mean_hospitalization_date':mean_hospitalization_date},

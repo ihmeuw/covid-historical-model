@@ -26,22 +26,26 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     model_data['ihr_se'] = 1
     model_data['logit_ihr_se'] = 1
     model_data['intercept'] = 1
+    
+    # lose 0s and 1s
+    model_data = model_data.loc[model_data['logit_ihr'].notnull()]
 
     var_args = {'dep_var': 'logit_ihr',
                 'dep_var_se': 'logit_ihr_se',
                 'fe_vars': ['intercept'],
                 'prior_dict': {},
                 're_vars': [],
-                'group_var': 'location_id',
-                }
+                'group_var': 'location_id',}
+    global_prior_dict = {}
     pred_replace_dict = {}
     pred_exclude_vars = []
     level_lambdas = {
-        0: {'intercept': 100.,},
-        1: {'intercept': 100.,},
+        0: {'intercept': 1.  ,},
+        1: {'intercept': 1.  ,},
         2: {'intercept': 100.,},
         3: {'intercept': 100.,},
         4: {'intercept': 100.,},
+        5: {'intercept': 100.,},
     }
     
     if var_args['group_var'] != 'location_id':
@@ -56,6 +60,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
         model_data=model_data.copy(),
         hierarchy=hierarchy.copy(),
         var_args=var_args.copy(),
+        global_prior_dict=global_prior_dict.copy(),
         level_lambdas=level_lambdas.copy(),
         verbose=False,
     )
@@ -71,9 +76,10 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     )
     
     pred = expit(pred).rename(pred.name.replace('logit_', ''))
-    pred_fe = expit(pred_fe).rename(pred.name.replace('logit_', ''))
+    pred_fe = expit(pred_fe).rename(pred_fe.name.replace('logit_', ''))
     
     pred /= age_stand_scaling_factor
     pred_fe /= age_stand_scaling_factor
 
-    return mr_model_dict, prior_dicts, pred.dropna(), pred_fe.dropna(), pred_location_map
+    return mr_model_dict, prior_dicts, pred.dropna(), pred_fe.dropna(), pred_location_map, \
+           age_stand_scaling_factor, level_lambdas

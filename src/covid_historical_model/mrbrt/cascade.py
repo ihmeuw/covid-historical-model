@@ -12,6 +12,7 @@ from covid_historical_model.mrbrt import mrbrt
 def run_cascade(model_data: pd.DataFrame,
                 hierarchy: pd.DataFrame,
                 var_args: Dict,
+                global_prior_dict: Dict,
                 level_lambdas: Dict,
                 child_cutoff_level: int = 3,
                 verbose: bool = True,):
@@ -30,9 +31,11 @@ def run_cascade(model_data: pd.DataFrame,
                          .loc[is_cascade_location, ['location_id', 'level']])
     cascade_hierarchy = [(level, cascade_hierarchy.loc[cascade_hierarchy['level'] == level, 'location_id'].to_list()) for level in sorted(cascade_hierarchy['level'].unique())]
     
-    uninformative_prior_dict = {fe_var:{} for fe_var in var_args['fe_vars']}
     mr_model_dict = {}
-    prior_dicts = {1:uninformative_prior_dict}
+    prior_dict = {fe_var: {} for fe_var in var_args['fe_vars'] if fe_var not in global_prior_dict.keys()}
+    prior_dict.update(global_prior_dict)
+    prior_dicts = {l: prior_dict for l in cascade_hierarchy[0][1]}
+    
     global_mr_data = mrbrt.create_mr_data(model_data,
                                           var_args['dep_var'], var_args['dep_var_se'],
                                           var_args['fe_vars'], var_args['group_var'])
@@ -82,6 +85,7 @@ def run_level(level_lambda: Dict,
         location_in_path_model = model_data['location_id'].isin(child_locations)
         location_model_data = model_data.loc[location_in_path_model].copy()
         location_mr_model, location_prior_dict = run_location(
+            location_id=location_id,
             model_data=location_model_data,
             prior_dict=parent_prior_dict,
             level_lambda=level_lambda,
@@ -95,8 +99,12 @@ def run_level(level_lambda: Dict,
     return level_mr_model_dict, level_prior_dicts
 
 
-def run_location(model_data: pd.DataFrame, prior_dict: Dict, level_lambda: int, global_mr_data: mrbrt.MRData, var_args: Dict,
+def run_location(location_id: int, model_data: pd.DataFrame, prior_dict: Dict,
+                 level_lambda: int,
+                 global_mr_data: mrbrt.MRData, var_args: Dict,
                  verbose: bool,):
+    np.random.seed(location_id)
+    
     location_var_args = deepcopy(var_args)
     combined_prior_dict = {}
     for data_var in list(set(location_var_args['fe_vars'] + location_var_args['re_vars'])):

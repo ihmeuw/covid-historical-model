@@ -6,8 +6,11 @@ import pandas as pd
 
 from covid_historical_model.rates import idr
 from covid_historical_model.rates import squeeze
+from covid_historical_model.durations.durations import EXPOSURE_TO_CASE
 
-RESULTS = namedtuple('Results', 'seroprevalence model_data mr_model_dict pred_location_map daily_numerator pred pred_fe')
+RESULTS = namedtuple('Results',
+                     'seroprevalence model_data mr_model_dict pred_location_map level_lambdas ' \
+                     'floor_data floor_rmse daily_numerator pred pred_fe')
 
 
 def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
@@ -28,7 +31,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
     )
     
     # check what NAs in pred data might be about, get rid of them in safer way
-    mr_model_dict, prior_dicts, pred, pred_fe, pred_location_map = idr.model.run_model(
+    mr_model_dict, prior_dicts, pred, pred_fe, pred_location_map, level_lambdas = idr.model.run_model(
         model_data=model_data.copy(),
         pred_data=pred_data.copy(),
         verbose=verbose,
@@ -44,7 +47,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
                      .loc[:, 'seroprevalence']),
         population=input_data['population'].copy(),
         hierarchy=input_data['cov_hierarchy'].copy(),
-        test_range=[0.1] + list(range(1, 11)),
+        test_range=[0.01, 0.1] + list(range(1, 11)),
         verbose=verbose,
     )
     
@@ -60,6 +63,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
     pred = squeeze.squeeze(
         daily=input_data['daily_cases'].copy(),
         rate=pred.copy(),
+        day_shift=EXPOSURE_TO_CASE,
         population=input_data['population'].copy(),
         reinfection_inflation_factor=(reinfection_inflation_factor
                                       .set_index(['location_id', 'date'])
@@ -83,6 +87,9 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
         model_data=model_data,
         mr_model_dict=mr_model_dict,
         pred_location_map=pred_location_map,
+        level_lambdas=level_lambdas,
+        floor_data=floor_data,
+        floor_rmse=rmse_data,
         daily_numerator=input_data['daily_cases'].copy(),
         pred=pred,
         pred_fe=pred_fe,

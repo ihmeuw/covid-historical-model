@@ -71,10 +71,10 @@ def test_floor_value(pred: pd.Series,
                      population: pd.Series,
                      hierarchy: pd.DataFrame,
                      floor: float,
-                     min_children: int = 5,
+                     min_children: int = 3,
                      verbose: bool = True,) -> pd.DataFrame:
     if verbose:
-        logger.info(f'Testing IDR floor of {round(floor*100, 1)}%.')
+        logger.info(f'Testing IDR floor of {round(floor*100, 2)}%.')
     
     pred = (pred
             .groupby(level=0)
@@ -95,13 +95,16 @@ def test_floor_value(pred: pd.Series,
     for location_id in tqdm(location_ids):
         in_path = hierarchy['path_to_top_parent'].apply(lambda x: str(location_id) in x.split(','))
         child_ids = hierarchy.loc[in_path, 'location_id'].to_list()
+        if location_id not in [95, 4749, 434]:
+            # exclude England and Scotland if level above UK (too much data in those places; swamps algorithm)
+            child_ids = [c for c in child_ids if c not in [4749, 434]]
         is_location = hierarchy['location_id'] == location_id
         parent_id = hierarchy.loc[is_location, 'parent_id'].item()
         # check if location_id is present
         if location_id in serosurveys.reset_index()['location_id'].to_list():
             rmse = np.sqrt((residuals[location_id]**2).mean())
         # check if at least `min_children` children are present
-        elif serosurveys.reset_index()['location_id'].isin(child_ids).sum() >= min_children:
+        elif serosurveys.reset_index()['location_id'].drop_duplicates().isin(child_ids).sum() >= min_children:
             child_residuals = residuals.reset_index()
             child_residuals = (child_residuals
                                .loc[child_residuals['location_id'].isin(child_ids)]

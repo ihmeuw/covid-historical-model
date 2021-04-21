@@ -52,6 +52,8 @@ def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
             'severity_variant_prevalence': severity_variant_prevalence,
             'day_inflection': day_inflection
         }
+        # ifr.runner.runner(**inputs)
+        # raise ValueError('STOP')
         
         inputs_path = storage_dir / f'{day_inflection}_inputs.pkl'
         with inputs_path.open('wb') as file:
@@ -74,7 +76,8 @@ def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
         logger.info('\n*************************************\n'
                     'IFR ESTIMATION -- determining best models and compiling adjusted seroprevalence\n'
                     '*************************************')
-    ifr_nrmse, best_ifr_models, ifr_results, adj_seroprevalence, sensitivity, reinfection_inflation_factor = extract_ifr_results(full_ifr_results)
+    ifr_nrmse, best_ifr_models, ifr_results, adj_seroprevalence, \
+    sensitivity, reinfection_inflation_factor = extract_ifr_results(full_ifr_results)
 
     if verbose:
         logger.info('\n*************************************\n'
@@ -135,7 +138,10 @@ def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
     # will need to load EM data
     em_data = estimates.terminal_excess_mortailty(model_inputs_root, excess_mortality)
     
-    return seroprevalence, reinfection_inflation_factor, ifr_results, idr_results, ihr_results, em_data
+    return seroprevalence, reinfection_inflation_factor, ifr_nrmse, best_ifr_models, \
+           ifr_results, idr_results, ihr_results, \
+           em_data, vaccine_coverage, escape_variant_prevalence, severity_variant_prevalence, \
+           hierarchy, population
 
 
 def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
@@ -166,7 +172,10 @@ def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
     pred_hr = []
     pct_inf_lr = []
     pct_inf_hr = []
+    age_stand_scaling_factor = []
     for location_id, day_inflection in zip(best_models['location_id'], best_models['day_inflection']):
+        if location_id == 1:
+            level_lambdas = full_ifr_results[day_inflection]['refit_results'].level_lambdas
         loc_seroprevalence = full_ifr_results[day_inflection]['refit_results'].seroprevalence
         loc_seroprevalence = loc_seroprevalence.loc[loc_seroprevalence['location_id'] == location_id]
         seroprevalence.append(loc_seroprevalence)
@@ -241,6 +250,12 @@ def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
         except KeyError:
             pass
         
+        try:
+            loc_age_stand_scaling_factor = full_ifr_results[day_inflection]['refit_results'].age_stand_scaling_factor.loc[[location_id]]
+            age_stand_scaling_factor.append(loc_age_stand_scaling_factor)
+        except KeyError:
+            pass
+        
     sensitivity = sensitivity.reset_index(drop=True)
     reinfection_inflation_factor = pd.concat(reinfection_inflation_factor).reset_index(drop=True)
     ifr_results = ifr.runner.RESULTS(
@@ -248,6 +263,7 @@ def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
         model_data=pd.concat(model_data).reset_index(drop=True),
         mr_model_dict=mr_model_dict,
         pred_location_map=pred_location_map,
+        level_lambdas=level_lambdas,
         daily_numerator=pd.concat(daily_numerator),
         pred=pd.concat(pred),
         pred_unadj=pd.concat(pred_unadj),
@@ -256,6 +272,7 @@ def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
         pred_hr=pd.concat(pred_hr),
         pct_inf_lr=pd.concat(pct_inf_lr),
         pct_inf_hr=pd.concat(pct_inf_hr),
+        age_stand_scaling_factor=pd.concat(age_stand_scaling_factor),
     )
     seroprevalence = ifr_results.seroprevalence.copy()
 
@@ -269,10 +286,14 @@ def compile_pdfs(plots_dir: Path, out_dir: Path, hierarchy: pd.DataFrame,
     existing_pdfs = [str(x).split('/')[-1] for x in plots_dir.iterdir() if x.is_file()]
     pdf_paths = [pdf for pdf in possible_pdfs if pdf in existing_pdfs]
     pdf_location_ids = [int(pdf_path.split('_')[0]) for pdf_path in pdf_paths]
-    pdf_location_names = [hierarchy.loc[hierarchy['location_id'] == location_id, 'location_name'].item() for location_id in pdf_location_ids]
-    pdf_parent_ids = [hierarchy.loc[hierarchy['location_id'] == location_id, 'parent_id'].item() for location_id in pdf_location_ids]
-    pdf_parent_names = [hierarchy.loc[hierarchy['location_id'] == parent_id, 'location_name'].item() for parent_id in pdf_parent_ids]
-    pdf_levels = [hierarchy.loc[hierarchy['location_id'] == location_id, 'level'].item() for location_id in pdf_location_ids]
+    pdf_location_names = [hierarchy.loc[hierarchy['location_id'] == location_id, 'location_name'].item()
+                          for location_id in pdf_location_ids]
+    pdf_parent_ids = [hierarchy.loc[hierarchy['location_id'] == location_id, 'parent_id'].item()
+                      for location_id in pdf_location_ids]
+    pdf_parent_names = [hierarchy.loc[hierarchy['location_id'] == parent_id, 'location_name'].item()
+                        for parent_id in pdf_parent_ids]
+    pdf_levels = [hierarchy.loc[hierarchy['location_id'] == location_id, 'level'].item()
+                  for location_id in pdf_location_ids]
     pdf_paths = [str(plots_dir / pdf_path) for pdf_path in pdf_paths]
     pdf_out_path = out_dir / f'{outfile_prefix}_{str(out_dir).split("/")[-1]}.pdf'
     pdf_merger(pdf_paths, pdf_location_names, pdf_parent_names, pdf_levels, str(pdf_out_path))

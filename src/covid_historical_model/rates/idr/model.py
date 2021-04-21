@@ -16,24 +16,29 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     model_data['idr_se'] = 1
     model_data['logit_idr_se'] = 1
     model_data['intercept'] = 1
+    
+    # lose 0s and 1s
+    model_data = model_data.loc[model_data['logit_idr'].notnull()]
 
     var_args = {'dep_var': 'logit_idr',
                 'dep_var_se': 'logit_idr_se',
-                'fe_vars': ['intercept',  # , 'bias'
+                'fe_vars': ['intercept',
                             'log_infwavg_testing_rate_capacity',],
                 'prior_dict': {'log_infwavg_testing_rate_capacity':
                                    {'prior_beta_uniform':np.array([1e-6, np.inf])},
                               },
                 're_vars': [],
                 'group_var': 'location_id',}
+    global_prior_dict = {}
     pred_replace_dict = {'log_testing_rate_capacity': 'log_infwavg_testing_rate_capacity',}
     pred_exclude_vars = []
     level_lambdas = {
-        0: {'intercept': 5., 'log_infwavg_testing_rate_capacity': 100.,},
-        1: {'intercept': 5., 'log_infwavg_testing_rate_capacity': 100.,},
-        2: {'intercept': 5., 'log_infwavg_testing_rate_capacity': 100.,},
-        3: {'intercept': 5., 'log_infwavg_testing_rate_capacity': 100.,},
-        4: {'intercept': 5., 'log_infwavg_testing_rate_capacity': 100.,},
+        0: {'intercept': 1. , 'log_infwavg_testing_rate_capacity': 1.  ,},
+        1: {'intercept': 1. , 'log_infwavg_testing_rate_capacity': 1.  ,},
+        2: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
+        3: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
+        4: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
+        5: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
     }
     
     if var_args['group_var'] != 'location_id':
@@ -48,6 +53,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
         model_data=model_data.copy(),
         hierarchy=hierarchy.copy(),
         var_args=var_args.copy(),
+        global_prior_dict=global_prior_dict.copy(),
         level_lambdas=level_lambdas.copy(),
         verbose=False,
     )
@@ -63,9 +69,9 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     )
     
     pred = expit(pred).rename(pred.name.replace('logit_', ''))
-    pred_fe = expit(pred_fe).rename(pred.name.replace('logit_', ''))
+    pred_fe = expit(pred_fe).rename(pred_fe.name.replace('logit_', ''))
 
-    return mr_model_dict, prior_dicts, pred.dropna(), pred_fe.dropna(), pred_location_map
+    return mr_model_dict, prior_dicts, pred.dropna(), pred_fe.dropna(), pred_location_map, level_lambdas
 
 
 def determine_mean_date_of_infection(location_dates: List,
@@ -81,7 +87,8 @@ def determine_mean_date_of_infection(location_dates: List,
         if not data.empty:
             avg_date_of_infection_idx = int(np.round(np.average(data.index, weights=(data['daily_infections'] + 1))))
             avg_date_of_infection = data.loc[avg_date_of_infection_idx, 'date']
-            dates_data.append(pd.DataFrame({'location_id':location_id, 'date':date, 'avg_date_of_infection':avg_date_of_infection}, index=[0]))
+            dates_data.append(pd.DataFrame({'location_id':location_id, 'date':date, 'avg_date_of_infection':avg_date_of_infection},
+                                           index=[0]))
     dates_data = pd.concat(dates_data).reset_index(drop=True)
 
     return dates_data

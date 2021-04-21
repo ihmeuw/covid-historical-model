@@ -5,7 +5,7 @@ import pandas as pd
 from covid_historical_model.etl.helpers import aggregate_data_from_md
 from covid_historical_model.durations.durations import EXPOSURE_TO_DEATH, EXPOSURE_TO_SEROPOSITIVE
 
-CROSS_VARIANT_IMMUNITY = 0.33
+CROSS_VARIANT_IMMUNITY = 0.3
 
 
 def add_repeat_infections(escape_variant_prevalence: pd.Series,
@@ -26,9 +26,10 @@ def add_repeat_infections(escape_variant_prevalence: pd.Series,
     escape_variant_prevalence = escape_variant_prevalence['escape_variant_prevalence'].fillna(0)
     
     ancestral_infections = (infections * (1 - escape_variant_prevalence)).groupby(level=0).cumsum().dropna()
-    obs_infections = infections.groupby(level=0).cumsum().dropna()
     repeat_infections = ((ancestral_infections / population) * (1 - cross_variant_immunity) * infections * escape_variant_prevalence).rename('infections')
     repeat_infections = repeat_infections.fillna(infections).dropna()
+    
+    obs_infections = infections.groupby(level=0).cumsum().dropna()
     first_infections = (infections - repeat_infections).groupby(level=0).cumsum().dropna()
     
     obs_infections = aggregate_data_from_md(obs_infections.reset_index(), hierarchy, 'infections')
@@ -67,6 +68,9 @@ def add_repeat_infections(escape_variant_prevalence: pd.Series,
     inflation_factor['date'] += pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
     
     seroprevalence = seroprevalence.merge(inflation_factor, how='left')
+    seroprevalence['inflation_factor'] = seroprevalence['inflation_factor'].fillna(1)
+    
+    inflation_factor['date'] -= pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
     
     seroprevalence['seroprevalence'] *= seroprevalence['inflation_factor']
     
