@@ -45,6 +45,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
         2: {'intercept': 100.,},
         3: {'intercept': 100.,},
         4: {'intercept': 100.,},
+        5: {'intercept': 100.,},
     }
     
     if var_args['group_var'] != 'location_id':

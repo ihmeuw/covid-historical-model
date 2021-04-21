@@ -10,7 +10,7 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_CASE
 
 RESULTS = namedtuple('Results',
                      'seroprevalence model_data mr_model_dict pred_location_map level_lambdas ' \
-                     'daily_numerator pred pred_fe')
+                     'floor_data floor_rmse daily_numerator pred pred_fe')
 
 
 def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
@@ -88,6 +88,8 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
         mr_model_dict=mr_model_dict,
         pred_location_map=pred_location_map,
         level_lambdas=level_lambdas,
+        floor_data=floor_data,
+        floor_rmse=rmse_data,
         daily_numerator=input_data['daily_cases'].copy(),
         pred=pred,
         pred_fe=pred_fe,

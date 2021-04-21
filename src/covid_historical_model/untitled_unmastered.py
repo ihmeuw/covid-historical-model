@@ -138,7 +138,6 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     idr_level_lambdas.index.name = 'hierarchy_level'
     idr_level_lambdas = idr_level_lambdas.reset_index()
 
-
     ## save serology
     seroprevalence = seroprevalence.rename(columns={'seroprevalence':'seroprev_mean_no_vacc',
                                                     'reported_seroprevalence':'seroprev_mean'})

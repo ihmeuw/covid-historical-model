@@ -59,6 +59,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
         2: {'intercept': 100., 't': 10., 'obesity': 1.,},
         3: {'intercept': 100., 't': 10., 'obesity': 1.,},
         4: {'intercept': 100., 't': 10., 'obesity': 1.,},
+        5: {'intercept': 100., 't': 10., 'obesity': 1.,},
     }
     
     if var_args['group_var'] != 'location_id':

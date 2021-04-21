@@ -38,6 +38,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
         2: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
         3: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
         4: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
+        5: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
     }
     
     if var_args['group_var'] != 'location_id':

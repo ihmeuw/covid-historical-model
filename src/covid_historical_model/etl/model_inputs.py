@@ -11,23 +11,19 @@ from covid_historical_model.etl import db, helpers
 def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str) -> Tuple[pd.DataFrame, Dict]:
     manipulation_metadata = {}
     if input_measure == 'cases':
-        is_peru = data['location_id'] == 123
-        data = data.loc[~is_peru].reset_index(drop=True)
-        manipulation_metadata['peru'] = 'dropped all cases'
-        
-        is_ecuador = data['location_id'] == 122
-        data = data.loc[~is_ecuador].reset_index(drop=True)
-        manipulation_metadata['ecuador'] = 'dropped all cases'
+        # is_peru = data['location_id'] == 123
+        # data = data.loc[~is_peru].reset_index(drop=True)
+        # manipulation_metadata['peru'] = 'dropped all cases'
+
+        # is_ecuador = data['location_id'] == 122
+        # data = data.loc[~is_ecuador].reset_index(drop=True)
+        # manipulation_metadata['ecuador'] = 'dropped all cases'
         
         is_kazakhstan = data['location_id'] == 36
         data = data.loc[~is_kazakhstan].reset_index(drop=True)
         manipulation_metadata['kazakhstan'] = 'dropped all cases'
 
     elif input_measure == 'hospitalizations':
-        is_argentina = data['location_id'] == 97
-        data = data.loc[~is_argentina].reset_index(drop=True)
-        manipulation_metadata['argentina'] = 'dropped all hospitalizations'
-
         is_vietnam = data['location_id'] == 20
         data = data.loc[~is_vietnam].reset_index(drop=True)
         manipulation_metadata['vietnam'] = 'dropped all hospitalizations'
@@ -77,7 +73,7 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
         # data.loc[data[date_var] == '05.21.2020', date_var] = '21.05.2020'
         data[date_var] = pd.to_datetime(data[date_var], format='%d.%m.%Y')
     
-    # if no start date provided, assume 2 weeks before end date? median seems to be 21 days, so this is conservative
+    # if no start date provided, assume 2 weeks before end date?
     data['start_date'] = data['start_date'].fillna(data['date'] - pd.Timedelta(days=14))
 
     # convert to m/l/u to 0-1, sample size to numeric
@@ -92,10 +88,33 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     
     data['bias'] = helpers.str_fmt(data['bias']).replace(('unchecked', 'not specified'), np.nan).astype(float)
     
+    data['test_target'] = helpers.str_fmt(data['test_target']).str.lower()
+    
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
-    ## MANUAL OUTLIERS ##
-    # lose Hong Kong point
-    data.loc[data['location_id'] == 492, 'manual_outlier'] = 1
+    ## manually specify certain tests when reporting is mixed (might just be US?)
+    # Connecticut (looks to use Abbott test)
+    is_conn = data['location_id'] == 529
+    is_cdc = data['survey_series'] == 'cdc_series'
+    data.loc[is_conn & is_cdc, 'test_target'] = 'nucleocapsid'
+    data.loc[is_conn & is_cdc, 'isotype'] = 'IgG'
+    data.loc[is_conn & is_cdc, 'test_name'] = 'Abbott ARCHITECT SARS-CoV-2 IgG immunoassay'
+    
+    # Illinois (looks to use Ortho test)
+    is_conn = data['location_id'] == 536
+    is_cdc = data['survey_series'] == 'cdc_series'
+    data.loc[is_conn & is_cdc, 'test_target'] = 'spike'
+    data.loc[is_conn & is_cdc, 'isotype'] = 'IgG'
+    data.loc[is_conn & is_cdc, 'test_name'] = 'Ortho-Clinical Diagnostics VITROS SARS-CoV-2 IgG immunoassay'
+    
+    # Oxford "mixed" is spike
+    is_oxford = data['test_name'] == 'University of Oxford ELISA IgG'
+    is_mixed = data['test_target'] == 'mixed'
+    data.loc[is_oxford & is_mixed, 'test_target'] = 'spike'
+    
+    # Peru N-Roche has the wrong isotype
+    is_peru = data['location_id'] == 123
+    is_roche = data['test_name'] == 'Roche Elecsys N pan-Ig'
+    data.loc[is_peru & is_roche, 'isotype'] = 'pan-Ig'
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
     outliers = []
@@ -145,23 +164,16 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     if verbose:
         logger.info(f'{geo_outlier.sum()} rows from sero data do not have `geo_accordance`.')
     data['correction_status'] = helpers.str_fmt(data['correction_status']).replace(('unchecked', 'not specified', np.nan), '0').astype(int)
-    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
-    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
-    ## manually specify certain tests when reporting is mixed (might just be US?)
-    # Connecticut (looks to use Abbott test)
-    is_conn = data['location_id'] == 529
-    is_cdc = data['survey_series'] == 'cdc_series'
-    data.loc[is_conn & is_cdc, 'test_target'] = 'nucleocapsid'
-    data.loc[is_conn & is_cdc, 'isotype'] = 'IgG'
-    data.loc[is_conn & is_cdc, 'test_name'] = 'Abbott ARCHITECT SARS-CoV-2 IgG immunoassay'
+    # vaccine debacle, lose all the UK spike data in 2021
+    is_uk = data['location_id'].isin([4749, 433, 434, 4636])
+    is_spike = data['test_target'] == 'spike'
+    is_2021 = data['date'] >= pd.Timestamp('2021-01-01')
     
-    # Illinois (looks to use Ortho test)
-    is_conn = data['location_id'] == 536
-    is_cdc = data['survey_series'] == 'cdc_series'
-    data.loc[is_conn & is_cdc, 'test_target'] = 'spike'
-    data.loc[is_conn & is_cdc, 'isotype'] = 'IgG'
-    data.loc[is_conn & is_cdc, 'test_name'] = 'Ortho-Clinical Diagnostics VITROS SARS-CoV-2 IgG immunoassay'
+    uk_vax_outlier = is_uk & is_spike & is_2021
+    outliers.append(uk_vax_outlier)
+    if verbose:
+        logger.info(f'{uk_vax_outlier.sum()} rows from sero data dropped due to UK vax issues.')
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
     keep_columns = ['data_id', 'nid', 'location_id', 'start_date', 'date',
@@ -178,8 +190,8 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     data = data.loc[:, keep_columns]
     
     if verbose:
-        logger.info(f"Final inlier count: {len(data.loc[data['is_outlier'] == 0])}")
-        logger.info(f"Final outlier count: {len(data.loc[data['is_outlier'] == 1])}")
+        logger.info(f"Final ETL inlier count: {len(data.loc[data['is_outlier'] == 0])}")
+        logger.info(f"Final ETL outlier count: {len(data.loc[data['is_outlier'] == 1])}")
     
     return data
 

@@ -15,11 +15,25 @@ from covid_historical_model.durations.durations import SERO_TO_DEATH, EXPOSURE_T
 from covid_historical_model.etl import model_inputs
 from covid_historical_model.utils.misc import text_wrap
 
+## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+# should have module for these that is more robust to additions
+ASSAYS = ['N-Abbott',  # IgG
+          'S-Roche', 'N-Roche',  # Ig
+          'S-Ortho Ig', 'S-Ortho IgG', # Ig/IgG
+          'S-DiaSorin',  # IgG
+          'S-EuroImmun',]  # IgG
+INCREASING = ['S-Ortho Ig', 'S-Roche']
+## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+
 PLOT_DATE_LOCATOR = mdates.AutoDateLocator(maxticks=10)
 PLOT_DATE_FORMATTER = mdates.ConciseDateFormatter(PLOT_DATE_LOCATOR, show_offset=False)
 
-PLOT_C_LIST  = ['cornflowerblue', 'lightcoral', 'mediumseagreen', 'plum'         , 'navajowhite', 'paleturquoise']
-PLOT_EC_LIST = ['mediumblue'    , 'darkred'   , 'darkgreen'     , 'rebeccapurple', 'orange'     , 'teal']
+PLOT_C_LIST  = ['cornflowerblue', 'lightcoral', 'mediumseagreen', 'plum'         ,
+                'navajowhite', 'paleturquoise', 'hotpink' , 'peru'       ,
+                'palegreen'   , 'lightgrey']
+PLOT_EC_LIST = ['mediumblue'    , 'darkred'   , 'darkgreen'     , 'rebeccapurple',
+                'orange'     , 'teal'         , 'deeppink', 'saddlebrown',
+                'darkseagreen', 'grey'     ]
 
 PLOT_INF_C = 'darkgrey'
 
@@ -36,22 +50,26 @@ def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.
     # only take some old age from Danish blood bank data
     age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
     pct_65_69 = age_spec_population.loc[78, 65].item() / age_spec_population.loc[78, 65:].sum()
-    danish_sub_70plus = (vaccinated.loc[[78], 'cumulative_adults_effective'] + \
-        vaccinated.loc[[78], 'cumulative_essential_effective'] + \
-        (pct_65_69 * vaccinated.loc[[78], 'cumulative_elderly_effective'])).rename('cumulative_all_effective')
-    vaccinated.loc[[78], 'cumulative_all_effective'] = danish_sub_70plus
+    danish_sub_70plus = (vaccinated.loc[[78], 'cumulative_adults_vaccinated'] + \
+        vaccinated.loc[[78], 'cumulative_essential_vaccinated'] + \
+        (pct_65_69 * vaccinated.loc[[78], 'cumulative_elderly_vaccinated'])).rename('cumulative_all_vaccinated')
+    vaccinated.loc[[78], 'cumulative_all_vaccinated'] = danish_sub_70plus
     ## ## ## ## ## #### ## ## ## ## ## ## ## ## ## ## ##
     
+    # use 80% of total vaccinated (effective not sufficient)
     population = model_inputs.population(model_inputs_root)
-    vaccinated = vaccinated['cumulative_all_effective'].rename('vaccinated')
+    vaccinated = vaccinated['cumulative_all_vaccinated'].rename('vaccinated') * 0.8
     vaccinated /= population
+    
+    # above chunk not sufficient, don't pull vaccinated people out of Danish data
+    vaccinated.loc[[78]] *= 0
     
     # vaccinated = vaccinated.reset_index()
     # vaccinated['date'] += pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
     # vaccinated = vaccinated.set_index(['location_id', 'date'])
     
     if verbose:
-        logger.info('Removing effectively vaccinated from reported seroprevalence.')
+        logger.info('Removing (effectively?) vaccinated from reported seroprevalence.')
     seroprevalence = remove_vaccinated(seroprevalence, vaccinated,)
     
     return seroprevalence
@@ -59,18 +77,28 @@ def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.
 
 def remove_vaccinated(seroprevalence: pd.DataFrame,
                       vaccinated: pd.Series,) -> pd.DataFrame:
-    # to go back to end dat merge, get rid of bits above and below merge in this chunk
+    ## start
+    # seroprevalence = seroprevalence.rename(columns={'date':'end_date'})
+    # seroprevalence = seroprevalence.rename(columns={'start_date':'date'})
+    ##
+    ## midpoint
     seroprevalence = seroprevalence.rename(columns={'date':'end_date'})
-    seroprevalence = seroprevalence.rename(columns={'start_date':'date'})
-    # seroprevalence['n_midpoint_days'] = (seroprevalence['end_date'] - seroprevalence['start_date']).dt.days / 2
-    # seroprevalence['n_midpoint_days'] = seroprevalence['n_midpoint_days'].astype(int)
-    # seroprevalence['date'] = seroprevalence.apply(lambda x: x['end_date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
+    seroprevalence['n_midpoint_days'] = (seroprevalence['end_date'] - seroprevalence['start_date']).dt.days / 2
+    seroprevalence['n_midpoint_days'] = seroprevalence['n_midpoint_days'].astype(int)
+    seroprevalence['date'] = seroprevalence.apply(lambda x: x['end_date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
+    ##
+    ## always
     seroprevalence = seroprevalence.merge(vaccinated.reset_index(), how='left')
-    # del seroprevalence['date']
-    # del seroprevalence['n_midpoint_days']
+    ##
+    ## start
+    # seroprevalence = seroprevalence.rename(columns={'date':'start_date'})
     # seroprevalence = seroprevalence.rename(columns={'end_date':'date'})
-    seroprevalence = seroprevalence.rename(columns={'date':'start_date'})
+    ##
+    ## midpoint
+    del seroprevalence['date']
+    del seroprevalence['n_midpoint_days']
     seroprevalence = seroprevalence.rename(columns={'end_date':'date'})
+    ##
     seroprevalence['vaccinated'] = seroprevalence['vaccinated'].fillna(0)
     
     seroprevalence.loc[seroprevalence['test_target'] != 'spike', 'vaccinated'] = 0
@@ -91,21 +119,14 @@ def apply_waning_adjustment(model_inputs_root: Path,
                             pred_ifr: pd.Series,
                             verbose: bool = True,) -> pd.DataFrame:
     sensitivity = model_inputs.assay_sensitivity(model_inputs_root)
-
-    assays = ['N-Abbott',  # IgG
-              'S-Roche', 'N-Roche',  # Ig
-              'S-Ortho Ig', 'S-Ortho IgG', # Ig/IgG
-              'S-DiaSorin',  # IgG
-              'S-EuroImmun',]  # IgG
-    increasing = ['S-Ortho Ig']
     
     data_assays = sensitivity['assay'].unique().tolist()
-    excluded_data_assays = [da for da in data_assays if da not in assays]
+    excluded_data_assays = [da for da in data_assays if da not in ASSAYS]
     if verbose and excluded_data_assays:
         logger.warning(f"Excluding the following assays found in sensitivity data: {', '.join(excluded_data_assays)}")
-    if any([a not in data_assays for a in assays]):
+    if any([a not in data_assays for a in ASSAYS]):
         raise ValueError('Assay mis-labelled.')
-    sensitivity = sensitivity.loc[sensitivity['assay'].isin(assays)]
+    sensitivity = sensitivity.loc[sensitivity['assay'].isin(ASSAYS)]
     
     source_assays = sensitivity[['source', 'assay']].drop_duplicates().values.tolist()
     
@@ -113,7 +134,7 @@ def apply_waning_adjustment(model_inputs_root: Path,
         [
             fit_hospital_weighted_sensitivity_decay(
                 sensitivity.loc[(sensitivity['source'] == source) & (sensitivity['assay'] == assay)].copy(),
-                assay in increasing,
+                assay in INCREASING,
                 hospitalized_weights.copy()
             )
             for source, assay in source_assays]
@@ -122,7 +143,7 @@ def apply_waning_adjustment(model_inputs_root: Path,
     seroprevalence = seroprevalence.loc[seroprevalence['is_outlier'] == 0]
     
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
-    ## DO THIS DIFFERENTLY...
+    ## DO THIS DIFFERENTLY...?
     assay_map = pd.read_excel('/'.join(__file__.split('/')[:-2]) + '/maps/assay_map.xlsx')
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
@@ -306,7 +327,7 @@ def plotter(location_id: int, location_name: str,
     effectively_vaccinated = vaccine_coverage.loc[location_id, 'cumulative_all_effective'] / population.loc[location_id]
 
     # remove repeat infections we added earlier
-    adj_seroprevalence = adj_seroprevalence.merge(reinfection_inflation_factor)
+    adj_seroprevalence = adj_seroprevalence.merge(reinfection_inflation_factor, how='left')
     adj_seroprevalence['inflation_factor'] = adj_seroprevalence['inflation_factor'].fillna(1)
     adj_seroprevalence['seroprevalence'] /= adj_seroprevalence['inflation_factor']
     del adj_seroprevalence['inflation_factor']
@@ -314,7 +335,8 @@ def plotter(location_id: int, location_name: str,
     # combine sero data
     seroprevalence = seroprevalence.rename(columns={'seroprevalence':'seroprevalence_sub_vacc'})
     seroprevalence = (seroprevalence
-                      .merge(adj_seroprevalence.loc[:, ['data_id', 'seroprevalence', 'assay']], how='left'))
+                      .merge(adj_seroprevalence.loc[:, ['data_id', 'seroprevalence', 'assay']],
+                             how='left'))
 
     # make assay table
     assay_table = (seroprevalence
@@ -390,10 +412,9 @@ def plotter(location_id: int, location_name: str,
     table.scale(1, 3)
     table.set_fontsize(20)
 
-
     sens_ax = fig.add_subplot(gs[0, 1])
     for i, (assay, c) in enumerate(zip(assays, PLOT_C_LIST)):
-        assay_sensitivity = sensitivity.loc[sensitivity['assay'] == assay.replace('\n', '')]    
+        assay_sensitivity = sensitivity.loc[sensitivity['assay'] == assay.replace('\n', '')]
         if assay_sensitivity.empty:
             raise ValueError(f'Unable to find sensitivity curve for {assay}')
         sens_ax.plot(assay_sensitivity['t'],

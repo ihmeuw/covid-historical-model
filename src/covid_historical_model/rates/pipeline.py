@@ -76,7 +76,8 @@ def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
         logger.info('\n*************************************\n'
                     'IFR ESTIMATION -- determining best models and compiling adjusted seroprevalence\n'
                     '*************************************')
-    ifr_nrmse, best_ifr_models, ifr_results, adj_seroprevalence, sensitivity, reinfection_inflation_factor = extract_ifr_results(full_ifr_results)
+    ifr_nrmse, best_ifr_models, ifr_results, adj_seroprevalence, \
+    sensitivity, reinfection_inflation_factor = extract_ifr_results(full_ifr_results)
 
     if verbose:
         logger.info('\n*************************************\n'
@@ -285,10 +286,14 @@ def compile_pdfs(plots_dir: Path, out_dir: Path, hierarchy: pd.DataFrame,
     existing_pdfs = [str(x).split('/')[-1] for x in plots_dir.iterdir() if x.is_file()]
     pdf_paths = [pdf for pdf in possible_pdfs if pdf in existing_pdfs]
     pdf_location_ids = [int(pdf_path.split('_')[0]) for pdf_path in pdf_paths]
-    pdf_location_names = [hierarchy.loc[hierarchy['location_id'] == location_id, 'location_name'].item() for location_id in pdf_location_ids]
-    pdf_parent_ids = [hierarchy.loc[hierarchy['location_id'] == location_id, 'parent_id'].item() for location_id in pdf_location_ids]
-    pdf_parent_names = [hierarchy.loc[hierarchy['location_id'] == parent_id, 'location_name'].item() for parent_id in pdf_parent_ids]
-    pdf_levels = [hierarchy.loc[hierarchy['location_id'] == location_id, 'level'].item() for location_id in pdf_location_ids]
+    pdf_location_names = [hierarchy.loc[hierarchy['location_id'] == location_id, 'location_name'].item()
+                          for location_id in pdf_location_ids]
+    pdf_parent_ids = [hierarchy.loc[hierarchy['location_id'] == location_id, 'parent_id'].item()
+                      for location_id in pdf_location_ids]
+    pdf_parent_names = [hierarchy.loc[hierarchy['location_id'] == parent_id, 'location_name'].item()
+                        for parent_id in pdf_parent_ids]
+    pdf_levels = [hierarchy.loc[hierarchy['location_id'] == location_id, 'level'].item()
+                  for location_id in pdf_location_ids]
     pdf_paths = [str(plots_dir / pdf_path) for pdf_path in pdf_paths]
     pdf_out_path = out_dir / f'{outfile_prefix}_{str(out_dir).split("/")[-1]}.pdf'
     pdf_merger(pdf_paths, pdf_location_names, pdf_parent_names, pdf_levels, str(pdf_out_path))

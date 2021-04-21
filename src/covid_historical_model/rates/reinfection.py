@@ -5,7 +5,7 @@ import pandas as pd
 from covid_historical_model.etl.helpers import aggregate_data_from_md
 from covid_historical_model.durations.durations import EXPOSURE_TO_DEATH, EXPOSURE_TO_SEROPOSITIVE
 
-CROSS_VARIANT_IMMUNITY = 0.33
+CROSS_VARIANT_IMMUNITY = 0.3
 
 
 def add_repeat_infections(escape_variant_prevalence: pd.Series,
