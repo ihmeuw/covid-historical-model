@@ -135,8 +135,7 @@ def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
     compile_pdfs(plots_dir, out_dir, hierarchy, 'ifr', suffixes=['ifr'])
     compile_pdfs(plots_dir, out_dir, hierarchy, 'serology', suffixes=['sero'])
     
-    # will need to load EM data
-    em_data = estimates.terminal_excess_mortailty(model_inputs_root, excess_mortality)
+    em_data = estimates.excess_mortailty_scalars(model_inputs_root, excess_mortality)
     
     return seroprevalence, reinfection_inflation_factor, ifr_nrmse, best_ifr_models, \
            ifr_results, idr_results, ihr_results, \

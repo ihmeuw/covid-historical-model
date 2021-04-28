@@ -152,23 +152,15 @@ def variant_scaleup(variant_scaleup_root: Path, variant_type: str, verbose: bool
     return data
 
 
-def terminal_excess_mortailty(model_inputs_root: Path, excess_mortality: bool,) -> pd.DataFrame:
+def excess_mortailty_scalars(model_inputs_root: Path, excess_mortality: bool,) -> pd.DataFrame:
     data_path = model_inputs_root / 'raw_formatted' / 'location_scalars.csv'
     data = pd.read_csv(data_path)
     data['date'] = pd.to_datetime(data['start_date'])
     data = data.rename(columns={'value':'em_scalar'})
     data = data.loc[:, ['location_id', 'date', 'em_scalar']]
-    data = data.sort_values(['location_id', 'date']).reset_index()
+    data = data.sort_values(['location_id', 'date']).reset_index(drop=True)
     
-    if not excess_mortality:
-        data['em_scalar'] = 1
-        
-    # pull out last data
-    data = (data
-            .groupby('location_id')
-            .apply(lambda x: x['em_scalar'].values[-1])
-            .rename('em_scalar')
-            .reset_index())
     data['scaled'] = excess_mortality
     
     return data
+
