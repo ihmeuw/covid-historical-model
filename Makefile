@@ -22,7 +22,7 @@ install_env:
 		pip install --global-option=build_ext --global-option '-I$(CONDA_PREFIX)/envs/$(ENV_NAME)/include/' pycddlib && \
 		cd limetr && git checkout master && make install && cd .. && \
 		cd MRTool && python setup.py install && cd .. && \
-		pip install -e . ; \
+		pip install -e .[internal] ; \
 	)
 
 .PHONY: test
