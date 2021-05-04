@@ -19,9 +19,9 @@ def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str)
         # data = data.loc[~is_ecuador].reset_index(drop=True)
         # manipulation_metadata['ecuador'] = 'dropped all cases'
         
-        is_kazakhstan = data['location_id'] == 36
-        data = data.loc[~is_kazakhstan].reset_index(drop=True)
-        manipulation_metadata['kazakhstan'] = 'dropped all cases'
+        # is_kazakhstan = data['location_id'] == 36
+        # data = data.loc[~is_kazakhstan].reset_index(drop=True)
+        # manipulation_metadata['kazakhstan'] = 'dropped all cases'
 
     elif input_measure == 'hospitalizations':
         is_vietnam = data['location_id'] == 20
@@ -218,8 +218,7 @@ def reported_epi(model_inputs_root: Path, input_measure: str,
     data = helpers.aggregate_data_from_md(data, hierarchy, f'cumulative_{input_measure}')
     data[f'daily_{input_measure}'] = (data
                                       .groupby('location_id')[f'cumulative_{input_measure}']
-                                      .apply(lambda x: x.diff())
-                                      .fillna(data[f'cumulative_{input_measure}']))
+                                      .apply(lambda x: x.diff().fillna(x)))
     data = data.dropna()
     data = (data
             .set_index(['location_id', 'date'])
