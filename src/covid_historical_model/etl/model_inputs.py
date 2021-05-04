@@ -11,17 +11,7 @@ from covid_historical_model.etl import db, helpers
 def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str) -> Tuple[pd.DataFrame, Dict]:
     manipulation_metadata = {}
     if input_measure == 'cases':
-        # is_peru = data['location_id'] == 123
-        # data = data.loc[~is_peru].reset_index(drop=True)
-        # manipulation_metadata['peru'] = 'dropped all cases'
-
-        # is_ecuador = data['location_id'] == 122
-        # data = data.loc[~is_ecuador].reset_index(drop=True)
-        # manipulation_metadata['ecuador'] = 'dropped all cases'
-        
-        # is_kazakhstan = data['location_id'] == 36
-        # data = data.loc[~is_kazakhstan].reset_index(drop=True)
-        # manipulation_metadata['kazakhstan'] = 'dropped all cases'
+        pass
 
     elif input_measure == 'hospitalizations':
         is_vietnam = data['location_id'] == 20
