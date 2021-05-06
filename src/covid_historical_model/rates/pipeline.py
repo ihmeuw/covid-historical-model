@@ -21,8 +21,8 @@ def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
              model_inputs_root: Path, excess_mortality: bool,
              vaccine_coverage_root: Path, variant_scaleup_root: Path,
              age_pattern_root: Path, testing_root: Path,
-             day_inflection_list: List[str] = ['2020-05-01', '2020-06-01', '2020-07-01',
-                                               '2020-08-01', '2020-09-01', '2020-10-01', '2020-11-01'],
+             day_inflection_list: List[str] = ['2020-05-01', '2020-06-01', '2020-07-01', '2020-08-01',
+                                               '2020-09-01', '2020-10-01', '2020-11-01', '2020-12-01',],
              verbose: bool = True,) -> Tuple:
     if verbose:
         logger.info('\n*************************************\n'

@@ -33,12 +33,12 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     pred_replace_dict = {'log_testing_rate_capacity': 'log_infwavg_testing_rate_capacity',}
     pred_exclude_vars = []
     level_lambdas = {
-        0: {'intercept': 1. , 'log_infwavg_testing_rate_capacity': 1.  ,},
-        1: {'intercept': 1. , 'log_infwavg_testing_rate_capacity': 1.  ,},
-        2: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
-        3: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
-        4: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
-        5: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
+        0: {'intercept': 1. , 'log_infwavg_testing_rate_capacity': 3. ,},
+        1: {'intercept': 1. , 'log_infwavg_testing_rate_capacity': 3. ,},
+        2: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 30.,},
+        3: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 30.,},
+        4: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 30.,},
+        5: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 30.,},
     }
     
     if var_args['group_var'] != 'location_id':

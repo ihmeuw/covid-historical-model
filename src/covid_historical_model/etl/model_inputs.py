@@ -14,19 +14,21 @@ def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str)
         pass
 
     elif input_measure == 'hospitalizations':
+        # short time series (at beginnning)
         is_vietnam = data['location_id'] == 20
         data = data.loc[~is_vietnam].reset_index(drop=True)
         manipulation_metadata['vietnam'] = 'dropped all hospitalizations'
 
+        # short time series (at beginnning)
         is_murcia = data['location_id'] == 60366
         data = data.loc[~is_murcia].reset_index(drop=True)
         manipulation_metadata['murcia'] = 'dropped all hospitalizations'
 
-        pakistan_location_ids = hierarchy.loc[hierarchy['path_to_top_parent'].apply(lambda x: '165' in x.split(',')),
-                                              'location_id'].to_list()
-        is_pakistan = data['location_id'].isin(pakistan_location_ids)
-        data = data.loc[~is_pakistan].reset_index(drop=True)
-        manipulation_metadata['pakistan'] = 'dropped all hospitalizations'
+        # pakistan_location_ids = hierarchy.loc[hierarchy['path_to_top_parent'].apply(lambda x: '165' in x.split(',')),
+        #                                       'location_id'].to_list()
+        # is_pakistan = data['location_id'].isin(pakistan_location_ids)
+        # data = data.loc[~is_pakistan].reset_index(drop=True)
+        # manipulation_metadata['pakistan'] = 'dropped all hospitalizations'
         
         # only for IHR...
         is_netherlands = data['location_id'] == 89
@@ -164,6 +166,13 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     outliers.append(uk_vax_outlier)
     if verbose:
         logger.info(f'{uk_vax_outlier.sum()} rows from sero data dropped due to UK vax issues.')
+        
+    # drop Rio Grande do Sul
+    rgds_outlier = data['location_id'] == 4772
+    
+    outliers.append(rgds_outlier)
+    if verbose:
+        logger.info(f'{rgds_outlier.sum()} rows from sero data dropped due to implausible in Rio Grande do Sul.')
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
     keep_columns = ['data_id', 'nid', 'location_id', 'start_date', 'date',

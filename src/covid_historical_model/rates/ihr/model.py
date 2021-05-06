@@ -40,12 +40,12 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     pred_replace_dict = {}
     pred_exclude_vars = []
     level_lambdas = {
-        0: {'intercept': 1.  ,},
-        1: {'intercept': 1.  ,},
-        2: {'intercept': 100.,},
-        3: {'intercept': 100.,},
-        4: {'intercept': 100.,},
-        5: {'intercept': 100.,},
+        0: {'intercept': 3. ,},
+        1: {'intercept': 3. ,},
+        2: {'intercept': 30.,},
+        3: {'intercept': 30.,},
+        4: {'intercept': 30.,},
+        5: {'intercept': 30.,},
     }
     
     if var_args['group_var'] != 'location_id':
