@@ -8,7 +8,7 @@ from covid_historical_model.mrbrt import cascade
 
 
 def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
-              hierarchy: pd.DataFrame, cov_hierarchy: pd.DataFrame,
+              hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame,
               verbose: bool = True,
               **kwargs) -> Tuple[Dict, Dict, pd.Series, pd.Series, pd.Series]:
     model_data['logit_idr'] = logit(model_data['idr'])
@@ -51,16 +51,17 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     model_data = model_data.dropna()
     mr_model_dict, prior_dicts = cascade.run_cascade(
         model_data=model_data.copy(),
-        hierarchy=hierarchy.copy(),
+        hierarchy=hierarchy.copy(),  # run w/ modeling hierarchy
         var_args=var_args.copy(),
         global_prior_dict=global_prior_dict.copy(),
         level_lambdas=level_lambdas.copy(),
         verbose=False,
     )
+    gbd_hierarchy = validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
     pred_data = pred_data.dropna()
     pred, pred_fe, pred_location_map = cascade.predict_cascade(
         pred_data=pred_data.copy(),
-        hierarchy=cov_hierarchy.copy(),
+        hierarchy=gbd_hierarchy.copy(),  # predict w/ gbd hierarchy
         mr_model_dict=mr_model_dict.copy(),
         pred_replace_dict=pred_replace_dict.copy(),
         pred_exclude_vars=pred_exclude_vars.copy(),

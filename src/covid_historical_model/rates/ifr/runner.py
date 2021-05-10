@@ -65,6 +65,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
         pred.copy(),
         orig_seroprevalence.copy(),
         input_data['hierarchy'],
+        input_data['gbd_hierarchy'],
         input_data['population'],
         verbose=verbose,
     )

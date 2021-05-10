@@ -17,7 +17,7 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool, testing_roo
                     verbose: bool = True) -> Dict:
     # load data
     hierarchy = model_inputs.hierarchy(model_inputs_root)
-    cov_hierarchy = model_inputs.hierarchy(model_inputs_root, covariates=True)
+    gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_gbd')
     population = model_inputs.population(model_inputs_root)
     cumulative_cases, daily_cases = model_inputs.reported_epi(model_inputs_root, 'cases', hierarchy)
     _, daily_deaths = model_inputs.reported_epi(model_inputs_root, 'deaths', hierarchy, excess_mortality)
@@ -33,7 +33,7 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool, testing_roo
             'testing_capacity': testing_capacity,
             'covariates': covariates,
             'hierarchy': hierarchy,
-            'cov_hierarchy': cov_hierarchy,
+            'gbd_hierarchy': gbd_hierarchy,
             'population': population,}
 
 
@@ -136,12 +136,12 @@ def create_model_data(cumulative_cases: pd.Series,
     return model_data.reset_index()
 
 
-def create_pred_data(cov_hierarchy: pd.DataFrame, population: pd.Series,
+def create_pred_data(hierarchy: pd.DataFrame, population: pd.Series,
                      testing_capacity: pd.Series,
                      covariates: List[pd.Series],
                      pred_start_date: pd.Timestamp, pred_end_date: pd.Timestamp,
                      **kwargs):
-    pred_data = pd.DataFrame(list(itertools.product(cov_hierarchy['location_id'].to_list(),
+    pred_data = pd.DataFrame(list(itertools.product(hierarchy['location_id'].to_list(),
                                                list(pd.date_range(pred_start_date, pred_end_date)))),
                          columns=['location_id', 'date'])
     pred_data['intercept'] = 1

@@ -15,12 +15,13 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool, age_pattern
                     verbose: bool = True) -> Dict:
     # load data
     hierarchy = model_inputs.hierarchy(model_inputs_root)
+    gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_gbd')
     population = model_inputs.population(model_inputs_root)
     age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
     cumulative_deaths, daily_deaths = model_inputs.reported_epi(model_inputs_root, 'deaths', hierarchy, excess_mortality)
     sero_age_pattern = estimates.seroprevalence_age_pattern(age_pattern_root)
     ifr_age_pattern = estimates.ifr_age_pattern(age_pattern_root)
-    covariates = [db.obesity(hierarchy)]
+    covariates = [db.obesity(gbd_hierarchy)]
     
     return {'cumulative_deaths': cumulative_deaths,
             'daily_deaths': daily_deaths,
@@ -33,6 +34,7 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool, age_pattern
             'escape_variant_prevalence': escape_variant_prevalence,
             'severity_variant_prevalence': severity_variant_prevalence,
             'hierarchy': hierarchy,
+            'gbd_hierarchy': gbd_hierarchy,
             'population': population,}
 
 

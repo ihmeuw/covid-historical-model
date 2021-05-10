@@ -11,7 +11,7 @@ from covid_historical_model.durations.durations import SERO_TO_DEATH
 
 def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
               ifr_age_pattern: pd.Series, sero_age_pattern: pd.Series, age_spec_population: pd.Series,
-              hierarchy: pd.DataFrame,
+              hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame,
               day_0: pd.Timestamp, day_inflection: pd.Timestamp,
               verbose: bool = True,
               **kwargs) -> Tuple[Dict, Dict, pd.Series, pd.Series, pd.Series]:
@@ -72,21 +72,22 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     model_data = model_data.dropna()
     mr_model_dict, prior_dicts = cascade.run_cascade(
         model_data=model_data.copy(),
-        hierarchy=hierarchy.copy(),
+        hierarchy=hierarchy.copy(),  # run w/ modeling hierarchy
         var_args=var_args.copy(),
         global_prior_dict=global_prior_dict.copy(),
         level_lambdas=level_lambdas.copy(),
-        verbose=False,
+        verbose=verbose,
     )
+    gbd_hierarchy = validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
     pred_data = pred_data.dropna()
     pred, pred_fe, pred_location_map = cascade.predict_cascade(
         pred_data=pred_data.copy(),
-        hierarchy=hierarchy.copy(),
+        hierarchy=gbd_hierarchy.copy(),  # predict w/ gbd hierarchy
         mr_model_dict=mr_model_dict.copy(),
         pred_replace_dict=pred_replace_dict.copy(),
         pred_exclude_vars=pred_exclude_vars.copy(),
         var_args=var_args.copy(),
-        verbose=False,
+        verbose=verbose,
     )
     
     pred = expit(pred).rename(pred.name.replace('logit_', ''))
@@ -110,6 +111,7 @@ def match_model_data(mr_model_dict: Dict, data: pd.Series,
     if is_nat_subnat:
         obs_req: int = 1
     else:
+        # IF WE CHANGE THIS, NEED TO REVISIT LOGIC OF WHAT TO SAY FOR GBD LOCATIONS
         obs_req: int = 1
     model_data_location_ids = mr_model_dict[model_location_id].data.to_df()['study_id'].unique().tolist()
     data = data.loc[model_data_location_ids].reset_index()
@@ -124,7 +126,10 @@ def map_pred_and_model_locations(pred_location_map: Dict, mr_model_dict: Dict,
     nrmse_data = []
     admin0_level = hierarchy.loc[hierarchy['location_type'] == 'admin0', 'level'].unique().item()
     for pred_location_id in pred_location_map.keys():
-        is_nat_subnat = hierarchy.loc[hierarchy['location_id'] == pred_location_id, 'level'].item() >= admin0_level
+        if pred_location_id in hierarchy['location_id'].to_list():
+            is_nat_subnat = hierarchy.loc[hierarchy['location_id'] == pred_location_id, 'level'].item() >= admin0_level
+        else:
+            is_nat_subnat = False
         model_location_id = pred_location_id
         searching = True
         i = 0
@@ -155,8 +160,9 @@ def map_pred_and_model_locations(pred_location_map: Dict, mr_model_dict: Dict,
 
 
 def get_nrmse(seroprevalence: pd.DataFrame, deaths: pd.Series,
-              pred: pd.Series, hierarchy: pd.DataFrame, population: pd.Series,
-              pred_location_map: pd.Series, mr_model_dict: Dict) -> pd.Series:
+              pred: pd.Series, hierarchy: pd.DataFrame,
+              population: pd.Series,
+              pred_location_map: pd.Series, mr_model_dict: Dict) -> Tuple[pd.Series, pd.Series]:
     seroprevalence = (seroprevalence
                       .set_index(['location_id', 'date'])
                       .sort_index()

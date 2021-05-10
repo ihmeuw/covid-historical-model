@@ -15,6 +15,7 @@ def load_input_data(model_inputs_root: Path, age_pattern_root: Path,
                     verbose: bool = True) -> Dict:
     # load data
     hierarchy = model_inputs.hierarchy(model_inputs_root)
+    gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_gbd')
     population = model_inputs.population(model_inputs_root)
     age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
     cumulative_hospitalizations, daily_hospitalizations = model_inputs.reported_epi(
@@ -36,6 +37,7 @@ def load_input_data(model_inputs_root: Path, age_pattern_root: Path,
             'escape_variant_prevalence': escape_variant_prevalence,
             'severity_variant_prevalence': severity_variant_prevalence,
             'hierarchy': hierarchy,
+            'gbd_hierarchy': gbd_hierarchy,
             'population': population,}
 
 
