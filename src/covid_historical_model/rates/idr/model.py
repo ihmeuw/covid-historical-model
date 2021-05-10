@@ -5,6 +5,7 @@ import numpy as np
 
 from covid_historical_model.utils.math import logit, expit
 from covid_historical_model.mrbrt import cascade
+from covid_historical_model.etl import model_inputs
 
 
 def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
@@ -57,11 +58,11 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
         level_lambdas=level_lambdas.copy(),
         verbose=False,
     )
-    gbd_hierarchy = validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
+    adj_gbd_hierarchy = model_inputs.validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
     pred_data = pred_data.dropna()
     pred, pred_fe, pred_location_map = cascade.predict_cascade(
         pred_data=pred_data.copy(),
-        hierarchy=gbd_hierarchy.copy(),  # predict w/ gbd hierarchy
+        hierarchy=adj_gbd_hierarchy.copy(),  # predict w/ gbd hierarchy
         mr_model_dict=mr_model_dict.copy(),
         pred_replace_dict=pred_replace_dict.copy(),
         pred_exclude_vars=pred_exclude_vars.copy(),

@@ -136,13 +136,14 @@ def create_model_data(cumulative_cases: pd.Series,
     return model_data.reset_index()
 
 
-def create_pred_data(hierarchy: pd.DataFrame, population: pd.Series,
+def create_pred_data(hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame, population: pd.Series,
                      testing_capacity: pd.Series,
                      covariates: List[pd.Series],
                      pred_start_date: pd.Timestamp, pred_end_date: pd.Timestamp,
                      **kwargs):
-    pred_data = pd.DataFrame(list(itertools.product(hierarchy['location_id'].to_list(),
-                                               list(pd.date_range(pred_start_date, pred_end_date)))),
+    adj_gbd_hierarchy = model_inputs.validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
+    pred_data = pd.DataFrame(list(itertools.product(adj_gbd_hierarchy['location_id'].to_list(),
+                                                    list(pd.date_range(pred_start_date, pred_end_date)))),
                          columns=['location_id', 'date'])
     pred_data['intercept'] = 1
     pred_data = pred_data.set_index(['location_id', 'date'])

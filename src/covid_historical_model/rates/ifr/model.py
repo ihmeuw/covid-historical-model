@@ -7,6 +7,7 @@ from covid_historical_model.utils.math import logit, expit
 from covid_historical_model.mrbrt import cascade
 from covid_historical_model.rates import age_standardization
 from covid_historical_model.durations.durations import SERO_TO_DEATH
+from covid_historical_model.etl import model_inputs
 
 
 def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
@@ -78,11 +79,11 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
         level_lambdas=level_lambdas.copy(),
         verbose=verbose,
     )
-    gbd_hierarchy = validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
+    adj_gbd_hierarchy = model_inputs.validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
     pred_data = pred_data.dropna()
     pred, pred_fe, pred_location_map = cascade.predict_cascade(
         pred_data=pred_data.copy(),
-        hierarchy=gbd_hierarchy.copy(),  # predict w/ gbd hierarchy
+        hierarchy=adj_gbd_hierarchy.copy(),  # predict w/ gbd hierarchy
         mr_model_dict=mr_model_dict.copy(),
         pred_replace_dict=pred_replace_dict.copy(),
         pred_exclude_vars=pred_exclude_vars.copy(),
@@ -160,8 +161,7 @@ def map_pred_and_model_locations(pred_location_map: Dict, mr_model_dict: Dict,
 
 
 def get_nrmse(seroprevalence: pd.DataFrame, deaths: pd.Series,
-              pred: pd.Series, hierarchy: pd.DataFrame,
-              population: pd.Series,
+              pred: pd.Series, hierarchy: pd.DataFrame, population: pd.Series,
               pred_location_map: pd.Series, mr_model_dict: Dict) -> Tuple[pd.Series, pd.Series]:
     seroprevalence = (seroprevalence
                       .set_index(['location_id', 'date'])

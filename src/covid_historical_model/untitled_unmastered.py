@@ -13,6 +13,7 @@ import warnings
 warnings.simplefilter('ignore')
 
 ## IMPORTANT TODO:
+##     - make comparison routine; plot all fits in cascade
 ##     - multiple locations after July 1 for date selection (currently just 1)? unless only one child?
 ##     - reinfection NAs (probably 0 deaths) -> add checks for location/date matching
 ##     - other NAs in IES inputs?
