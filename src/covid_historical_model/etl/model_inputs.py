@@ -14,19 +14,21 @@ def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str)
         pass
 
     elif input_measure == 'hospitalizations':
+        # short time series (at beginnning)
         is_vietnam = data['location_id'] == 20
         data = data.loc[~is_vietnam].reset_index(drop=True)
         manipulation_metadata['vietnam'] = 'dropped all hospitalizations'
 
+        # short time series (at beginnning)
         is_murcia = data['location_id'] == 60366
         data = data.loc[~is_murcia].reset_index(drop=True)
         manipulation_metadata['murcia'] = 'dropped all hospitalizations'
 
-        pakistan_location_ids = hierarchy.loc[hierarchy['path_to_top_parent'].apply(lambda x: '165' in x.split(',')),
-                                              'location_id'].to_list()
-        is_pakistan = data['location_id'].isin(pakistan_location_ids)
-        data = data.loc[~is_pakistan].reset_index(drop=True)
-        manipulation_metadata['pakistan'] = 'dropped all hospitalizations'
+        # pakistan_location_ids = hierarchy.loc[hierarchy['path_to_top_parent'].apply(lambda x: '165' in x.split(',')),
+        #                                       'location_id'].to_list()
+        # is_pakistan = data['location_id'].isin(pakistan_location_ids)
+        # data = data.loc[~is_pakistan].reset_index(drop=True)
+        # manipulation_metadata['pakistan'] = 'dropped all hospitalizations'
         
         # only for IHR...
         is_netherlands = data['location_id'] == 89
@@ -164,6 +166,13 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     outliers.append(uk_vax_outlier)
     if verbose:
         logger.info(f'{uk_vax_outlier.sum()} rows from sero data dropped due to UK vax issues.')
+        
+    # # drop Rio Grande do Sul
+    # rgds_outlier = data['location_id'] == 4772
+
+    # outliers.append(rgds_outlier)
+    # if verbose:
+    #     logger.info(f'{rgds_outlier.sum()} rows from sero data dropped due to implausible in Rio Grande do Sul.')
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
     keep_columns = ['data_id', 'nid', 'location_id', 'start_date', 'date',
@@ -220,11 +229,13 @@ def reported_epi(model_inputs_root: Path, input_measure: str,
     return cumulative_data, daily_data
 
 
-def hierarchy(model_inputs_root:Path, covariates: bool = False) -> pd.DataFrame:
-    if not covariates:
+def hierarchy(model_inputs_root:Path, hierarchy_type: str = 'covid_modeling') -> pd.DataFrame:
+    if hierarchy_type == 'covid_modeling':
         data_path = model_inputs_root / 'locations' / 'modeling_hierarchy.csv'
-    else:
+    elif hierarchy_type == 'covid_covariate':
         data_path = model_inputs_root / 'locations' / 'covariate_with_aggregates_hierarchy.csv'
+    elif hierarchy_type == 'covid_gbd':
+        data_path = model_inputs_root / 'locations' / 'gbd_analysis_hierarchy.csv'
     
     data = pd.read_csv(data_path)
     data = data.sort_values('sort_order').reset_index(drop=True)
@@ -291,3 +302,25 @@ def assay_sensitivity(model_inputs_root: Path, assay_day_0: int = 21,) -> pd.Dat
     sensitivity = pd.concat([peluso, perez_saez]).reset_index(drop=True)
     
     return sensitivity
+
+
+def validate_hierarchies(hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame):
+    covid = hierarchy.loc[:, ['location_id', 'path_to_top_parent']]
+    covid = covid.rename(columns={'path_to_top_parent': 'covid_path'})
+    gbd = gbd_hierarchy.loc[:, ['location_id', 'path_to_top_parent']]
+    gbd = gbd.rename(columns={'path_to_top_parent': 'gbd_path'})
+    
+    data = covid.merge(gbd, how='left')
+    is_missing = data['gbd_path'].isnull()
+    is_different = (data['covid_path'] != data['gbd_path']) & (~is_missing)
+    
+    if is_different.sum() > 0:
+        raise ValueError(f'Some covid locations are missing a GBD path:\n{data.loc[is_different]}.')
+    
+    if is_missing.sum() > 0:
+        logger.warning(f'Some covid locations are missing in GBD hierarchy and will be added:\n{data.loc[is_missing]}.')
+        missing_locations = data.loc[is_missing, 'location_id'].to_list()
+        missing_locations = hierarchy.loc[hierarchy['location_id'].isin(missing_locations)]
+        gbd_hierarchy = gbd_hierarchy.append(missing_locations)
+        
+    return gbd_hierarchy

@@ -8,10 +8,31 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_DEATH, EXPOSU
 CROSS_VARIANT_IMMUNITY = 0.3
 
 
+# def fill_non_covid_locs(escape_variant_prevalence: pd.Series,
+#                         hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame,):
+#     location_ids = gbd_hierarchy['location_id'].to_list()
+#     covid_location_ids = hierarchy['location_id'].to_list()
+#     location_ids = [l for l in location_ids if l not in covid_location_ids]
+#     data_location_ids = escape_variant_prevalence.index.get_level_values(0).unique().to_list()
+#     location_ids = [l for l in location_ids if l not in data_location_ids]
+#     for location_id in location_ids:
+#         parent_ids = gbd_hierarchy.loc[gbd_hierarchy['location_id'] == location_id, 'path_to_top_parent'].item()
+#         parent_ids = [int(l) for l in reversed(parent_ids.split(','))][1:]
+#         parent_ids = [l for l in parent_ids if l in data_location_ids]
+#         if parent_ids:
+#             escape_variant_prevalence = escape_variant_prevalence.append(
+#                         pd.concat({location_id: escape_variant_prevalence.loc[parent_ids[0]]},
+#                                   names=['location_id'])
+#             )
+    
+#     return escape_variant_prevalence, location_ids
+
+
 def add_repeat_infections(escape_variant_prevalence: pd.Series,
                           daily_deaths: pd.Series, pred_ifr: pd.Series,
                           seroprevalence: pd.DataFrame,
                           hierarchy: pd.DataFrame,
+                          gbd_hierarchy: pd.DataFrame,
                           population: pd.Series,
                           cross_variant_immunity: float = CROSS_VARIANT_IMMUNITY,
                           verbose: bool = True) -> pd.DataFrame:
@@ -21,6 +42,12 @@ def add_repeat_infections(escape_variant_prevalence: pd.Series,
     infections = (infections
                   .set_index(['location_id', 'date'])
                   .loc[:, 'infections'])
+    
+    # # COULD use this to fill in, but that should come from variant modeler
+    # escape_variant_prevalence, extra_locations = fill_non_covid_locs(escape_variant_prevalence,
+    #                                                                  hierarchy, gbd_hierarchy)
+    extra_locations = gbd_hierarchy.loc[gbd_hierarchy['most_detailed'] == 1, 'location_id'].to_list()
+    extra_locations = [l for l in extra_locations if l not in hierarchy['location_id'].to_list()]
     
     escape_variant_prevalence = pd.concat([infections, escape_variant_prevalence], axis=1)  # borrow axis
     escape_variant_prevalence = escape_variant_prevalence['escape_variant_prevalence'].fillna(0)
@@ -32,11 +59,21 @@ def add_repeat_infections(escape_variant_prevalence: pd.Series,
     obs_infections = infections.groupby(level=0).cumsum().dropna()
     first_infections = (infections - repeat_infections).groupby(level=0).cumsum().dropna()
     
+    extra_obs_infections = obs_infections.reset_index()
+    extra_obs_infections = (extra_obs_infections
+                            .loc[extra_obs_infections['location_id'].isin(extra_locations)]
+                            .reset_index(drop=True))
     obs_infections = aggregate_data_from_md(obs_infections.reset_index(), hierarchy, 'infections')
+    obs_infections = obs_infections.append(extra_obs_infections)
     obs_infections = (obs_infections
                       .set_index(['location_id', 'date'])
                       .loc[:, 'infections'])
+    extra_first_infections = first_infections.reset_index()
+    extra_first_infections = (extra_first_infections
+                              .loc[extra_first_infections['location_id'].isin(extra_locations)]
+                              .reset_index(drop=True))
     first_infections = aggregate_data_from_md(first_infections.reset_index(), hierarchy, 'infections')
+    first_infections = first_infections.append(extra_first_infections)
     first_infections = (first_infections
                         .set_index(['location_id', 'date'])
                         .loc[:, 'infections'])

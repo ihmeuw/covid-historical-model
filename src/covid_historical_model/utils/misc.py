@@ -19,8 +19,8 @@ def suppress_stdout():
 def parent_inheritance(data: pd.DataFrame, hierarchy: pd.DataFrame) -> pd.DataFrame:
     if not isinstance(data, pd.DataFrame):
         raise ValueError(f'Needs to provide DataFrame, not {type(data)}.')
-    if data.index.names[0] != 'location_id':
-        raise ValueError('Index level 0 needs to be `location_id`.')
+    if data.index.names != ['location_id']:
+        raise ValueError('Index can only be `location_id`.')
     location_ids = hierarchy['location_id'].to_list()
     path_to_top_parents = hierarchy['path_to_top_parent'].to_list()
     path_to_top_parents = [list(reversed(p.split(',')[:-1])) for p in path_to_top_parents]

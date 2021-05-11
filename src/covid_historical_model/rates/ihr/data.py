@@ -15,6 +15,7 @@ def load_input_data(model_inputs_root: Path, age_pattern_root: Path,
                     verbose: bool = True) -> Dict:
     # load data
     hierarchy = model_inputs.hierarchy(model_inputs_root)
+    gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_gbd')
     population = model_inputs.population(model_inputs_root)
     age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
     cumulative_hospitalizations, daily_hospitalizations = model_inputs.reported_epi(
@@ -36,6 +37,7 @@ def load_input_data(model_inputs_root: Path, age_pattern_root: Path,
             'escape_variant_prevalence': escape_variant_prevalence,
             'severity_variant_prevalence': severity_variant_prevalence,
             'hierarchy': hierarchy,
+            'gbd_hierarchy': gbd_hierarchy,
             'population': population,}
 
 
@@ -85,13 +87,14 @@ def create_model_data(cumulative_hospitalizations: pd.Series,
     return model_data.reset_index()
 
 
-def create_pred_data(hierarchy: pd.DataFrame, population: pd.Series,
+def create_pred_data(hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame, population: pd.Series,
                      covariates: List[pd.Series],
                      pred_start_date: pd.Timestamp, pred_end_date: pd.Timestamp,
                      day_0: pd.Timestamp,
                      **kwargs):
-    pred_data = pd.DataFrame(list(itertools.product(hierarchy['location_id'].to_list(),
-                                               list(pd.date_range(pred_start_date, pred_end_date)))),
+    adj_gbd_hierarchy = model_inputs.validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
+    pred_data = pd.DataFrame(list(itertools.product(adj_gbd_hierarchy['location_id'].to_list(),
+                                                    list(pd.date_range(pred_start_date, pred_end_date)))),
                          columns=['location_id', 'date'])
     pred_data['intercept'] = 1
     pred_data['t'] = (pred_data['date'] - day_0).dt.days
