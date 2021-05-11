@@ -97,10 +97,11 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     # New York (looks to use Abbott test from Nov 2020 onwards)
     is_ny = data['location_id'] == 555
     is_cdc = data['survey_series'] == 'cdc_series'
+    is_N = data['test_target'] == 'nucleocapsid'
     is_nov_or_later = data['date'] >= pd.Timestamp('2020-11-01')
-    data.loc[is_ny & is_cdc & is_nov_or_later, 'test_target'] = 'nucleocapsid'
     data.loc[is_ny & is_cdc & is_nov_or_later, 'isotype'] = 'IgG'
-    data.loc[is_ny & is_cdc & is_nov_or_later, 'test_name'] = 'Abbott ARCHITECT SARS-CoV-2 IgG immunoassay'
+    data.loc[is_ny & is_cdc & is_nov_or_later & is_N, 'test_target'] = 'nucleocapsid'
+    data.loc[is_ny & is_cdc & is_nov_or_later & is_N, 'test_name'] = 'Abbott ARCHITECT SARS-CoV-2 IgG immunoassay'
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
     outliers = []
