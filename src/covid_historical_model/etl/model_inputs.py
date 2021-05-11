@@ -93,20 +93,14 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     is_peru = data['location_id'] == 123
     is_roche = data['test_name'] == 'Roche Elecsys N pan-Ig'
     data.loc[is_peru & is_roche, 'isotype'] = 'pan-Ig'
-
-    # # Connecticut (looks to use Abbott test)
-    # is_conn = data['location_id'] == 529
-    # is_cdc = data['survey_series'] == 'cdc_series'
-    # data.loc[is_conn & is_cdc, 'test_target'] = 'nucleocapsid'
-    # data.loc[is_conn & is_cdc, 'isotype'] = 'IgG'
-    # data.loc[is_conn & is_cdc, 'test_name'] = 'Abbott ARCHITECT SARS-CoV-2 IgG immunoassay'
     
-    # # Illinois (looks to use Ortho test)
-    # is_conn = data['location_id'] == 536
-    # is_cdc = data['survey_series'] == 'cdc_series'
-    # data.loc[is_conn & is_cdc, 'test_target'] = 'spike'
-    # data.loc[is_conn & is_cdc, 'isotype'] = 'IgG'
-    # data.loc[is_conn & is_cdc, 'test_name'] = 'Ortho-Clinical Diagnostics VITROS SARS-CoV-2 IgG immunoassay'
+    # New York (looks to use Abbott test from Nov 2020 onwards)
+    is_ny = data['location_id'] == 555
+    is_cdc = data['survey_series'] == 'cdc_series'
+    is_nov_or_later = data['date'] >= pd.Timestamp('2020-11-01')
+    data.loc[is_ny & is_cdc & is_nov_or_later, 'test_target'] = 'nucleocapsid'
+    data.loc[is_ny & is_cdc & is_nov_or_later, 'isotype'] = 'IgG'
+    data.loc[is_ny & is_cdc & is_nov_or_later, 'test_name'] = 'Abbott ARCHITECT SARS-CoV-2 IgG immunoassay'
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
     outliers = []
