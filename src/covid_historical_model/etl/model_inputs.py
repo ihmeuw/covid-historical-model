@@ -167,12 +167,12 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     if verbose:
         logger.info(f'{uk_vax_outlier.sum()} rows from sero data dropped due to UK vax issues.')
         
-    # drop Rio Grande do Sul
-    rgds_outlier = data['location_id'] == 4772
-    
-    outliers.append(rgds_outlier)
-    if verbose:
-        logger.info(f'{rgds_outlier.sum()} rows from sero data dropped due to implausible in Rio Grande do Sul.')
+    # # drop Rio Grande do Sul
+    # rgds_outlier = data['location_id'] == 4772
+
+    # outliers.append(rgds_outlier)
+    # if verbose:
+    #     logger.info(f'{rgds_outlier.sum()} rows from sero data dropped due to implausible in Rio Grande do Sul.')
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
     keep_columns = ['data_id', 'nid', 'location_id', 'start_date', 'date',
