@@ -84,20 +84,6 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     ## manually specify certain tests when reporting is mixed (might just be US?)
-    # Connecticut (looks to use Abbott test)
-    is_conn = data['location_id'] == 529
-    is_cdc = data['survey_series'] == 'cdc_series'
-    data.loc[is_conn & is_cdc, 'test_target'] = 'nucleocapsid'
-    data.loc[is_conn & is_cdc, 'isotype'] = 'IgG'
-    data.loc[is_conn & is_cdc, 'test_name'] = 'Abbott ARCHITECT SARS-CoV-2 IgG immunoassay'
-    
-    # Illinois (looks to use Ortho test)
-    is_conn = data['location_id'] == 536
-    is_cdc = data['survey_series'] == 'cdc_series'
-    data.loc[is_conn & is_cdc, 'test_target'] = 'spike'
-    data.loc[is_conn & is_cdc, 'isotype'] = 'IgG'
-    data.loc[is_conn & is_cdc, 'test_name'] = 'Ortho-Clinical Diagnostics VITROS SARS-CoV-2 IgG immunoassay'
-    
     # Oxford "mixed" is spike
     is_oxford = data['test_name'] == 'University of Oxford ELISA IgG'
     is_mixed = data['test_target'] == 'mixed'
@@ -107,10 +93,26 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     is_peru = data['location_id'] == 123
     is_roche = data['test_name'] == 'Roche Elecsys N pan-Ig'
     data.loc[is_peru & is_roche, 'isotype'] = 'pan-Ig'
+
+    # # Connecticut (looks to use Abbott test)
+    # is_conn = data['location_id'] == 529
+    # is_cdc = data['survey_series'] == 'cdc_series'
+    # data.loc[is_conn & is_cdc, 'test_target'] = 'nucleocapsid'
+    # data.loc[is_conn & is_cdc, 'isotype'] = 'IgG'
+    # data.loc[is_conn & is_cdc, 'test_name'] = 'Abbott ARCHITECT SARS-CoV-2 IgG immunoassay'
+    
+    # # Illinois (looks to use Ortho test)
+    # is_conn = data['location_id'] == 536
+    # is_cdc = data['survey_series'] == 'cdc_series'
+    # data.loc[is_conn & is_cdc, 'test_target'] = 'spike'
+    # data.loc[is_conn & is_cdc, 'isotype'] = 'IgG'
+    # data.loc[is_conn & is_cdc, 'test_name'] = 'Ortho-Clinical Diagnostics VITROS SARS-CoV-2 IgG immunoassay'
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
     outliers = []
+    data['manual_outlier'] = data['manual_outlier'].astype(float)
     data['manual_outlier'] = data['manual_outlier'].fillna(0)
+    data['manual_outlier'] = data['manual_outlier'].astype(int)
     manual_outlier = data['manual_outlier']
     outliers.append(manual_outlier)
     if verbose:
