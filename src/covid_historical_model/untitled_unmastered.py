@@ -13,8 +13,7 @@ import warnings
 warnings.simplefilter('ignore')
 
 ## IMPORTANT TODO:
-##     - try trimming in global model?
-##     - what range covariate for time? might not work since we need to specify distribution
+##     - make comparison routine; plot all fits in cascade
 ##     - multiple locations after July 1 for date selection (currently just 1)? unless only one child?
 ##     - reinfection NAs (probably 0 deaths) -> add checks for location/date matching
 ##     - other NAs in IES inputs?
@@ -22,6 +21,7 @@ warnings.simplefilter('ignore')
 ##     - bias covariate?
 ##     - for waning, do something to Perez-Saez to crosswalk for baseline sensitivity?
 ##     - smarter posterior IFR forecast
+##     - does using different fit/pred hierarchies do anything wonky?
 
 ## RATIO FUTURE TODO:
 ##     - try trimming in certain levels (probably just global)?
@@ -47,6 +47,7 @@ warnings.simplefilter('ignore')
 ##          (a) try higher degree, fewer knot-days?
 ##          (b) would it work to fix them e.g. every month?
 ##          (c) "fix" uncertainty (maybe the measure cascade)
+
 
 def main(app_metadata: cli_tools.Metadata, out_dir: Path,
          model_inputs_root: Path,
@@ -149,10 +150,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     seroprevalence = seroprevalence.rename(columns={'start_date': 'sero_start_date',
                                                     'date': 'sero_end_date'})
 
-    ## save testing placeholder
-    testing = pd.DataFrame({'location_id': [],
-                            'date': [],
-                            'testing': []})
+    testing = idr_results.testing_capacity.reset_index()
 
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     ## write outputs

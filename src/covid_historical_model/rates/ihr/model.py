@@ -6,11 +6,12 @@ import numpy as np
 from covid_historical_model.utils.math import logit, expit
 from covid_historical_model.mrbrt import cascade
 from covid_historical_model.rates import age_standardization
+from covid_historical_model.etl import model_inputs
 
 
 def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
               ihr_age_pattern: pd.Series, sero_age_pattern: pd.Series, age_spec_population: pd.Series,
-              hierarchy: pd.DataFrame,
+              hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame,
               verbose: bool = True,
               **kwargs) -> Tuple[Dict, Dict, pd.Series, pd.Series, pd.Series]:
     age_stand_scaling_factor = age_standardization.get_scaling_factor(
@@ -58,16 +59,17 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     model_data = model_data.dropna()
     mr_model_dict, prior_dicts = cascade.run_cascade(
         model_data=model_data.copy(),
-        hierarchy=hierarchy.copy(),
+        hierarchy=hierarchy.copy(),  # run w/ modeling hierarchy
         var_args=var_args.copy(),
         global_prior_dict=global_prior_dict.copy(),
         level_lambdas=level_lambdas.copy(),
         verbose=False,
     )
+    adj_gbd_hierarchy = model_inputs.validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
     pred_data = pred_data.dropna()
     pred, pred_fe, pred_location_map = cascade.predict_cascade(
         pred_data=pred_data.copy(),
-        hierarchy=hierarchy.copy(),
+        hierarchy=adj_gbd_hierarchy.copy(),  # predict w/ gbd hierarchy
         mr_model_dict=mr_model_dict.copy(),
         pred_replace_dict=pred_replace_dict.copy(),
         pred_exclude_vars=pred_exclude_vars.copy(),

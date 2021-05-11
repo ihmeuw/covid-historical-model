@@ -7,9 +7,10 @@ import pandas as pd
 from covid_historical_model.rates import idr
 from covid_historical_model.rates import squeeze
 from covid_historical_model.durations.durations import EXPOSURE_TO_CASE
+from covid_historical_model.etl import model_inputs
 
 RESULTS = namedtuple('Results',
-                     'seroprevalence model_data mr_model_dict pred_location_map level_lambdas ' \
+                     'seroprevalence testing_capacity model_data mr_model_dict pred_location_map level_lambdas ' \
                      'floor_data floor_rmse daily_numerator pred pred_fe')
 
 
@@ -38,6 +39,8 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
         **input_data
     )
     
+    adj_gbd_hierarchy = model_inputs.validate_hierarchies(input_data['hierarchy'].copy(),
+                                                          input_data['gbd_hierarchy'].copy())
     rmse_data, floor_data = idr.flooring.find_idr_floor(
         pred=pred.copy(),
         daily_cases=input_data['daily_cases'].copy(),
@@ -46,7 +49,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
                      .sort_index()
                      .loc[:, 'seroprevalence']),
         population=input_data['population'].copy(),
-        hierarchy=input_data['cov_hierarchy'].copy(),
+        hierarchy=adj_gbd_hierarchy.copy(),
         test_range=[0.01, 0.1] + list(range(1, 11)),
         verbose=verbose,
     )
@@ -84,6 +87,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
 
     results = RESULTS(
         seroprevalence=input_data['seroprevalence'],
+        testing_capacity=input_data['testing_capacity'],
         model_data=model_data,
         mr_model_dict=mr_model_dict,
         pred_location_map=pred_location_map,
