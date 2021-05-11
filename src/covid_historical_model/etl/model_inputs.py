@@ -94,7 +94,7 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     is_roche = data['test_name'] == 'Roche Elecsys N pan-Ig'
     data.loc[is_peru & is_roche, 'isotype'] = 'pan-Ig'
     
-    # New York (looks to use Abbott test from Nov 2020 onwards)
+    # New York (after Nov 2020 onwards, nucleocapsid test is Abbott, not Roche)
     is_ny = data['location_id'] == 555
     is_cdc = data['survey_series'] == 'cdc_series'
     is_N = data['test_target'] == 'nucleocapsid'
