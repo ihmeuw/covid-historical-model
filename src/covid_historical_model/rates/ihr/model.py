@@ -40,8 +40,8 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     pred_replace_dict = {}
     pred_exclude_vars = []
     level_lambdas = {
-        0: {'intercept': 1.  ,},
-        1: {'intercept': 1.  ,},
+        0: {'intercept': 2.  ,},
+        1: {'intercept': 2.  ,},
         2: {'intercept': 100.,},
         3: {'intercept': 100.,},
         4: {'intercept': 100.,},
