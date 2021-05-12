@@ -131,8 +131,18 @@ def variant_scaleup(variant_scaleup_root: Path, variant_type: str, verbose: bool
     data = pd.read_csv(data_path)
     data['date'] = pd.to_datetime(data['date'])
     
+    variants_in_data = data['variant'].unique().tolist()
+    variants_in_model = ['B1351', 'P1', 'B1617', 'B117', 'wild_type']
+    
+    if any([v not in variants_in_data for v in variants_in_model]):
+        missing_in_data = ', '.join([v for v in variants_in_model if v not in variants_in_data])
+        raise ValueError(f'The following variants are expected in the data but not present: {missing_in_data}')
+    if any([v not in variants_in_model for v in variants_in_data]):
+        missing_in_model = ', '.join([v for v in variants_in_data if v not in variants_in_model])
+        raise ValueError(f'The following variants are in the data but not expected: {missing_in_model}')
+    
     if variant_type == 'escape':
-        is_escape_variant = ~data['variant'].isin(['wild_type', 'B117'])
+        is_escape_variant = data['variant'].isin(['B1351', 'P1', 'B1617'])
         data = data.loc[is_escape_variant]
         if verbose:
             logger.info(f"Escape variants: {', '.join(data['variant'].unique())}")
