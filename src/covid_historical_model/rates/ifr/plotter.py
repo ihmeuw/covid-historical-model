@@ -259,7 +259,7 @@ def vaccine_plot(ax, i, e_a, ep_a, e_v, ep_v):
     
 
 def variant_plot(ax, i, escape, severity):
-    ax.plot(escape, color=VAR_E, label='P1 + B.1.351')
+    ax.plot(escape, color=VAR_E, label='P1 + B.1.351 + B.1.617')
     ax.plot(severity, color=VAR_S, label='B.1.1.7')
     if i == 0:
         ax.set_ylabel('Variant prevalence', fontsize=YLAB)
