@@ -18,7 +18,9 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool, age_pattern
     gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_gbd')
     population = model_inputs.population(model_inputs_root)
     age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
-    cumulative_deaths, daily_deaths = model_inputs.reported_epi(model_inputs_root, 'deaths', hierarchy, excess_mortality)
+    cumulative_deaths, daily_deaths = model_inputs.reported_epi(
+        model_inputs_root, 'deaths', hierarchy, gbd_hierarchy, excess_mortality
+    )
     sero_age_pattern = estimates.seroprevalence_age_pattern(age_pattern_root)
     ifr_age_pattern = estimates.ifr_age_pattern(age_pattern_root)
     adj_gbd_hierarchy = model_inputs.validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())

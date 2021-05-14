@@ -16,7 +16,7 @@ warnings.simplefilter('ignore')
               default=paths.BEST_LINK,
               help=('Which version of the inputs data to gather and format. '
                     'May be a full path or relative to the standard inputs root.'))
-@click.option('-v', '--vaccine-coverage-version',
+@click.option('-c', '--vaccine-coverage-version',
               type=click.Path(file_okay=False),
               default=paths.BEST_LINK,
               help=('Which version of vaccine coverage estimates to use. '

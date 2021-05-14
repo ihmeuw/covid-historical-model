@@ -12,7 +12,8 @@ def testing(testing_root: Path) -> pd.DataFrame:
     data = pd.read_csv(data_path)
     data['date'] = pd.to_datetime(data['date'])
     data = data.sort_values(['location_id', 'date']).reset_index(drop=True)
-    data['daily_tests'] = data['test_pc'] * data['pop']
+    data['population'] = data['population'].fillna(data['pop'])
+    data['daily_tests'] = data['test_pc'] * data['population']
     data['cumulative_tests'] = data.groupby('location_id')['daily_tests'].cumsum()
     data = (data
             .loc[:, ['location_id', 'date', 'cumulative_tests']]

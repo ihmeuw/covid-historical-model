@@ -49,7 +49,6 @@ def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str)
     return data, manipulation_metadata
 
 
-
 def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFrame:
     # load
     data_path = model_inputs_root / 'serology' / 'global_serology_summary.csv'
@@ -193,7 +192,8 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
 
 
 def reported_epi(model_inputs_root: Path, input_measure: str,
-                 hierarchy: pd.DataFrame, excess_mortality: bool = True,) -> Tuple[pd.Series, pd.Series]:
+                 hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame,
+                 excess_mortality: bool = True,) -> Tuple[pd.Series, pd.Series]:
     data_path = model_inputs_root / 'use_at_your_own_risk' / 'full_data_extra_hospital.csv'
     data = pd.read_csv(data_path)
     data = data.rename(columns={'Confirmed':'cumulative_cases',
@@ -210,8 +210,19 @@ def reported_epi(model_inputs_root: Path, input_measure: str,
     data = (data.groupby('location_id', as_index=False)
             .apply(lambda x: helpers.fill_dates(x, [f'cumulative_{input_measure}']))
             .reset_index(drop=True))
+    
     data, manipulation_metadata = evil_doings(data, hierarchy, input_measure)
+    
+    extra_locations = gbd_hierarchy.loc[gbd_hierarchy['most_detailed'] == 1, 'location_id'].to_list()
+    extra_locations = [l for l in extra_locations if l not in hierarchy['location_id'].to_list()]
+    
+    extra_data = data.loc[data['location_id'].isin(extra_locations)].reset_index(drop=True)
     data = helpers.aggregate_data_from_md(data, hierarchy, f'cumulative_{input_measure}')
+    data = (data
+            .append(extra_data.loc[:, data.columns])
+            .sort_values(['location_id', 'date'])
+            .reset_index(drop=True))
+    
     data[f'daily_{input_measure}'] = (data
                                       .groupby('location_id')[f'cumulative_{input_measure}']
                                       .apply(lambda x: x.diff().fillna(x)))
