@@ -19,8 +19,12 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool, testing_roo
     hierarchy = model_inputs.hierarchy(model_inputs_root)
     gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_gbd')
     population = model_inputs.population(model_inputs_root)
-    cumulative_cases, daily_cases = model_inputs.reported_epi(model_inputs_root, 'cases', hierarchy)
-    _, daily_deaths = model_inputs.reported_epi(model_inputs_root, 'deaths', hierarchy, excess_mortality)
+    cumulative_cases, daily_cases = model_inputs.reported_epi(
+        model_inputs_root, 'cases', hierarchy, gbd_hierarchy
+    )
+    _, daily_deaths = model_inputs.reported_epi(
+        model_inputs_root, 'deaths', hierarchy, gbd_hierarchy, excess_mortality
+    )
     testing_capacity = estimates.testing(testing_root)['testing_capacity']
 
     covariates = []
