@@ -30,7 +30,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
            escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
            day_inflection: str,
            day_0: str = '2020-03-15',
-           pred_start_date: str = '2020-01-01',
+           pred_start_date: str = '2019-11-01',
            pred_end_date: str = '2021-12-31',
            verbose: bool = True,) -> Dict:
     day_inflection = pd.Timestamp(day_inflection)
