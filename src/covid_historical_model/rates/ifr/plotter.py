@@ -16,7 +16,7 @@ DATE_LOCATOR = mdates.AutoDateLocator(maxticks=10)
 DATE_FORMATTER = mdates.ConciseDateFormatter(DATE_LOCATOR, show_offset=False)
 
 START_DATE = pd.Timestamp('2020-03-01')
-END_DATE = pd.Timestamp('2021-06-01')
+END_DATE = pd.Timestamp('2021-08-01')
 
 L_RAW = 'lightgrey'
 D_RAW = 'darkgrey'

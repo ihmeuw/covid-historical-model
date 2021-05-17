@@ -38,7 +38,7 @@ PLOT_EC_LIST = ['mediumblue'    , 'darkred'   , 'darkgreen'     , 'rebeccapurple
 PLOT_INF_C = 'darkgrey'
 
 PLOT_START_DATE = pd.Timestamp('2020-03-01')
-PLOT_END_DATE = pd.Timestamp('2021-06-01')
+PLOT_END_DATE = pd.Timestamp('2021-08-01')
 
 
 def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.Series,
