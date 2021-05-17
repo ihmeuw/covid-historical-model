@@ -17,7 +17,7 @@ RESULTS = namedtuple('Results',
 def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
            seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
            pred_ifr: pd.Series, reinfection_inflation_factor: pd.Series,
-           pred_start_date: str = '2020-01-01',
+           pred_start_date: str = '2019-11-01',
            pred_end_date: str = '2021-12-31',
            verbose: bool = True,) -> namedtuple:
     pred_start_date = pd.Timestamp(pred_start_date)
