@@ -1,3 +1,4 @@
+from typing import Dict
 from pathlib import Path
 from collections import namedtuple
 from loguru import logger
@@ -14,10 +15,7 @@ RESULTS = namedtuple('Results',
                      'daily_numerator pred pred_unadj pred_fe pred_lr pred_hr age_stand_scaling_factor')
 
 
-def runner(model_inputs_root: Path, age_pattern_root: Path,
-           seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
-           escape_variant_prevalence: pd.Series,
-           severity_variant_prevalence: pd.Series,
+def runner(input_data: Dict,
            reinfection_inflation_factor: pd.Series,
            day_0: str = '2020-03-15',
            pred_start_date: str = '2019-11-01',
@@ -27,11 +25,6 @@ def runner(model_inputs_root: Path, age_pattern_root: Path,
     pred_start_date = pd.Timestamp(pred_start_date)
     pred_end_date = pd.Timestamp(pred_end_date)
 
-    input_data = ihr.data.load_input_data(model_inputs_root, age_pattern_root,
-                                          seroprevalence, vaccine_coverage,
-                                          escape_variant_prevalence,
-                                          severity_variant_prevalence,
-                                          verbose=verbose)
     model_data = ihr.data.create_model_data(day_0=day_0, **input_data)
     pred_data = ihr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,

@@ -4,15 +4,16 @@ from loguru import logger
 
 import pandas as pd
 
-from covid_shared import cli_tools, shell_tools
+from covid_shared import cli_tools
 
-from covid_historical_model.rates.pipeline import pipeline
+from covid_historical_model.rates.pipeline import pipeline_wrapper
 from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
 
 import warnings
 warnings.simplefilter('ignore')
 
 ## IMPORTANT TODO:
+##     - use date midpoint
 ##     - make comparison routine; plot all fits in cascade
 ##     - multiple locations after July 1 for date selection (currently just 1)? unless only one child?
 ##     - reinfection NAs (probably 0 deaths) -> add checks for location/date matching
@@ -21,7 +22,6 @@ warnings.simplefilter('ignore')
 ##     - bias covariate?
 ##     - for waning, do something to Perez-Saez to crosswalk for baseline sensitivity?
 ##     - smarter posterior IFR forecast
-##     - does using different fit/pred hierarchies do anything wonky?
 
 ## RATIO FUTURE TODO:
 ##     - try trimming in certain levels (probably just global)?
@@ -54,20 +54,12 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
          vaccine_coverage_root: Path, variant_scaleup_root: Path,
          age_pattern_root: Path, testing_root: Path,
          excess_mortality: bool,):
-    ## working dir
-    storage_dir = out_dir / 'intermediate'
-    results_dir = out_dir / 'results'
-    plots_dir = out_dir / 'plots'
-    shell_tools.mkdir(storage_dir)
-    shell_tools.mkdir(results_dir)
-    shell_tools.mkdir(plots_dir)
-
     ## run models
     seroprevalence, reinfection_inflation_factor, ifr_nrmse, best_ifr_models, \
     ifr_results, idr_results, ihr_results, em_data, \
     vaccine_coverage, escape_variant_prevalence, severity_variant_prevalence, \
-    hierarchy, population = pipeline(
-        out_dir, storage_dir, plots_dir,
+    hierarchy, population = pipeline_wrapper(
+        out_dir,
         model_inputs_root, excess_mortality,
         vaccine_coverage_root, variant_scaleup_root,
         age_pattern_root,

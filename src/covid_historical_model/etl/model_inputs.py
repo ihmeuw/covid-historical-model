@@ -66,6 +66,13 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     
     # if no start date provided, assume 2 weeks before end date?
     data['start_date'] = data['start_date'].fillna(data['date'] - pd.Timedelta(days=14))
+    
+    # use mid-point instead of end date
+    data = data.rename(columns={'date':'end_date'})
+    data['n_midpoint_days'] = (data['end_date'] - seroprevalence['start_date']).dt.days / 2
+    data['n_midpoint_days'] = data['n_midpoint_days'].astype(int)
+    data['date'] = data.apply(lambda x: x['end_date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
+    del data['n_midpoint_days']
 
     # convert to m/l/u to 0-1, sample size to numeric
     if not (helpers.str_fmt(data['units']).unique() == 'percentage').all():
@@ -114,19 +121,6 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     ## SOME THINGS
     # # 1)
-    # #    Question: How to get complete SS?
-    # #    Current approach: CI -> SE -> SS where possible; fill with min(SS) where we also don't have CI (very few rows).
-    # #    Final solution: ...
-    # ss = ss_from_ci(data['seroprevalence'], data['seroprevalence_lower'], data['seroprevalence_upper'])
-    # n_missing_ss = (data['sample_size'].isnull() & ss.notnull()).sum()
-    # n_missing_ss_ci = (data['sample_size'].isnull() & ss.isnull()).sum()
-    # data['sample_size'] = data['sample_size'].fillna(ss)
-    # data['sample_size'] = data['sample_size'].fillna(data['sample_size'].min())
-    # logger.info(f'Inferring sample size from CI for {n_missing_ss} studies; '
-    #             f'filling missing sample size with min observed for {n_missing_ss_ci} that also do not report CI.')
-    # del n_missing_ss, n_missing_ss_ci
-    
-    # # 2)
     # #    Question: What if survey is only in adults? Only kids?
     # #    Current approach: Drop beyond some threshold limits.
     # #    Final solution: ...
@@ -142,7 +136,7 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     #     logger.info(f'{age_outlier.sum()} rows from sero data do not have enough '
     #             f'age coverage (at least ages {max_start_age} to {min_end_age}).')
     
-    # 3)
+    # 2)
     #    Question: Use of geo_accordance?
     #    Current approach: Drop non-represeentative (geo_accordance == 0).
     #    Final solution: ...
@@ -153,6 +147,7 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
         logger.info(f'{geo_outlier.sum()} rows from sero data do not have `geo_accordance`.')
     data['correction_status'] = helpers.str_fmt(data['correction_status']).replace(('unchecked', 'not specified', np.nan), '0').astype(int)
     
+    # 3) Extra drops
     # vaccine debacle, lose all the UK spike data in 2021
     is_uk = data['location_id'].isin([4749, 433, 434, 4636])
     is_spike = data['test_target'] == 'spike'
@@ -171,8 +166,8 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     #     logger.info(f'{rgds_outlier.sum()} rows from sero data dropped due to implausible in Rio Grande do Sul.')
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
-    keep_columns = ['data_id', 'nid', 'location_id', 'start_date', 'date',
-                    'seroprevalence',  # 'sample_size',
+    keep_columns = ['data_id', 'nid', 'location_id', 'date',  # 'start_date', 'end_date',
+                    'seroprevalence',  'seroprevalence_lower', 'seroprevalence_upper', 'sample_size',
                     'test_name', 'test_target', 'isotype',
                     'bias', 'bias_type',
                     'correction_status', 'geo_accordance',

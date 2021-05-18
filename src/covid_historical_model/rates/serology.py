@@ -14,6 +14,7 @@ import seaborn as sns
 from covid_historical_model.durations.durations import SERO_TO_DEATH, EXPOSURE_TO_SEROPOSITIVE, EXPOSURE_TO_DEATH
 from covid_historical_model.etl import model_inputs
 from covid_historical_model.utils.misc import text_wrap
+from covid_historical_model.utils.math import logit, expit
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 # should have module for these that is more robust to additions
@@ -41,20 +42,76 @@ PLOT_START_DATE = pd.Timestamp('2020-03-01')
 PLOT_END_DATE = pd.Timestamp('2021-08-01')
 
 
-def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.Series,
-                                        verbose: bool = True) -> pd.DataFrame:
-    seroprevalence = model_inputs.seroprevalence(model_inputs_root, verbose=verbose)
+def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
+                          min_samples: int = 10,
+                          floor: float = 1e-6, logit_se_cap: float = 2.,
+                          verbose: bool = True):
+    logit_se_from_ci = lambda x: (logit(x['seroprevalence_upper']) - logit(x['seroprevalence_lower'])) / 3.92
+    logit_se_from_ss = lambda x: np.sqrt(x['seroprevalence'] * (1 - x['seroprevalence']) / x['sample_size']) / x['seroprevalence'] * (1 - x['seroprevalence'])
     
-    ## ## ## ## ## #### ## ## ## ## ## ## ## ## ## ## ##
-    ## tweaks
-    # only take some old age from Danish blood bank data
-    age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
-    pct_65_69 = age_spec_population.loc[78, 65].item() / age_spec_population.loc[78, 65:].sum()
-    danish_sub_70plus = (vaccinated.loc[[78], 'cumulative_adults_vaccinated'] + \
-        vaccinated.loc[[78], 'cumulative_essential_vaccinated'] + \
-        (pct_65_69 * vaccinated.loc[[78], 'cumulative_elderly_vaccinated'])).rename('cumulative_all_vaccinated')
-    vaccinated.loc[[78], 'cumulative_all_vaccinated'] = danish_sub_70plus
-    ## ## ## ## ## #### ## ## ## ## ## ## ## ## ## ## ##
+    if n_samples > min_samples:
+        if verbose:
+            logger.info(f'Producing {n_samples} seroprevalence samples.')
+        if (seroprevalence['seroprevalence'] < seroprevalence['seroprevalence_lower']).any():
+            low_sub_mean = seroprevalence['seroprevalence'] < seroprevalence['seroprevalence_lower']
+            raise ValueError(f"Mean seroprevalence below lower:\n{seroprevalence[low_sub_mean]}")
+        if (seroprevalence['seroprevalence'] > seroprevalence['seroprevalence_upper']).any():
+            low_sub_mean = seroprevalence['seroprevalence'] < seroprevalence['seroprevalence_lower']
+            raise ValueError(f"Mean seroprevalence above upper:\n{seroprevalence[low_sub_mean]}")
+            
+        summary_vars = ['seroprevalence', 'seroprevalence_lower', 'seroprevalence_upper']
+        seroprevalence[summary_vars] = seroprevalence[summary_vars].clip(floor, 1 - floor)
+            
+        logit_mean = logit(seroprevalence['seroprevalence'].copy())
+        logit_se = logit_se_from_ci(seroprevalence.copy())
+        logit_se = logit_se.fillna(logit_se_from_ss(seroprevalence.copy()))
+        logit_se = logit_se.fillna(logit_se_cap)
+        logit_se = logit_se.clip(0, logit_se_cap)
+        logit_samples = np.random.normal(loc=logit_mean.to_frame().values,
+                                         scale=logit_se.to_frame().values,
+                                         size=(len(seroprevalence), n_samples))
+        samples = expit(logit_samples)
+        
+        # re-center around original mean
+        samples *= expit(logit_mean) / samples.mean(axis=1)
+
+        seroprevalence = seroprevalence.drop(['seroprevalence', 'seroprevalence_lower', 'seroprevalence_upper', 'sample_size'],
+                                             axis=1)
+        bootstrap_list = []
+        for sample in samples.T:
+            bootstrap = seroprevalence.copy()
+            bootstrap['seroprevalence'] = sample
+            bootstrap_list.append(bootstrap)
+    elif n_samples > 1:
+        raise ValueError(f'If sampling, need at least {min_samples}.')
+    else:
+        if verbose:
+            logger.info('Just using mean seroprevalence.')
+            
+        seroprevalence['seroprevalence'] = seroprevalence['seroprevalence'].clip(floor, 1 - floor)
+            
+        seroprevalence = seroprevalence.drop(['seroprevalence_lower', 'seroprevalence_upper', 'sample_size'],
+                                             axis=1)
+        bootstrap_list = [seroprevalence]
+    
+    return bootstrap_list
+
+
+def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.Series,
+                                        n_samples: int, verbose: bool = True) -> pd.DataFrame:
+    seroprevalence = model_inputs.seroprevalence(model_inputs_root, verbose=verbose)
+    seroprevalence_samples = sample_seroprevalence(seroprevalence, n_samples, verbose=verbose)
+    
+    # ## ## ## ## ## #### ## ## ## ## ## ## ## ## ## ## ##
+    # ## tweaks
+    # # only take some old age from Danish blood bank data
+    # age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
+    # pct_65_69 = age_spec_population.loc[78, 65].item() / age_spec_population.loc[78, 65:].sum()
+    # danish_sub_70plus = (vaccinated.loc[[78], 'cumulative_adults_vaccinated'] + \
+    #     vaccinated.loc[[78], 'cumulative_essential_vaccinated'] + \
+    #     (pct_65_69 * vaccinated.loc[[78], 'cumulative_elderly_vaccinated'])).rename('cumulative_all_vaccinated')
+    # vaccinated.loc[[78], 'cumulative_all_vaccinated'] = danish_sub_70plus
+    # ## ## ## ## ## #### ## ## ## ## ## ## ## ## ## ## ##
     
     # use 80% of total vaccinated (effective not sufficient)
     population = model_inputs.population(model_inputs_root)
@@ -70,35 +127,35 @@ def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.
     
     if verbose:
         logger.info('Removing (effectively?) vaccinated from reported seroprevalence.')
-    seroprevalence = remove_vaccinated(seroprevalence, vaccinated,)
+    seroprevalence_samples = [remove_vaccinated(sample, vaccinated,) for sample in seroprevalence_samples]
     
-    return seroprevalence
+    return seroprevalence_samples
 
 
 def remove_vaccinated(seroprevalence: pd.DataFrame,
                       vaccinated: pd.Series,) -> pd.DataFrame:
-    ## start
+    # ## start
+    # # seroprevalence = seroprevalence.rename(columns={'date':'end_date'})
+    # # seroprevalence = seroprevalence.rename(columns={'start_date':'date'})
+    # ##
+    # ## midpoint
     # seroprevalence = seroprevalence.rename(columns={'date':'end_date'})
-    # seroprevalence = seroprevalence.rename(columns={'start_date':'date'})
-    ##
-    ## midpoint
-    seroprevalence = seroprevalence.rename(columns={'date':'end_date'})
-    seroprevalence['n_midpoint_days'] = (seroprevalence['end_date'] - seroprevalence['start_date']).dt.days / 2
-    seroprevalence['n_midpoint_days'] = seroprevalence['n_midpoint_days'].astype(int)
-    seroprevalence['date'] = seroprevalence.apply(lambda x: x['end_date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
-    ##
+    # seroprevalence['n_midpoint_days'] = (seroprevalence['end_date'] - seroprevalence['start_date']).dt.days / 2
+    # seroprevalence['n_midpoint_days'] = seroprevalence['n_midpoint_days'].astype(int)
+    # seroprevalence['date'] = seroprevalence.apply(lambda x: x['end_date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
+    # ##
     ## always
     seroprevalence = seroprevalence.merge(vaccinated.reset_index(), how='left')
-    ##
-    ## start
-    # seroprevalence = seroprevalence.rename(columns={'date':'start_date'})
+    # ##
+    # ## start
+    # # seroprevalence = seroprevalence.rename(columns={'date':'start_date'})
+    # # seroprevalence = seroprevalence.rename(columns={'end_date':'date'})
+    # ##
+    # ## midpoint
+    # del seroprevalence['date']
+    # del seroprevalence['n_midpoint_days']
     # seroprevalence = seroprevalence.rename(columns={'end_date':'date'})
-    ##
-    ## midpoint
-    del seroprevalence['date']
-    del seroprevalence['n_midpoint_days']
-    seroprevalence = seroprevalence.rename(columns={'end_date':'date'})
-    ##
+    # ##
     seroprevalence['vaccinated'] = seroprevalence['vaccinated'].fillna(0)
     
     seroprevalence.loc[seroprevalence['test_target'] != 'spike', 'vaccinated'] = 0
@@ -281,12 +338,12 @@ def waning_adjustment(pred_ifr: pd.Series, daily_deaths: pd.Series, sensitivity:
                   .set_index('location_id'))
     infections['date'] -= pd.Timedelta(days=SERO_TO_DEATH)
     
-    # determine waning adjustment based on midpoint of survey
-    orig_date = seroprevalence[['data_id', 'date']].copy()
-    seroprevalence['n_midpoint_days'] = (seroprevalence['date'] - seroprevalence['start_date']).dt.days / 2
-    seroprevalence['n_midpoint_days'] = seroprevalence['n_midpoint_days'].astype(int)
-    seroprevalence['date'] = seroprevalence.apply(lambda x: x['date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
-    del seroprevalence['n_midpoint_days']
+    # # determine waning adjustment based on midpoint of survey
+    # orig_date = seroprevalence[['data_id', 'date']].copy()
+    # seroprevalence['n_midpoint_days'] = (seroprevalence['date'] - seroprevalence['start_date']).dt.days / 2
+    # seroprevalence['n_midpoint_days'] = seroprevalence['n_midpoint_days'].astype(int)
+    # seroprevalence['date'] = seroprevalence.apply(lambda x: x['date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
+    # del seroprevalence['n_midpoint_days']
     
     seroprevalence_list = []
     location_ids = seroprevalence['location_id'].unique().tolist()
@@ -301,8 +358,8 @@ def waning_adjustment(pred_ifr: pd.Series, daily_deaths: pd.Series, sensitivity:
         _sero['location_id'] = location_id
         seroprevalence_list.append(_sero)
     seroprevalence = pd.concat(seroprevalence_list).reset_index(drop=True)
-    del seroprevalence['date']
-    seroprevalence = seroprevalence.merge(orig_date)
+    # del seroprevalence['date']
+    # seroprevalence = seroprevalence.merge(orig_date)
     
     return seroprevalence
 

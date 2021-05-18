@@ -1,3 +1,4 @@
+from typing import Dict
 from pathlib import Path
 from collections import namedtuple
 from loguru import logger
@@ -14,8 +15,7 @@ RESULTS = namedtuple('Results',
                      'floor_data floor_rmse daily_numerator pred pred_fe')
 
 
-def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
-           seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
+def runner(input_data: Dict,
            pred_ifr: pd.Series, reinfection_inflation_factor: pd.Series,
            pred_start_date: str = '2019-11-01',
            pred_end_date: str = '2021-12-31',
@@ -23,8 +23,6 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
     pred_start_date = pd.Timestamp(pred_start_date)
     pred_end_date = pd.Timestamp(pred_end_date)
 
-    input_data = idr.data.load_input_data(model_inputs_root, excess_mortality, testing_root,
-                                          seroprevalence, vaccine_coverage, verbose=verbose)
     model_data = idr.data.create_model_data(pred_ifr=pred_ifr, verbose=verbose, **input_data)
     pred_data = idr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,
@@ -44,10 +42,10 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
     rmse_data, floor_data = idr.flooring.find_idr_floor(
         pred=pred.copy(),
         daily_cases=input_data['daily_cases'].copy(),
-        serosurveys=(seroprevalence
+        serosurveys=(input_data['seroprevalence']
                      .set_index(['location_id', 'date'])
                      .sort_index()
-                     .loc[:, 'seroprevalence']),
+                     .loc[:, 'seroprevalence']).copy(),
         population=input_data['population'].copy(),
         hierarchy=adj_gbd_hierarchy.copy(),
         test_range=[0.01, 0.1] + list(range(1, 11)),

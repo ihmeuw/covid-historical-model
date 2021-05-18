@@ -25,9 +25,7 @@ RESULTS = namedtuple('Results',
                      'pred pred_unadj pred_fe pred_lr pred_hr pct_inf_lr pct_inf_hr age_stand_scaling_factor')
 
 
-def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Path,
-           orig_seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
-           escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
+def runner(input_data: Dict,
            day_inflection: str,
            day_0: str = '2020-03-15',
            pred_start_date: str = '2019-11-01',
@@ -38,11 +36,6 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
     pred_start_date = pd.Timestamp(pred_start_date)
     pred_end_date = pd.Timestamp(pred_end_date)
 
-    input_data = ifr.data.load_input_data(model_inputs_root, excess_mortality, age_pattern_root,
-                                          orig_seroprevalence, vaccine_coverage,
-                                          escape_variant_prevalence,
-                                          severity_variant_prevalence,
-                                          verbose=verbose)
     model_data = ifr.data.create_model_data(day_0=day_0, **input_data)
     pred_data = ifr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,
@@ -63,7 +56,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
         input_data['escape_variant_prevalence'].copy(),
         input_data['daily_deaths'].copy(),
         pred.copy(),
-        orig_seroprevalence.copy(),
+        input_data['seroprevalence'].copy(),
         input_data['hierarchy'],
         input_data['gbd_hierarchy'],
         input_data['population'],
@@ -72,9 +65,10 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
 
     # account for waning antibody detection
     ihr_age_pattern = ihr.data.load_input_data(model_inputs_root, age_pattern_root,
-                                               seroprevalence, vaccine_coverage,
-                                               escape_variant_prevalence,
-                                               severity_variant_prevalence,
+                                               input_data['seroprevalence'].copy(),
+                                               input_data['vaccine_coverage'].copy(),
+                                               input_data['escape_variant_prevalence'].copy(),
+                                               input_data['severity_variant_prevalence'].copy(),
                                                verbose=verbose)['ihr_age_pattern']
     hospitalized_weights = age_standardization.get_all_age_rate(
         ihr_age_pattern, input_data['sero_age_pattern'],
@@ -90,6 +84,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
     
     refit_input_data = input_data.copy()
     refit_input_data['seroprevalence'] = seroprevalence
+    del seroprevalence
     refit_model_data = ifr.data.create_model_data(day_0=day_0, **refit_input_data)
     refit_pred_data = ifr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,
@@ -136,7 +131,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
     refit_pred_hr = hr_rr * refit_pred
     
     results = RESULTS(
-        seroprevalence=orig_seroprevalence,
+        seroprevalence=input_data['seroprevalence'],
         model_data=model_data,
         mr_model_dict=mr_model_dict,
         pred_location_map=pred_location_map,
@@ -152,7 +147,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
         age_stand_scaling_factor=age_stand_scaling_factor,
     )
     refit_results = RESULTS(
-        seroprevalence=seroprevalence,
+        seroprevalence=refit_input_data['seroprevalence'],
         model_data=refit_model_data,
         mr_model_dict=refit_mr_model_dict,
         pred_location_map=refit_pred_location_map,
@@ -189,6 +184,7 @@ def main(inputs_path: str, outputs_path: str):
     
     with Path(outputs_path).open('wb') as file:
         pickle.dump({inputs['day_inflection']: outputs}, file)
+
 
 if __name__ == '__main__':
     os.environ['OMP_NUM_THREADS'] = '6'
