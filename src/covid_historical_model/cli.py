@@ -45,6 +45,10 @@ warnings.simplefilter('ignore')
               show_default=True,
               help=('Directory containing versioned results structure (will create structure '
                     'if not already present).'))
+@click.option('-n', '--n-samples',
+              type=click.INT,
+              default=10,
+              help='Number of seroprevalence samples.')
 @click.option('-b', '--mark-best', 'mark_dir_as_best',
               is_flag=True,
               help='Marks the new outputs as best in addition to marking them as latest.')
@@ -58,6 +62,7 @@ def rates_pipeline(run_metadata,
                    age_pattern_version, testing_version,
                    use_unscaled,
                    output_root,
+                   n_samples,
                    mark_dir_as_best, production_tag,
                    verbose, with_debugger):
     """Run rates pipeline."""
@@ -91,6 +96,7 @@ def rates_pipeline(run_metadata,
                            variant_scaleup_root=variant_scaleup_root,
                            age_pattern_root=age_pattern_root,
                            testing_root=testing_root,
+                           n_samples=n_samples,
                            excess_mortality=not use_unscaled,)
 
     cli_tools.finish_application(run_metadata, app_metadata, run_directory,

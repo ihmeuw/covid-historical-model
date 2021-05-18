@@ -92,7 +92,7 @@ def runner(input_data: Dict,
         level_lambdas=level_lambdas,
         floor_data=floor_data,
         floor_rmse=rmse_data,
-        daily_numerator=input_data['daily_cases'].copy(),
+        daily_numerator=input_data['daily_cases'],
         pred=pred,
         pred_fe=pred_fe,
     )

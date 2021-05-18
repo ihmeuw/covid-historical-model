@@ -21,18 +21,22 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool, age_pattern
     cumulative_deaths, daily_deaths = model_inputs.reported_epi(
         model_inputs_root, 'deaths', hierarchy, gbd_hierarchy, excess_mortality
     )
+    sensitivity = model_inputs.assay_sensitivity(model_inputs_root)
     sero_age_pattern = estimates.seroprevalence_age_pattern(age_pattern_root)
     ifr_age_pattern = estimates.ifr_age_pattern(age_pattern_root)
+    ihr_age_pattern = estimates.ihr_age_pattern(age_pattern_root)
     adj_gbd_hierarchy = model_inputs.validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
     covariates = [db.obesity(adj_gbd_hierarchy)]
     
     return {'cumulative_deaths': cumulative_deaths,
             'daily_deaths': daily_deaths,
             'seroprevalence': seroprevalence,
+            'sensitivity': sensitivity,
             'vaccine_coverage': vaccine_coverage,
             'covariates': covariates,
             'sero_age_pattern': sero_age_pattern,
             'ifr_age_pattern': ifr_age_pattern,
+            'ihr_age_pattern': ihr_age_pattern,
             'age_spec_population': age_spec_population,
             'escape_variant_prevalence': escape_variant_prevalence,
             'severity_variant_prevalence': severity_variant_prevalence,

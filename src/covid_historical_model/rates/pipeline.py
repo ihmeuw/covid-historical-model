@@ -1,3 +1,4 @@
+import sys
 from typing import List, Tuple, Dict
 from pathlib import Path
 from loguru import logger
@@ -24,10 +25,11 @@ def pipeline_wrapper(out_dir: Path,
                      model_inputs_root: Path, excess_mortality: bool,
                      vaccine_coverage_root: Path, variant_scaleup_root: Path,
                      age_pattern_root: Path, testing_root: Path,
+                     n_samples: int,
                      day_inflection_list: List[str] = ['2020-05-01', '2020-06-01', '2020-07-01', '2020-08-01',
                                                        '2020-09-01', '2020-10-01', '2020-11-01', '2020-12-01',],
-                     n_samples: int = 100,
                      verbose: bool = True,) -> Tuple:
+    np.random.seed(15243)
     if verbose:
         logger.info('Loading variant, vaccine, and sero data.')
     escape_variant_prevalence = estimates.variant_scaleup(variant_scaleup_root, 'escape', verbose=verbose)
@@ -41,30 +43,29 @@ def pipeline_wrapper(out_dir: Path,
     
     if verbose:
         logger.info('Submitting sero-sample jobs.')
-    pipeline_dir = out_dir / 'pipeline_outputs'
-    shell_tools.mkdir(pipeline_dir)
     inputs = {
-        n: 
-              {
-                  'seroprevalence': seroprevalence,
-                  'pipeline_dir': pipeline_dir,
-                  'model_inputs_root': model_inputs_root,
-                  'excess_mortality': excess_mortality,
-                  'vaccine_coverage_root': vaccine_coverage_root,
-                  'variant_scaleup_root': variant_scaleup_root,
-                  'age_pattern_root': age_pattern_root,
-                  'testing_root': testing_root,
-                  'day_inflection_list': day_inflection_list,
-                  'verbose': verbose,
-              }
+        n: {
+            'orig_seroprevalence': seroprevalence,
+            'model_inputs_root': model_inputs_root,
+            'excess_mortality': excess_mortality,
+            'vaccine_coverage': vaccine_coverage,
+            'escape_variant_prevalence': escape_variant_prevalence,
+            'severity_variant_prevalence': severity_variant_prevalence,
+            'age_pattern_root': age_pattern_root,
+            'testing_root': testing_root,
+            'day_inflection_list': day_inflection_list,
+            'verbose': verbose,
+        }
         for n, seroprevalence in enumerate(seroprevalence_samples)
     }
     
     inputs_path = out_dir / 'pipeline_inputs.pkl'
     with inputs_path.open('wb') as file:
         pickle.dump(inputs, file, -1)
-    job_args_map = {n: [__file__, n, inputs_path, outputs_path]}
-    cluster.run_cluster_jobs('covid_rates_pipeline', out_dir, job_args_map)
+    pipeline_dir = out_dir / 'pipeline_outputs'
+    shell_tools.mkdir(pipeline_dir)
+    job_args_map = {n: [__file__, n, inputs_path, pipeline_dir] for n in range(n_samples)}
+    cluster.run_cluster_jobs('covid_rates_pipeline', pipeline_dir, job_args_map)
     
     em_data = estimates.excess_mortailty_scalars(model_inputs_root, excess_mortality)
     
@@ -80,21 +81,28 @@ def pipeline_wrapper(out_dir: Path,
     logger.warning('NEED THINK ABOUT RIGHT APPROACH TO PLOTTING.')
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
+    # return seroprevalence, reinfection_inflation_factor, ifr_nrmse, best_ifr_models, \
+    #        ifr_results, idr_results, ihr_results, em_data, \
+    #        vaccine_coverage, escape_variant_prevalence, severity_variant_prevalence, \
+    #        hierarchy, population
     return None
 
 
-def pipeline(seroprevalence: pd.DataFrame,
+def pipeline(orig_seroprevalence: pd.DataFrame,
              model_inputs_root: Path, excess_mortality: bool,
-             vaccine_coverage_root: Path, variant_scaleup_root: Path,
+             vaccine_coverage: pd.DataFrame,
+             escape_variant_prevalence: pd.Series,
+             severity_variant_prevalence: pd.Series,
              age_pattern_root: Path, testing_root: Path,
              day_inflection_list: List[str],
+             storage_dir: Path,
              verbose: bool,) -> Tuple:
     if verbose:
         logger.info('\n*************************************\n'
                     f"IFR ESTIMATION -- testing inflection points: {', '.join(day_inflection_list)}\n"
                     '*************************************')
     ifr_input_data = ifr.data.load_input_data(model_inputs_root, excess_mortality, age_pattern_root,
-                                              seroprevalence, vaccine_coverage,
+                                              orig_seroprevalence, vaccine_coverage,
                                               escape_variant_prevalence,
                                               severity_variant_prevalence,
                                               verbose=verbose)
@@ -136,7 +144,7 @@ def pipeline(seroprevalence: pd.DataFrame,
                     'IDR ESTIMATION\n'
                     '*************************************')
     idr_input_data = idr.data.load_input_data(model_inputs_root, excess_mortality, testing_root,
-                                              seroprevalence, vaccine_coverage, verbose=verbose)
+                                              adj_seroprevalence.copy(), vaccine_coverage.copy(), verbose=verbose)
     idr_results = idr.runner.runner(idr_input_data,
                                     ifr_results.pred.copy(),
                                     reinfection_inflation_factor.copy(),
@@ -155,7 +163,7 @@ def pipeline(seroprevalence: pd.DataFrame,
                                     verbose=verbose)
     
     pipeline_results = {
-        'seroprevalence':seroprevalence,
+        'seroprevalence':adj_seroprevalence,
         'reinfection_inflation_factor':reinfection_inflation_factor,
         'ifr_nrmse':ifr_nrmse,
         'best_ifr_models':best_ifr_models,
@@ -352,25 +360,29 @@ def submit_plots():
     compile_pdfs(plots_dir, out_dir, hierarchy, 'serology', suffixes=['sero'])
 
 
-def main(n: int, inputs_path: str):
+def main(n: int, inputs_path: str, pipeline_dir: str):
     with Path(inputs_path).open('rb') as file:
         inputs = pickle.load(file)[n]
     
     ## working dir
-    storage_dir = inputs['pipeline_dir'] / str(n) / 'intermediate'
-    results_dir = inputs['pipeline_dir'] / str(n) / 'results'
-    # plots_dir = inputs['pipeline_dir'] / str(n) / 'plots'
+    root_dir = Path(pipeline_dir) / str(n)
+    storage_dir = root_dir / 'intermediate'
+    # results_dir = root_dir / 'results'
+    # plots_dir = root_dir / 'plots'
+    shell_tools.mkdir(root_dir)
     shell_tools.mkdir(storage_dir)
-    shell_tools.mkdir(results_dir)
+    # shell_tools.mkdir(results_dir)
     # shell_tools.mkdir(plots_dir)
     
-    pipeline_outputs = pipeline(**inputs)
+    np.random.seed(15243 * (n + 1))
+    pipeline_outputs = pipeline(storage_dir=storage_dir,
+                                **inputs)
     
-    with (inputs['pipeline_dir'] / 'outputs.pkl').open('wb') as file:
+    with (root_dir / 'outputs.pkl').open('wb') as file:
         pickle.dump({n: pipeline_outputs}, file)
     
 
 if __name__ == '__main__':
     configure_logging_to_terminal(verbose=2)
     
-    main(int(sys.argv[1]), sys.argv[2])
+    main(int(sys.argv[1]), sys.argv[2], sys.argv[3])

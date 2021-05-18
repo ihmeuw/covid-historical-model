@@ -44,20 +44,20 @@ PLOT_END_DATE = pd.Timestamp('2021-08-01')
 
 def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
                           min_samples: int = 10,
-                          floor: float = 1e-6, logit_se_cap: float = 2.,
+                          floor: float = 1e-5, logit_se_cap: float = 1.,
                           verbose: bool = True):
     logit_se_from_ci = lambda x: (logit(x['seroprevalence_upper']) - logit(x['seroprevalence_lower'])) / 3.92
-    logit_se_from_ss = lambda x: np.sqrt(x['seroprevalence'] * (1 - x['seroprevalence']) / x['sample_size']) / x['seroprevalence'] * (1 - x['seroprevalence'])
-    
-    if n_samples > min_samples:
+    logit_se_from_ss = lambda x: np.sqrt((x['seroprevalence'] * (1 - x['seroprevalence'])) / x['sample_size']) /\
+                                 (x['seroprevalence'] * (1.0 - x['seroprevalence']))
+    if n_samples >= min_samples:
         if verbose:
             logger.info(f'Producing {n_samples} seroprevalence samples.')
         if (seroprevalence['seroprevalence'] < seroprevalence['seroprevalence_lower']).any():
-            low_sub_mean = seroprevalence['seroprevalence'] < seroprevalence['seroprevalence_lower']
-            raise ValueError(f"Mean seroprevalence below lower:\n{seroprevalence[low_sub_mean]}")
+            mean_sub_low = seroprevalence['seroprevalence'] < seroprevalence['seroprevalence_lower']
+            raise ValueError(f"Mean seroprevalence below lower:\n{seroprevalence[mean_sub_low]}")
         if (seroprevalence['seroprevalence'] > seroprevalence['seroprevalence_upper']).any():
-            low_sub_mean = seroprevalence['seroprevalence'] < seroprevalence['seroprevalence_lower']
-            raise ValueError(f"Mean seroprevalence above upper:\n{seroprevalence[low_sub_mean]}")
+            high_sub_mean = seroprevalence['seroprevalence'] > seroprevalence['seroprevalence_upper']
+            raise ValueError(f"Mean seroprevalence above upper:\n{seroprevalence[high_sub_mean]}")
             
         summary_vars = ['seroprevalence', 'seroprevalence_lower', 'seroprevalence_upper']
         seroprevalence[summary_vars] = seroprevalence[summary_vars].clip(floor, 1 - floor)
@@ -73,7 +73,7 @@ def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
         samples = expit(logit_samples)
         
         # re-center around original mean
-        samples *= expit(logit_mean) / samples.mean(axis=1)
+        samples *= seroprevalence[['seroprevalence']].values / samples.mean(axis=1, keepdims=True)
 
         seroprevalence = seroprevalence.drop(['seroprevalence', 'seroprevalence_lower', 'seroprevalence_upper', 'sample_size'],
                                              axis=1)
@@ -169,14 +169,12 @@ def remove_vaccinated(seroprevalence: pd.DataFrame,
     return seroprevalence
 
 
-def apply_waning_adjustment(model_inputs_root: Path,
+def apply_waning_adjustment(sensitivity: pd.DataFrame,
                             hospitalized_weights: pd.Series,
                             seroprevalence: pd.DataFrame,
                             daily_deaths: pd.Series,
                             pred_ifr: pd.Series,
                             verbose: bool = True,) -> pd.DataFrame:
-    sensitivity = model_inputs.assay_sensitivity(model_inputs_root)
-    
     data_assays = sensitivity['assay'].unique().tolist()
     excluded_data_assays = [da for da in data_assays if da not in ASSAYS]
     if verbose and excluded_data_assays:

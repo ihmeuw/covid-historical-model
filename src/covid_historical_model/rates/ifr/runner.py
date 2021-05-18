@@ -64,20 +64,15 @@ def runner(input_data: Dict,
     )
 
     # account for waning antibody detection
-    ihr_age_pattern = ihr.data.load_input_data(model_inputs_root, age_pattern_root,
-                                               input_data['seroprevalence'].copy(),
-                                               input_data['vaccine_coverage'].copy(),
-                                               input_data['escape_variant_prevalence'].copy(),
-                                               input_data['severity_variant_prevalence'].copy(),
-                                               verbose=verbose)['ihr_age_pattern']
+
     hospitalized_weights = age_standardization.get_all_age_rate(
-        ihr_age_pattern, input_data['sero_age_pattern'],
-        input_data['age_spec_population']
+        input_data['ihr_age_pattern'].copy(), input_data['sero_age_pattern'].copy(),
+        input_data['age_spec_population'].copy()
     )
     sensitivity, seroprevalence = serology.apply_waning_adjustment(
-        model_inputs_root,
+        input_data['sensitivity'].copy(),
         hospitalized_weights.copy(),
-        seroprevalence.copy(),
+        input_data['seroprevalence'].copy(),
         input_data['daily_deaths'].copy(),
         pred.copy(),
     )
@@ -136,7 +131,7 @@ def runner(input_data: Dict,
         mr_model_dict=mr_model_dict,
         pred_location_map=pred_location_map,
         level_lambdas=level_lambdas,
-        daily_numerator=input_data['daily_deaths'].copy(),
+        daily_numerator=input_data['daily_deaths'],
         pred=pred,
         pred_unadj=pred,
         pred_fe=pred_fe,
@@ -152,7 +147,7 @@ def runner(input_data: Dict,
         mr_model_dict=refit_mr_model_dict,
         pred_location_map=refit_pred_location_map,
         level_lambdas=refit_level_lambdas,
-        daily_numerator=refit_input_data['daily_deaths'].copy(),
+        daily_numerator=refit_input_data['daily_deaths'],
         pred=refit_pred,
         pred_unadj=refit_pred_unadj,
         pred_fe=refit_pred_fe,
@@ -163,7 +158,7 @@ def runner(input_data: Dict,
         age_stand_scaling_factor=refit_age_stand_scaling_factor,
     )
     
-    nrmse, residuals = ifr.model.get_nrmse(seroprevalence.copy(),
+    nrmse, residuals = ifr.model.get_nrmse(refit_input_data['seroprevalence'].copy(),
                                            refit_input_data['daily_deaths'].copy(),
                                            refit_pred.copy(),
                                            refit_input_data['hierarchy'].copy(),

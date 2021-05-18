@@ -69,7 +69,7 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     
     # use mid-point instead of end date
     data = data.rename(columns={'date':'end_date'})
-    data['n_midpoint_days'] = (data['end_date'] - seroprevalence['start_date']).dt.days / 2
+    data['n_midpoint_days'] = (data['end_date'] - data['start_date']).dt.days / 2
     data['n_midpoint_days'] = data['n_midpoint_days'].astype(int)
     data['date'] = data.apply(lambda x: x['end_date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
     del data['n_midpoint_days']

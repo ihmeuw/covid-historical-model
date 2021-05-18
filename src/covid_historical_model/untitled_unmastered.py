@@ -53,7 +53,8 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
          model_inputs_root: Path,
          vaccine_coverage_root: Path, variant_scaleup_root: Path,
          age_pattern_root: Path, testing_root: Path,
-         excess_mortality: bool,):
+         excess_mortality: bool,
+         n_samples: int,):
     ## run models
     seroprevalence, reinfection_inflation_factor, ifr_nrmse, best_ifr_models, \
     ifr_results, idr_results, ihr_results, em_data, \
@@ -64,6 +65,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
         vaccine_coverage_root, variant_scaleup_root,
         age_pattern_root,
         testing_root,
+        n_samples,
     )
     with (results_dir / 'ifr_results.pkl').open('wb') as file:
         pickle.dump(ifr_results, file, -1)
