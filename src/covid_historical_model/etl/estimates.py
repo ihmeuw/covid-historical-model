@@ -172,6 +172,8 @@ def excess_mortailty_scalars(model_inputs_root: Path, excess_mortality: bool,) -
     data = data.sort_values(['location_id', 'date']).reset_index(drop=True)
     
     data['scaled'] = excess_mortality
+    if not excess_mortality:
+        data['em_scalar'] = 1
     
     return data
 

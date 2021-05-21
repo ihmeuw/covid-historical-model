@@ -193,15 +193,16 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
 
 def reported_epi(model_inputs_root: Path, input_measure: str,
                  hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame,
-                 excess_mortality: bool = True,) -> Tuple[pd.Series, pd.Series]:
-    data_path = model_inputs_root / 'use_at_your_own_risk' / 'full_data_extra_hospital.csv'
-    data = pd.read_csv(data_path)
-    data = data.rename(columns={'Confirmed':'cumulative_cases',
-                                'Hospitalizations':'cumulative_hospitalizations',})
-    if input_measure == 'deaths' and excess_mortality:
-        data = data.rename(columns={'Deaths':'cumulative_deaths',})
+                 excess_mortality: bool,) -> Tuple[pd.Series, pd.Series]:
+    if input_measure == 'deaths' and not excess_mortality:
+        data_path = model_inputs_root / 'full_data_unscaled.csv'
+        logger.info('Using unscaled deaths.')
     else:
-        data = data.rename(columns={'UNSCALED Deaths':'cumulative_deaths',})
+        data_path = model_inputs_root / 'use_at_your_own_risk' / 'full_data_extra_hospital.csv'
+    data = pd.read_csv(data_path)
+    data = data.rename(columns={'Confirmed': 'cumulative_cases',
+                                'Hospitalizations': 'cumulative_hospitalizations',
+                                'Deaths': 'cumulative_deaths',})
     data['date'] = pd.to_datetime(data['Date'])
     keep_cols = ['location_id', 'date', f'cumulative_{input_measure}']
     data = data.loc[:, keep_cols].dropna()
