@@ -29,12 +29,12 @@ INCREASING = ['S-Ortho Ig', 'S-Roche']
 PLOT_DATE_LOCATOR = mdates.AutoDateLocator(maxticks=10)
 PLOT_DATE_FORMATTER = mdates.ConciseDateFormatter(PLOT_DATE_LOCATOR, show_offset=False)
 
-PLOT_C_LIST  = ['cornflowerblue', 'lightcoral', 'mediumseagreen', 'plum'         ,
-                'navajowhite', 'paleturquoise', 'hotpink' , 'peru'       ,
-                'palegreen'   , 'lightgrey']
-PLOT_EC_LIST = ['mediumblue'    , 'darkred'   , 'darkgreen'     , 'rebeccapurple',
-                'orange'     , 'teal'         , 'deeppink', 'saddlebrown',
-                'darkseagreen', 'grey'     ]
+PLOT_C_LIST  = ['cornflowerblue', 'lightcoral'   , 'mediumseagreen', 'plum'        ,
+                'navajowhite'   , 'paleturquoise', 'hotpink'       , 'peru'        ,
+                'palegreen'     , 'lightgrey'    ,]
+PLOT_EC_LIST = ['mediumblue'    , 'darkred'      , 'darkgreen'     , 'rebeccapurple',
+                'orange'        , 'teal'         , 'deeppink'      , 'saddlebrown'  ,
+                'darkseagreen'  , 'grey'         ,]
 
 PLOT_INF_C = 'darkgrey'
 

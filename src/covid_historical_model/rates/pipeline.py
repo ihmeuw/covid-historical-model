@@ -67,6 +67,45 @@ def pipeline_wrapper(out_dir: Path,
     job_args_map = {n: [__file__, n, inputs_path, pipeline_dir] for n in range(n_samples)}
     cluster.run_cluster_jobs('covid_rates_pipeline', pipeline_dir, job_args_map)
     
+    pipeline_results = {}
+    for n in range(n_samples):
+        with (pipeline_dir / str(n) / 'outputs.pkl').open('rb') as file:
+            outputs = pickle.load(file)
+        pipeline_results.update(outputs)
+    
+    '''
+    ## KEYS:
+    ## ['seroprevalence', 'reinfection_inflation_factor', 'ifr_nrmse', 'best_ifr_models',
+    ##  'ifr_results', 'idr_results', 'ihr_results']
+    
+    ifr_draws = pd.concat([pipeline_results[n]['ifr_results'].pred.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
+    loc = 196
+    inf_draws = pd.concat([ifr_draws.loc[loc], daily_deaths.loc[loc]], axis=1)
+
+    inf_draws[ifr_draws.columns] =  inf_draws[[daily_deaths.name]].values / inf_draws[ifr_draws.columns].values
+    inf_draws = inf_draws[ifr_draws.columns].dropna()
+
+    fig, ax = plt.subplots(1, 3, figsize=(16, 4.5))
+    ax[0].plot(ifr_draws.loc[loc][120:])
+    ax[0].tick_params('x', labelrotation=60)
+    ax[0].set_title('IFR')
+
+    ax[1].plot(inf_draws)
+    ax[1].tick_params('x', labelrotation=60)
+    ax[1].set_title('Daily infections')
+
+    ax[2].plot(inf_draws.cumsum(axis=0) / population.loc[loc])
+    ax[2].tick_params('x', labelrotation=60)
+    ax[2].set_title('Seroprevalence')
+
+    for i in range(10):
+        sero = pipeline_results[i]['seroprevalence'].copy()
+        sero = sero.loc[sero['location_id'] == loc]
+        ax[2].scatter(sero['date'] + pd.Timedelta(days=9), sero['seroprevalence'])
+
+    fig.show()
+    '''
+    
     em_data = estimates.excess_mortailty_scalars(model_inputs_root, excess_mortality)
     
     # stuff for plotting
