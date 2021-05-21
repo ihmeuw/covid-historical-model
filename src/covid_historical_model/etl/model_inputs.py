@@ -193,10 +193,15 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
 
 def reported_epi(model_inputs_root: Path, input_measure: str,
                  hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame,
-                 excess_mortality: bool,) -> Tuple[pd.Series, pd.Series]:
-    if input_measure == 'deaths' and not excess_mortality:
-        data_path = model_inputs_root / 'full_data_unscaled.csv'
-        logger.info('Using unscaled deaths.')
+                 excess_mortality: bool = None,) -> Tuple[pd.Series, pd.Series]:
+    if input_measure == 'deaths':
+        if type(excess_mortality) != bool:
+            raise TypeError('Must specify `excess_mortality` argument to load deaths.')
+        if excess_mortality:
+            data_path = model_inputs_root / 'use_at_your_own_risk' / 'full_data_extra_hospital.csv'
+        else:
+            data_path = model_inputs_root / 'full_data_unscaled.csv'
+            logger.info('Using unscaled deaths.')
     else:
         data_path = model_inputs_root / 'use_at_your_own_risk' / 'full_data_extra_hospital.csv'
     data = pd.read_csv(data_path)
