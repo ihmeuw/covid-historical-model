@@ -126,7 +126,7 @@ def create_model_data(cumulative_cases: pd.Series,
                                 .loc[:, 'infwavg_testing_capacity'])
     infections = infections.set_index(['location_id', 'date'])
     
-    log_infwavg_testing_rate_capacity= (np.log(infwavg_testing_capacity / population)
+    log_infwavg_testing_rate_capacity = (np.log(infwavg_testing_capacity / population)
                                         .rename('log_infwavg_testing_rate_capacity'))
     del infwavg_testing_capacity
 
