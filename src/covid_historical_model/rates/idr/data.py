@@ -20,7 +20,7 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool, testing_roo
     gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_gbd')
     population = model_inputs.population(model_inputs_root)
     cumulative_cases, daily_cases = model_inputs.reported_epi(
-        model_inputs_root, 'cases', hierarchy, gbd_hierarchy
+        model_inputs_root, 'cases', hierarchy, gbd_hierarchy, None,
     )
     _, daily_deaths = model_inputs.reported_epi(
         model_inputs_root, 'deaths', hierarchy, gbd_hierarchy, excess_mortality
@@ -126,7 +126,7 @@ def create_model_data(cumulative_cases: pd.Series,
                                 .loc[:, 'infwavg_testing_capacity'])
     infections = infections.set_index(['location_id', 'date'])
     
-    log_infwavg_testing_rate_capacity= (np.log(infwavg_testing_capacity / population)
+    log_infwavg_testing_rate_capacity = (np.log(infwavg_testing_capacity / population)
                                         .rename('log_infwavg_testing_rate_capacity'))
     del infwavg_testing_capacity
 
