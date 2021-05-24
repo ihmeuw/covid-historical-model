@@ -15,7 +15,7 @@ RESULTS = namedtuple('Results',
                      'floor_data floor_rmse daily_numerator pred pred_fe')
 
 
-def runner(input_data: Dict,
+def runner(input_data: Dict, shared: Dict,
            pred_ifr: pd.Series, reinfection_inflation_factor: pd.Series,
            pred_start_date: str = '2019-11-01',
            pred_end_date: str = '2021-12-31',
@@ -37,8 +37,6 @@ def runner(input_data: Dict,
         **input_data
     )
     
-    adj_gbd_hierarchy = model_inputs.validate_hierarchies(input_data['hierarchy'].copy(),
-                                                          input_data['gbd_hierarchy'].copy())
     rmse_data, floor_data = idr.flooring.find_idr_floor(
         pred=pred.copy(),
         daily_cases=input_data['daily_cases'].copy(),
@@ -47,7 +45,7 @@ def runner(input_data: Dict,
                      .sort_index()
                      .loc[:, 'seroprevalence']).copy(),
         population=input_data['population'].copy(),
-        hierarchy=adj_gbd_hierarchy.copy(),
+        hierarchy=input_data['adj_gbd_hierarchy'].copy(),
         test_range=[0.01, 0.1] + list(range(1, 11)),
         verbose=verbose,
     )

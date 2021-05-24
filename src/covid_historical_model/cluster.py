@@ -13,7 +13,7 @@ from loguru import logger
 PROJECT = 'proj_covid_prod'
 QUEUE = 'all.q'
 RESOURCES = {
-    'all':{'fmem': '5.0G', 'fthread': '6'},
+    'all':{'fmem': '6.0G', 'fthread': '6'},
 }
 OMP_NUM_THREADS = '6'
 H_RUNTIME = '01:00:00'

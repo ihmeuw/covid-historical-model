@@ -13,32 +13,31 @@ from covid_historical_model.durations.durations import (
 
 
 def load_input_data(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
-                    seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
+                    shared: Dict, seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
                     verbose: bool = True) -> Dict:
     # load data
-    hierarchy = model_inputs.hierarchy(model_inputs_root)
-    gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_gbd')
-    population = model_inputs.population(model_inputs_root)
     cumulative_cases, daily_cases = model_inputs.reported_epi(
-        model_inputs_root, 'cases', hierarchy, gbd_hierarchy
+        model_inputs_root, 'cases', shared['hierarchy'], shared['gbd_hierarchy']
     )
     _, daily_deaths = model_inputs.reported_epi(
-        model_inputs_root, 'deaths', hierarchy, gbd_hierarchy, excess_mortality
+        model_inputs_root, 'deaths', shared['hierarchy'], shared['gbd_hierarchy'], excess_mortality
     )
     testing_capacity = estimates.testing(testing_root)['testing_capacity']
 
     covariates = []
+    input_data = {
+        'cumulative_cases': cumulative_cases,
+        'daily_cases': daily_cases,
+        'daily_deaths': daily_deaths,
+        'seroprevalence': seroprevalence,
+        'vaccine_coverage': vaccine_coverage,
+        'testing_capacity': testing_capacity,
+        'covariates': covariates,
+    }
+    input_data.update(shared)
     
-    return {'cumulative_cases': cumulative_cases,
-            'daily_cases': daily_cases,
-            'daily_deaths': daily_deaths,
-            'seroprevalence': seroprevalence,
-            'vaccine_coverage': vaccine_coverage,
-            'testing_capacity': testing_capacity,
-            'covariates': covariates,
-            'hierarchy': hierarchy,
-            'gbd_hierarchy': gbd_hierarchy,
-            'population': population,}
+    
+    return input_data
 
 
 def create_infections_from_deaths(daily_deaths: pd.Series, pred_ifr: pd.Series,) -> pd.Series:
@@ -140,12 +139,11 @@ def create_model_data(cumulative_cases: pd.Series,
     return model_data.reset_index()
 
 
-def create_pred_data(hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame, population: pd.Series,
+def create_pred_data(hierarchy: pd.DataFrame, adj_gbd_hierarchy: pd.DataFrame, population: pd.Series,
                      testing_capacity: pd.Series,
                      covariates: List[pd.Series],
                      pred_start_date: pd.Timestamp, pred_end_date: pd.Timestamp,
                      **kwargs):
-    adj_gbd_hierarchy = model_inputs.validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
     pred_data = pd.DataFrame(list(itertools.product(adj_gbd_hierarchy['location_id'].to_list(),
                                                     list(pd.date_range(pred_start_date, pred_end_date)))),
                          columns=['location_id', 'date'])

@@ -56,10 +56,8 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
          excess_mortality: bool,
          n_samples: int,):
     ## run models
-    seroprevalence, reinfection_inflation_factor, ifr_nrmse, best_ifr_models, \
-    ifr_results, idr_results, ihr_results, em_data, \
-    vaccine_coverage, escape_variant_prevalence, severity_variant_prevalence, \
-    hierarchy, population = pipeline_wrapper(
+    pipeline_results, shared, reported_seroprevalence, sensitivity_data, \
+    escape_variant_prevalence, severity_variant_prevalence, vaccine_coverage, em_data = pipeline_wrapper(
         out_dir,
         model_inputs_root, excess_mortality,
         vaccine_coverage_root, variant_scaleup_root,
@@ -67,72 +65,83 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
         testing_root,
         n_samples,
     )
-    with (results_dir / 'ifr_results.pkl').open('wb') as file:
-        pickle.dump(ifr_results, file, -1)
-    with (results_dir / 'idr_results.pkl').open('wb') as file:
-        pickle.dump(idr_results, file, -1)
-    with (results_dir / 'ihr_results.pkl').open('wb') as file:
-        pickle.dump(ihr_results, file, -1)
-
+    
+    ## save models
+    with (out_dir / 'pipeline_results.pkl').open('wb') as file:
+        pickle.dump(pipeline_results, file, -1)
+    
     ## save IFR
-    ifr = pd.concat([ifr_results.pred.rename('ifr'),
-                     ifr_results.pred_fe.rename('ifr_no_random_effect'),
-                     ifr_results.pred_unadj.rename('ifr_unadj'),],
-                    axis=1)
-    ifr = ifr.reset_index()
-
-    ifr_risk_adjustment = pd.concat([ifr_results.pred.rename('ifr'),
-                                     ifr_results.pred_lr.rename('ifr_lr'),
-                                     ifr_results.pred_hr.rename('ifr_hr'),],
-                                    axis=1)
-    ifr_risk_adjustment = ifr_risk_adjustment.reset_index()
-
-    ifr_data = ifr_results.model_data.copy()
-    del ifr_data['date']
-    ifr_data = ifr_data.rename(columns={'mean_death_date':'date'})
-    ifr_data['is_outlier'] = 0
-    ifr_data = ifr_data.loc[:, ['location_id', 'date', 'ifr', 'is_outlier']]
+    ifr_draws = pd.concat([pipeline_results[n]['ifr_results'].pred.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
+    ifr_draws = ifr_draws.reset_index()
+    ifr_lr_draws = pd.concat([pipeline_results[n]['ifr_results'].pred_lr.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
+    ifr_lr_draws = ifr_lr_draws.reset_index()
+    ifr_hr_draws = pd.concat([pipeline_results[n]['ifr_results'].pred_hr.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
+    ifr_hr_draws = ifr_hr_draws.reset_index()
+    ifr_global_draws = pd.concat([pipeline_results[n]['ifr_results'].pred_fe.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
+    ifr_global_draws = ifr_global_draws.reset_index()
     
-    ifr_age_stand = ifr_results.age_stand_scaling_factor.reset_index()
+    ifr_model_data_draws = []
+    for ifr_model_data in [pipeline_results[n]['ifr_results'].model_data.copy() for n in range(n_samples)]:
+        del ifr_model_data['date']
+        ifr_model_data = ifr_model_data.rename(columns={'mean_death_date':'date'})
+        ifr_model_data['draw'] = n
+        ifr_model_data['is_outlier'] = 0
+        ifr_model_data = ifr_model_data.loc[:, ['location_id', 'date', 'draw', 'ifr', 'is_outlier']]
+        ifr_model_data_draws.append(ifr_model_data)
+    ifr_model_data_draws = pd.concat(ifr_model_data_draws).reset_index(drop=True)
     
-    ifr_level_lambdas = pd.DataFrame(ifr_results.level_lambdas).T
+    ifr_age_stand = pipeline_results[0]['ifr_results'].age_stand_scaling_factor.reset_index()
+    
+    ifr_level_lambdas = pd.DataFrame(pipeline_results[0]['ifr_results'].level_lambdas).T
     ifr_level_lambdas.index.name = 'hierarchy_level'
     ifr_level_lambdas = ifr_level_lambdas.reset_index()
 
     ## save IHR
-    ihr = pd.concat([ihr_results.pred.rename('ihr'),
-                     ihr_results.pred_fe.rename('ihr_no_random_effect'),
-                     ihr_results.pred_unadj.rename('ihr_unadj'),],
-                    axis=1)
-    ihr = ihr.reset_index()
+    ihr_draws = pd.concat([pipeline_results[n]['ihr_results'].pred.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
+    ihr_draws = ihr_draws.reset_index()
+    ihr_lr_draws = pd.concat([pipeline_results[n]['ihr_results'].pred_lr.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
+    ihr_lr_draws = ihr_lr_draws.reset_index()
+    ihr_hr_draws = pd.concat([pipeline_results[n]['ihr_results'].pred_hr.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
+    ihr_hr_draws = ihr_hr_draws.reset_index()
+    ihr_global_draws = pd.concat([pipeline_results[n]['ihr_results'].pred_fe.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
+    ihr_global_draws = ihr_global_draws.reset_index()
 
-    ihr_data = ihr_results.model_data.copy()
-    del ihr_data['date']
-    ihr_data = ihr_data.rename(columns={'mean_hospitalization_date':'date'})
-    ihr_data['is_outlier'] = 0
-    ihr_data = ihr_data.loc[:, ['location_id', 'date', 'ihr', 'is_outlier']]
+    ihr_model_data_draws = []
+    for ihr_model_data in [pipeline_results[n]['ihr_results'].model_data.copy() for n in range(n_samples)]:
+        del ihr_model_data['date']
+        ihr_model_data = ihr_model_data.rename(columns={'mean_hospitalization_date':'date'})
+        ihr_model_data['draw'] = n
+        ihr_model_data['is_outlier'] = 0
+        ihr_model_data = ihr_model_data.loc[:, ['location_id', 'date', 'draw', 'ihr', 'is_outlier']]
+    ihr_model_data_draws = pd.concat(ihr_model_data_draws).reset_index(drop=True)
     
-    ihr_age_stand = ihr_results.age_stand_scaling_factor.reset_index()
+    ihr_age_stand = pipeline_results[0]['ihr_results'].age_stand_scaling_factor.reset_index()
     
-    ihr_level_lambdas = pd.DataFrame(ihr_results.level_lambdas).T
+    ihr_level_lambdas = pd.DataFrame(pipeline_results[0]['ihr_results'].level_lambdas).T
     ihr_level_lambdas.index.name = 'hierarchy_level'
     ihr_level_lambdas = ihr_level_lambdas.reset_index()
 
     ## save IDR
-    idr = pd.concat([idr_results.pred.rename('idr'),
-                     idr_results.pred_fe.rename('idr_fe'),],
-                    axis=1)
-    idr = idr.reset_index()
+    idr_draws = pd.concat([pipeline_results[n]['idr_results'].pred.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
+    idr_draws = idr_draws.reset_index()
+    idr_global_draws = pd.concat([pipeline_results[n]['idr_results'].pred_fe.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
+    idr_global_draws = idr_global_draws.reset_index()
 
-    idr_data = idr_results.model_data.copy()
-    idr_data = idr_data.rename(columns={'mean_death_date':'date'})
-    idr_data['is_outlier'] = 0
-    idr_data = idr_data.loc[:, ['location_id', 'date', 'idr', 'is_outlier']]
+    idr_model_data_draws = []
+    for idr_model_data in [pipeline_results[n]['idr_results'].model_data.copy() for n in range(n_samples)]:
+        del idr_model_data['date']
+        idr_model_data = idr_model_data.rename(columns={'avg_date_of_infection':'date'})
+        idr_model_data['draw'] = n
+        idr_model_data['is_outlier'] = 0
+        idr_model_data = idr_model_data.loc[:, ['location_id', 'date', 'draw', 'idr', 'is_outlier']]
+    idr_model_data_draws = pd.concat(idr_model_data_draws).reset_ndex(drop=True)
     
-    idr_level_lambdas = pd.DataFrame(idr_results.level_lambdas).T
+    idr_level_lambdas = pd.DataFrame(pipeline_results[0]['idr_results'].level_lambdas).T
     idr_level_lambdas.index.name = 'hierarchy_level'
     idr_level_lambdas = idr_level_lambdas.reset_index()
 
+    raise ValueError('Remaining: \n    -format sero\n    -save draw files\n    -take this time to improve storage structure')
+    
     ## save serology
     seroprevalence = seroprevalence.rename(columns={'seroprevalence':'seroprev_mean_no_vacc',
                                                     'reported_seroprevalence':'seroprev_mean'})

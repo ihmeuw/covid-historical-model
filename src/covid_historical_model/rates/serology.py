@@ -43,6 +43,7 @@ PLOT_END_DATE = pd.Timestamp('2021-08-01')
 
 
 def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
+                          correlate_samples: bool,
                           min_samples: int = 10,
                           floor: float = 1e-5, logit_se_cap: float = 1.,
                           verbose: bool = True):
@@ -74,6 +75,9 @@ def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
         
         # re-center around original mean
         samples *= seroprevalence[['seroprevalence']].values / samples.mean(axis=1, keepdims=True)
+        if correlate_samples:
+            logger.info('Correlating seroprevalence samples.')
+            samples = np.sort(samples, axis=1)
 
         seroprevalence = seroprevalence.drop(['seroprevalence', 'seroprevalence_lower', 'seroprevalence_upper', 'sample_size'],
                                              axis=1)
@@ -98,9 +102,10 @@ def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
 
 
 def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.Series,
-                                        n_samples: int, verbose: bool = True) -> pd.DataFrame:
+                                        n_samples: int, correlate_samples: bool,
+                                        verbose: bool = True) -> pd.DataFrame:
     seroprevalence = model_inputs.seroprevalence(model_inputs_root, verbose=verbose)
-    seroprevalence_samples = sample_seroprevalence(seroprevalence, n_samples, verbose=verbose)
+    seroprevalence_samples = sample_seroprevalence(seroprevalence, n_samples, correlate_samples, verbose=verbose)
     
     # ## ## ## ## ## #### ## ## ## ## ## ## ## ## ## ## ##
     # ## tweaks
@@ -129,7 +134,7 @@ def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.
         logger.info('Removing (effectively?) vaccinated from reported seroprevalence.')
     seroprevalence_samples = [remove_vaccinated(sample, vaccinated,) for sample in seroprevalence_samples]
     
-    return seroprevalence_samples
+    return seroprevalence, seroprevalence_samples
 
 
 def remove_vaccinated(seroprevalence: pd.DataFrame,

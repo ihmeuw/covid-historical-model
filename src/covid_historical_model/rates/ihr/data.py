@@ -10,35 +10,32 @@ from covid_historical_model.durations.durations import ADMISSION_TO_SERO
 
 
 def load_input_data(model_inputs_root: Path, age_pattern_root: Path,
-                    seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
+                    shared: Dict, seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
                     escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
                     verbose: bool = True) -> Dict:
     # load data
-    hierarchy = model_inputs.hierarchy(model_inputs_root)
-    gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_gbd')
-    population = model_inputs.population(model_inputs_root)
-    age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
     cumulative_hospitalizations, daily_hospitalizations = model_inputs.reported_epi(
-        model_inputs_root, 'hospitalizations', hierarchy, gbd_hierarchy
+        model_inputs_root, 'hospitalizations', shared['hierarchy'], shared['gbd_hierarchy']
     )
     sero_age_pattern = estimates.seroprevalence_age_pattern(age_pattern_root)
     ihr_age_pattern = estimates.ihr_age_pattern(age_pattern_root)
     
     covariates = []
     
-    return {'cumulative_hospitalizations': cumulative_hospitalizations,
-            'daily_hospitalizations': daily_hospitalizations,
-            'seroprevalence': seroprevalence,
-            'vaccine_coverage': vaccine_coverage,
-            'covariates': covariates,
-            'sero_age_pattern': sero_age_pattern,
-            'ihr_age_pattern': ihr_age_pattern,
-            'age_spec_population': age_spec_population,
-            'escape_variant_prevalence': escape_variant_prevalence,
-            'severity_variant_prevalence': severity_variant_prevalence,
-            'hierarchy': hierarchy,
-            'gbd_hierarchy': gbd_hierarchy,
-            'population': population,}
+    input_data = {
+        'cumulative_hospitalizations': cumulative_hospitalizations,
+        'daily_hospitalizations': daily_hospitalizations,
+        'seroprevalence': seroprevalence,
+        'vaccine_coverage': vaccine_coverage,
+        'covariates': covariates,
+        'sero_age_pattern': sero_age_pattern,
+        'ihr_age_pattern': ihr_age_pattern,
+        'escape_variant_prevalence': escape_variant_prevalence,
+        'severity_variant_prevalence': severity_variant_prevalence,
+    }
+    input_data = input_data.update(shared)
+    
+    return input_data
 
 
 def create_model_data(cumulative_hospitalizations: pd.Series,
@@ -87,12 +84,11 @@ def create_model_data(cumulative_hospitalizations: pd.Series,
     return model_data.reset_index()
 
 
-def create_pred_data(hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame, population: pd.Series,
+def create_pred_data(hierarchy: pd.DataFrame, adj_gbd_hierarchy: pd.DataFrame, population: pd.Series,
                      covariates: List[pd.Series],
                      pred_start_date: pd.Timestamp, pred_end_date: pd.Timestamp,
                      day_0: pd.Timestamp,
                      **kwargs):
-    adj_gbd_hierarchy = model_inputs.validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
     pred_data = pd.DataFrame(list(itertools.product(adj_gbd_hierarchy['location_id'].to_list(),
                                                     list(pd.date_range(pred_start_date, pred_end_date)))),
                          columns=['location_id', 'date'])

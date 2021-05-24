@@ -28,16 +28,34 @@ def pipeline_wrapper(out_dir: Path,
                      n_samples: int,
                      day_inflection_list: List[str] = ['2020-05-01', '2020-06-01', '2020-07-01', '2020-08-01',
                                                        '2020-09-01', '2020-10-01', '2020-11-01', '2020-12-01',],
+                     correlate_samples: bool = True,
                      verbose: bool = True,) -> Tuple:
     np.random.seed(15243)
     if verbose:
         logger.info('Loading variant, vaccine, and sero data.')
+    hierarchy = model_inputs.hierarchy(model_inputs_root)
+    gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_gbd')
+    adj_gbd_hierarchy = model_inputs.validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
+    population = model_inputs.population(model_inputs_root)
+    age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
+    population_lr, population_hr = age_standardization.get_risk_group_populations(age_spec_population)
+    shared = {
+        'hierarchy': hierarchy,
+        'gbd_hierarchy': gbd_hierarchy,
+        'adj_gbd_hierarchy': adj_gbd_hierarchy,
+        'population': population,
+        'age_spec_population': age_spec_population,
+        'population_lr': population_lr,
+        'population_hr': population_hr,
+    }
+    
     escape_variant_prevalence = estimates.variant_scaleup(variant_scaleup_root, 'escape', verbose=verbose)
     severity_variant_prevalence = estimates.variant_scaleup(variant_scaleup_root, 'severity', verbose=verbose)
     vaccine_coverage = estimates.vaccine_coverage(vaccine_coverage_root)
-
-    seroprevalence_samples = serology.load_seroprevalence_sub_vacccinated(
+    sensitivity_data = model_inputs.assay_sensitivity(model_inputs_root)
+    reported_seroprevalence, seroprevalence_samples = serology.load_seroprevalence_sub_vacccinated(
         model_inputs_root, vaccine_coverage.copy(), n_samples=n_samples,
+        correlate_samples=correlate_samples,
         verbose=verbose,
     )
     
@@ -46,6 +64,7 @@ def pipeline_wrapper(out_dir: Path,
     inputs = {
         n: {
             'orig_seroprevalence': seroprevalence,
+            'shared': shared,
             'model_inputs_root': model_inputs_root,
             'excess_mortality': excess_mortality,
             'vaccine_coverage': vaccine_coverage,
@@ -67,67 +86,67 @@ def pipeline_wrapper(out_dir: Path,
     job_args_map = {n: [__file__, n, inputs_path, pipeline_dir] for n in range(n_samples)}
     cluster.run_cluster_jobs('covid_rates_pipeline', pipeline_dir, job_args_map)
     
-    pipeline_results = {}
+    pipeline_outputs = {}
     for n in range(n_samples):
         with (pipeline_dir / str(n) / 'outputs.pkl').open('rb') as file:
             outputs = pickle.load(file)
         pipeline_results.update(outputs)
+        
+    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+    logger.warning('NEED THINK ABOUT RIGHT APPROACH TO PLOTTING.')
+    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
     '''
     ## KEYS:
     ## ['seroprevalence', 'reinfection_inflation_factor', 'ifr_nrmse', 'best_ifr_models',
     ##  'ifr_results', 'idr_results', 'ihr_results']
     
+    idr_draws = pd.concat([pipeline_results[n]['idr_results'].pred.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
+    ihr_draws = pd.concat([pipeline_results[n]['ihr_results'].pred.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
     ifr_draws = pd.concat([pipeline_results[n]['ifr_results'].pred.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
-    loc = 196
-    inf_draws = pd.concat([ifr_draws.loc[loc], daily_deaths.loc[loc]], axis=1)
+    
+    loc = 527
+    
+    fig, ax = plt.subplots(3, 3, figsize=(16, 9))
+    for i, (label, num, denom_draws) in enumerate([('IFR', daily_deaths, ifr_draws),
+                                                   ('IHR', daily_hospitalizations, ihr_draws),
+                                                   ('IDR', daily_cases, idr_draws)]):
+        inf_draws = pd.concat([denom_draws.loc[loc], num.loc[loc]], axis=1)
 
-    inf_draws[ifr_draws.columns] =  inf_draws[[daily_deaths.name]].values / inf_draws[ifr_draws.columns].values
-    inf_draws = inf_draws[ifr_draws.columns].dropna()
+        inf_draws[denom_draws.columns] =  inf_draws[[num.name]].values / inf_draws[denom_draws.columns].values
+        inf_draws = inf_draws[denom_draws.columns].dropna()
 
-    fig, ax = plt.subplots(1, 3, figsize=(16, 4.5))
-    ax[0].plot(ifr_draws.loc[loc][120:])
-    ax[0].tick_params('x', labelrotation=60)
-    ax[0].set_title('IFR')
+        ax[i, 0].plot(denom_draws.loc[loc])
+        ax[i, 0].tick_params('x', labelrotation=60)
+        ax[i, 0].set_ylabel(label)
 
-    ax[1].plot(inf_draws)
-    ax[1].tick_params('x', labelrotation=60)
-    ax[1].set_title('Daily infections')
+        ax[i, 1].plot(inf_draws)
+        ax[i, 1].tick_params('x', labelrotation=60)
+        ax[i, 1].set_ylabel('Daily infections')
 
-    ax[2].plot(inf_draws.cumsum(axis=0) / population.loc[loc])
-    ax[2].tick_params('x', labelrotation=60)
-    ax[2].set_title('Seroprevalence')
+        ax[i, 2].plot(inf_draws.cumsum(axis=0) / population.loc[loc])
+        ax[i, 2].tick_params('x', labelrotation=60)
+        ax[i, 2].set_ylabel('Seroprevalence')
 
-    for i in range(10):
-        sero = pipeline_results[i]['seroprevalence'].copy()
-        sero = sero.loc[sero['location_id'] == loc]
-        ax[2].scatter(sero['date'] + pd.Timedelta(days=9), sero['seroprevalence'])
+        for ii in range(1, n_samples):
+            sero = pipeline_results[ii]['seroprevalence'].copy()
+            sero = sero.loc[sero['location_id'] == loc]
+            if label == 'IFR':
+                ax[i, 2].scatter(sero['date'] + pd.Timedelta(days=9), sero['seroprevalence'])
+            else:
+                ax[i, 2].scatter(sero['date'] - pd.Timedelta(days=4), sero['seroprevalence'])
 
     fig.show()
     '''
     
     em_data = estimates.excess_mortailty_scalars(model_inputs_root, excess_mortality)
     
-    # stuff for plotting
-    hierarchy = model_inputs.hierarchy(model_inputs_root)
-    population = model_inputs.population(model_inputs_root)
-    age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
-    population_lr, population_hr = age_standardization.get_risk_group_populations(age_spec_population)
-    sensitivity_data = model_inputs.assay_sensitivity(model_inputs_root)
-    del age_spec_population
-    
-    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
-    logger.warning('NEED THINK ABOUT RIGHT APPROACH TO PLOTTING.')
-    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
-    
-    # return seroprevalence, reinfection_inflation_factor, ifr_nrmse, best_ifr_models, \
-    #        ifr_results, idr_results, ihr_results, em_data, \
-    #        vaccine_coverage, escape_variant_prevalence, severity_variant_prevalence, \
-    #        hierarchy, population
-    return None
+    return pipeline_results, shared, reported_seroprevalence, sensitivity_data, \
+           escape_variant_prevalence, severity_variant_prevalence, vaccine_coverage, em_data
 
 
 def pipeline(orig_seroprevalence: pd.DataFrame,
+             shared: Dict,
              model_inputs_root: Path, excess_mortality: bool,
              vaccine_coverage: pd.DataFrame,
              escape_variant_prevalence: pd.Series,
@@ -141,7 +160,7 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                     f"IFR ESTIMATION -- testing inflection points: {', '.join(day_inflection_list)}\n"
                     '*************************************')
     ifr_input_data = ifr.data.load_input_data(model_inputs_root, excess_mortality, age_pattern_root,
-                                              orig_seroprevalence, vaccine_coverage,
+                                              shared, orig_seroprevalence, vaccine_coverage,
                                               escape_variant_prevalence,
                                               severity_variant_prevalence,
                                               verbose=verbose)
@@ -183,7 +202,8 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                     'IDR ESTIMATION\n'
                     '*************************************')
     idr_input_data = idr.data.load_input_data(model_inputs_root, excess_mortality, testing_root,
-                                              adj_seroprevalence.copy(), vaccine_coverage.copy(), verbose=verbose)
+                                              shared, adj_seroprevalence.copy(), vaccine_coverage.copy(),
+                                              verbose=verbose)
     idr_results = idr.runner.runner(idr_input_data,
                                     ifr_results.pred.copy(),
                                     reinfection_inflation_factor.copy(),
@@ -194,7 +214,7 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                     'IHR ESTIMATION\n'
                     '*************************************')
     ihr_input_data = ihr.data.load_input_data(model_inputs_root, age_pattern_root,
-                                              adj_seroprevalence.copy(), vaccine_coverage.copy(),
+                                              shared, adj_seroprevalence.copy(), vaccine_coverage.copy(),
                                               escape_variant_prevalence.copy(),
                                               severity_variant_prevalence.copy(),
                                               verbose=verbose)
@@ -204,6 +224,7 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
     pipeline_results = {
         'seroprevalence':adj_seroprevalence,
         'reinfection_inflation_factor':reinfection_inflation_factor,
+        'day_inflection_list': day_inflection_list,
         'ifr_nrmse':ifr_nrmse,
         'best_ifr_models':best_ifr_models,
         'ifr_results':ifr_results,
@@ -406,12 +427,8 @@ def main(n: int, inputs_path: str, pipeline_dir: str):
     ## working dir
     root_dir = Path(pipeline_dir) / str(n)
     storage_dir = root_dir / 'intermediate'
-    # results_dir = root_dir / 'results'
-    # plots_dir = root_dir / 'plots'
     shell_tools.mkdir(root_dir)
     shell_tools.mkdir(storage_dir)
-    # shell_tools.mkdir(results_dir)
-    # shell_tools.mkdir(plots_dir)
     
     np.random.seed(15243 * (n + 1))
     pipeline_outputs = pipeline(storage_dir=storage_dir,

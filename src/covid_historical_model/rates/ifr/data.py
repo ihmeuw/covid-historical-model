@@ -10,39 +10,36 @@ from covid_historical_model.durations.durations import SERO_TO_DEATH
 
 
 def load_input_data(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Path,
-                    seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
+                    shared: Dict, seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
                     escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
                     verbose: bool = True) -> Dict:
     # load data
-    hierarchy = model_inputs.hierarchy(model_inputs_root)
-    gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_gbd')
-    population = model_inputs.population(model_inputs_root)
-    age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
     cumulative_deaths, daily_deaths = model_inputs.reported_epi(
-        model_inputs_root, 'deaths', hierarchy, gbd_hierarchy, excess_mortality
+        model_inputs_root, 'deaths', shared['hierarchy'], shared['gbd_hierarchy'], excess_mortality
     )
     sensitivity = model_inputs.assay_sensitivity(model_inputs_root)
     sero_age_pattern = estimates.seroprevalence_age_pattern(age_pattern_root)
     ifr_age_pattern = estimates.ifr_age_pattern(age_pattern_root)
     ihr_age_pattern = estimates.ihr_age_pattern(age_pattern_root)
-    adj_gbd_hierarchy = model_inputs.validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
     covariates = [db.obesity(adj_gbd_hierarchy)]
     
-    return {'cumulative_deaths': cumulative_deaths,
-            'daily_deaths': daily_deaths,
-            'seroprevalence': seroprevalence,
-            'sensitivity': sensitivity,
-            'vaccine_coverage': vaccine_coverage,
-            'covariates': covariates,
-            'sero_age_pattern': sero_age_pattern,
-            'ifr_age_pattern': ifr_age_pattern,
-            'ihr_age_pattern': ihr_age_pattern,
-            'age_spec_population': age_spec_population,
-            'escape_variant_prevalence': escape_variant_prevalence,
-            'severity_variant_prevalence': severity_variant_prevalence,
-            'hierarchy': hierarchy,
-            'gbd_hierarchy': gbd_hierarchy,
-            'population': population,}
+    input_data = {
+        'cumulative_deaths': cumulative_deaths,
+        'daily_deaths': daily_deaths,
+        'seroprevalence': seroprevalence,
+        'sensitivity': sensitivity,
+        'vaccine_coverage': vaccine_coverage,
+        'covariates': covariates,
+        'sero_age_pattern': sero_age_pattern,
+        'ifr_age_pattern': ifr_age_pattern,
+        'ihr_age_pattern': ihr_age_pattern,
+        'escape_variant_prevalence': escape_variant_prevalence,
+        'severity_variant_prevalence': severity_variant_prevalence,
+    }
+    
+    input_data.update(shared)
+    
+    return input_data
 
 
 def create_model_data(cumulative_deaths: pd.Series, daily_deaths: pd.Series,
