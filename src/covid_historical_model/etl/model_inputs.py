@@ -62,7 +62,7 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
         # data.loc[(data['location_id'] == 570) & (data[date_var] == '11.08.2021'), date_var] = '11.08.2020'
         # data.loc[(data['location_id'] == 533) & (data[date_var] == '13.11.2.2020'), date_var] = '13.11.2020'
         # data.loc[data[date_var] == '05.21.2020', date_var] = '21.05.2020'
-        data[date_var] = pd.to_datetime(data[date_var], format='%d.%m.%Y')
+        data[date_var] = pd.to_datetime(data[date_var])  # , format='%d.%m.%Y'
     
     # if no start date provided, assume 2 weeks before end date?
     data['start_date'] = data['start_date'].fillna(data['date'] - pd.Timedelta(days=14))
