@@ -86,7 +86,7 @@ def pipeline_wrapper(out_dir: Path,
     job_args_map = {n: [__file__, n, inputs_path, pipeline_dir] for n in range(n_samples)}
     cluster.run_cluster_jobs('covid_rates_pipeline', pipeline_dir, job_args_map)
     
-    pipeline_outputs = {}
+    pipeline_results = {}
     for n in range(n_samples):
         with (pipeline_dir / str(n) / 'outputs.pkl').open('rb') as file:
             outputs = pickle.load(file)
