@@ -57,12 +57,17 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
         logger.info(f'Initial observation count: {len(data)}')
 
     # date formatting
+    if 'Date' in data.columns:
+        if 'date' in data.columns:
+            raise ValueError('Both `Date` and `date` in serology data.')
+        else:
+            data = data.rename(columns={'Date':'date'})
     for date_var in ['start_date', 'date']:
         # data[date_var] = helpers.str_fmt(data[date_var]).replace('.202$', '.2020')
         # data.loc[(data['location_id'] == 570) & (data[date_var] == '11.08.2021'), date_var] = '11.08.2020'
         # data.loc[(data['location_id'] == 533) & (data[date_var] == '13.11.2.2020'), date_var] = '13.11.2020'
         # data.loc[data[date_var] == '05.21.2020', date_var] = '21.05.2020'
-        data[date_var] = pd.to_datetime(data[date_var], format='%d.%m.%Y')
+        data[date_var] = pd.to_datetime(data[date_var])  # , format='%d.%m.%Y'
     
     # if no start date provided, assume 2 weeks before end date?
     data['start_date'] = data['start_date'].fillna(data['date'] - pd.Timedelta(days=14))
