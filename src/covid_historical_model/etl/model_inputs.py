@@ -23,12 +23,6 @@ def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str)
         is_murcia = data['location_id'] == 60366
         data = data.loc[~is_murcia].reset_index(drop=True)
         manipulation_metadata['murcia'] = 'dropped all hospitalizations'
-
-        # pakistan_location_ids = hierarchy.loc[hierarchy['path_to_top_parent'].apply(lambda x: '165' in x.split(',')),
-        #                                       'location_id'].to_list()
-        # is_pakistan = data['location_id'].isin(pakistan_location_ids)
-        # data = data.loc[~is_pakistan].reset_index(drop=True)
-        # manipulation_metadata['pakistan'] = 'dropped all hospitalizations'
         
         # only for IHR...
         is_netherlands = data['location_id'] == 89
