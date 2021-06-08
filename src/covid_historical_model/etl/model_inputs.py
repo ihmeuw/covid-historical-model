@@ -14,25 +14,53 @@ def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str)
         pass
 
     elif input_measure == 'hospitalizations':
-        # short time series (at beginnning)
+        # ## hosp/IHR == admissions too low
+        # is_argentina = data['location_id'] == 97
+        # data = data.loc[~is_argentina].reset_index(drop=True)
+        # manipulation_metadata['argentina'] = 'dropped all hospitalizations'
+                
+        ## is just march-june 2020
         is_vietnam = data['location_id'] == 20
         data = data.loc[~is_vietnam].reset_index(drop=True)
         manipulation_metadata['vietnam'] = 'dropped all hospitalizations'
 
-        # short time series (at beginnning)
+        ## is just march-june 2020
         is_murcia = data['location_id'] == 60366
         data = data.loc[~is_murcia].reset_index(drop=True)
         manipulation_metadata['murcia'] = 'dropped all hospitalizations'
+
+        ## partial time series
+        pakistan_location_ids = hierarchy.loc[hierarchy['path_to_top_parent'].apply(lambda x: '165' in x.split(',')),
+                                              'location_id'].to_list()
+        is_pakistan = data['location_id'].isin(pakistan_location_ids)
+        data = data.loc[~is_pakistan].reset_index(drop=True)
+        manipulation_metadata['pakistan'] = 'dropped all hospitalizations'
         
-        # only for IHR...
-        is_netherlands = data['location_id'] == 89
-        data = data.loc[~is_netherlands].reset_index(drop=True)
-        manipulation_metadata['netherlands'] = 'dropped all hospitalizations'
+        ## ECDC is garbage
+        ecdc_location_ids = [77, 58, 82, 83, 59, 60, 88, 91, 52, 55]
+        is_ecdc = data['location_id'].isin(ecdc_location_ids)
+        data = data.loc[~is_ecdc].reset_index(drop=True)
+        manipulation_metadata['ecdc_countries'] = 'dropped all hospitalizations'
         
-        # only for IHR...
+        ## CLOSE, but seems a little low... check w/ new data
+        is_goa = data['location_id'] == 4850
+        data = data.loc[~is_goa].reset_index(drop=True)
+        manipulation_metadata['goa'] = 'dropped all hospitalizations'
+
+        ## too late, starts March 2021
+        is_haiti = data['location_id'] == 114
+        data = data.loc[~is_haiti].reset_index(drop=True)
+        manipulation_metadata['haiti'] = 'dropped all hospitalizations'
+
+        ## late, starts Jan/Feb 2021 (and is a little low, should check w/ new data)
         is_jordan = data['location_id'] == 144
         data = data.loc[~is_jordan].reset_index(drop=True)
         manipulation_metadata['jordan'] = 'dropped all hospitalizations'
+        
+        ## too low then too high? odd series
+        is_andorra = data['location_id'] == 74
+        data = data.loc[~is_andorra].reset_index(drop=True)
+        manipulation_metadata['andorra'] = 'dropped all hospitalizations'
     
     elif input_measure == 'deaths':
         pass
