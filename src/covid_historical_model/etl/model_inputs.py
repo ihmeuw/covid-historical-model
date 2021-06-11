@@ -37,7 +37,7 @@ def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str)
         manipulation_metadata['pakistan'] = 'dropped all hospitalizations'
         
         ## ECDC is garbage
-        ecdc_location_ids = [77, 58, 82, 83, 59, 60, 88, 91, 52, 55]
+        ecdc_location_ids = [77, 82, 83, 59, 60, 88, 91, 52, 55]
         is_ecdc = data['location_id'].isin(ecdc_location_ids)
         data = data.loc[~is_ecdc].reset_index(drop=True)
         manipulation_metadata['ecdc_countries'] = 'dropped all hospitalizations'
