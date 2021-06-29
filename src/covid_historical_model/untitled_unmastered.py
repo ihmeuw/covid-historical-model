@@ -1,3 +1,6 @@
+import warnings
+warnings.simplefilter('ignore')
+
 from pathlib import Path
 import dill as pickle
 from loguru import logger
@@ -8,9 +11,6 @@ from covid_shared import cli_tools, shell_tools
 
 from covid_historical_model.rates.pipeline import pipeline
 from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
-
-import warnings
-warnings.simplefilter('ignore')
 
 ## IMPORTANT TODO:
 ##     - make comparison routine; plot all fits in cascade
