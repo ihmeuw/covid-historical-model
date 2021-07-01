@@ -1,6 +1,3 @@
-import warnings
-warnings.simplefilter('ignore')
-
 from pathlib import Path
 import dill as pickle
 from loguru import logger

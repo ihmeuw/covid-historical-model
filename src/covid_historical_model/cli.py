@@ -4,10 +4,11 @@ import click
 from covid_shared import paths, cli_tools
 from loguru import logger
 
-from covid_historical_model import untitled_unmastered
-
 import warnings
 warnings.simplefilter('ignore')
+
+from covid_historical_model import untitled_unmastered
+
 
 @click.command()
 @cli_tools.pass_run_metadata()
