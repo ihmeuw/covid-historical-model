@@ -7,4 +7,5 @@ cd covid-historical-model
 make install_env ENV_NAME='rates-pipeline'
 conda activate rates-pipeline
 make clean
+rates_pipeline --help
 ```
