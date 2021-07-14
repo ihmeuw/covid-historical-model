@@ -17,7 +17,7 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool, testing_roo
                     verbose: bool = True) -> Dict:
     # load data
     cumulative_cases, daily_cases = model_inputs.reported_epi(
-        model_inputs_root, 'cases', shared['hierarchy'], shared['gbd_hierarchy']
+        model_inputs_root, 'cases', shared['hierarchy'], shared['gbd_hierarchy'],
     )
     _, daily_deaths = model_inputs.reported_epi(
         model_inputs_root, 'deaths', shared['hierarchy'], shared['gbd_hierarchy'], excess_mortality
@@ -125,7 +125,7 @@ def create_model_data(cumulative_cases: pd.Series,
                                 .loc[:, 'infwavg_testing_capacity'])
     infections = infections.set_index(['location_id', 'date'])
     
-    log_infwavg_testing_rate_capacity= (np.log(infwavg_testing_capacity / population)
+    log_infwavg_testing_rate_capacity = (np.log(infwavg_testing_capacity / population)
                                         .rename('log_infwavg_testing_rate_capacity'))
     del infwavg_testing_capacity
 

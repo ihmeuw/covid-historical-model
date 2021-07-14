@@ -14,31 +14,53 @@ def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str)
         pass
 
     elif input_measure == 'hospitalizations':
-        # short time series (at beginnning)
+        # ## hosp/IHR == admissions too low
+        # is_argentina = data['location_id'] == 97
+        # data = data.loc[~is_argentina].reset_index(drop=True)
+        # manipulation_metadata['argentina'] = 'dropped all hospitalizations'
+                
+        ## is just march-june 2020
         is_vietnam = data['location_id'] == 20
         data = data.loc[~is_vietnam].reset_index(drop=True)
         manipulation_metadata['vietnam'] = 'dropped all hospitalizations'
 
-        # short time series (at beginnning)
+        ## is just march-june 2020
         is_murcia = data['location_id'] == 60366
         data = data.loc[~is_murcia].reset_index(drop=True)
         manipulation_metadata['murcia'] = 'dropped all hospitalizations'
 
-        # pakistan_location_ids = hierarchy.loc[hierarchy['path_to_top_parent'].apply(lambda x: '165' in x.split(',')),
-        #                                       'location_id'].to_list()
-        # is_pakistan = data['location_id'].isin(pakistan_location_ids)
-        # data = data.loc[~is_pakistan].reset_index(drop=True)
-        # manipulation_metadata['pakistan'] = 'dropped all hospitalizations'
+        ## partial time series
+        pakistan_location_ids = hierarchy.loc[hierarchy['path_to_top_parent'].apply(lambda x: '165' in x.split(',')),
+                                              'location_id'].to_list()
+        is_pakistan = data['location_id'].isin(pakistan_location_ids)
+        data = data.loc[~is_pakistan].reset_index(drop=True)
+        manipulation_metadata['pakistan'] = 'dropped all hospitalizations'
         
-        # only for IHR...
-        is_netherlands = data['location_id'] == 89
-        data = data.loc[~is_netherlands].reset_index(drop=True)
-        manipulation_metadata['netherlands'] = 'dropped all hospitalizations'
+        ## ECDC is garbage
+        ecdc_location_ids = [77, 82, 83, 59, 60, 88, 91, 52, 55]
+        is_ecdc = data['location_id'].isin(ecdc_location_ids)
+        data = data.loc[~is_ecdc].reset_index(drop=True)
+        manipulation_metadata['ecdc_countries'] = 'dropped all hospitalizations'
         
-        # only for IHR...
+        ## CLOSE, but seems a little low... check w/ new data
+        is_goa = data['location_id'] == 4850
+        data = data.loc[~is_goa].reset_index(drop=True)
+        manipulation_metadata['goa'] = 'dropped all hospitalizations'
+
+        ## too late, starts March 2021
+        is_haiti = data['location_id'] == 114
+        data = data.loc[~is_haiti].reset_index(drop=True)
+        manipulation_metadata['haiti'] = 'dropped all hospitalizations'
+
+        ## late, starts Jan/Feb 2021 (and is a little low, should check w/ new data)
         is_jordan = data['location_id'] == 144
         data = data.loc[~is_jordan].reset_index(drop=True)
         manipulation_metadata['jordan'] = 'dropped all hospitalizations'
+        
+        ## too low then too high? odd series
+        is_andorra = data['location_id'] == 74
+        data = data.loc[~is_andorra].reset_index(drop=True)
+        manipulation_metadata['andorra'] = 'dropped all hospitalizations'
     
     elif input_measure == 'deaths':
         pass
@@ -57,12 +79,17 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
         logger.info(f'Initial observation count: {len(data)}')
 
     # date formatting
+    if 'Date' in data.columns:
+        if 'date' in data.columns:
+            raise ValueError('Both `Date` and `date` in serology data.')
+        else:
+            data = data.rename(columns={'Date':'date'})
     for date_var in ['start_date', 'date']:
         # data[date_var] = helpers.str_fmt(data[date_var]).replace('.202$', '.2020')
         # data.loc[(data['location_id'] == 570) & (data[date_var] == '11.08.2021'), date_var] = '11.08.2020'
         # data.loc[(data['location_id'] == 533) & (data[date_var] == '13.11.2.2020'), date_var] = '13.11.2020'
         # data.loc[data[date_var] == '05.21.2020', date_var] = '21.05.2020'
-        data[date_var] = pd.to_datetime(data[date_var], format='%d.%m.%Y')
+        data[date_var] = pd.to_datetime(data[date_var])  # , format='%d.%m.%Y'
     
     # if no start date provided, assume 2 weeks before end date?
     data['start_date'] = data['start_date'].fillna(data['date'] - pd.Timedelta(days=14))
@@ -188,15 +215,21 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
 
 def reported_epi(model_inputs_root: Path, input_measure: str,
                  hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame,
-                 excess_mortality: bool = True,) -> Tuple[pd.Series, pd.Series]:
-    data_path = model_inputs_root / 'use_at_your_own_risk' / 'full_data_extra_hospital.csv'
-    data = pd.read_csv(data_path)
-    data = data.rename(columns={'Confirmed':'cumulative_cases',
-                                'Hospitalizations':'cumulative_hospitalizations',})
-    if input_measure == 'deaths' and excess_mortality:
-        data = data.rename(columns={'Deaths':'cumulative_deaths',})
+                 excess_mortality: bool = None,) -> Tuple[pd.Series, pd.Series]:
+    if input_measure == 'deaths':
+        if type(excess_mortality) != bool:
+            raise TypeError('Must specify `excess_mortality` argument to load deaths.')
+        if excess_mortality:
+            data_path = model_inputs_root / 'use_at_your_own_risk' / 'full_data_extra_hospital.csv'
+        else:
+            data_path = model_inputs_root / 'full_data_unscaled.csv'
+            logger.info('Using unscaled deaths.')
     else:
-        data = data.rename(columns={'UNSCALED Deaths':'cumulative_deaths',})
+        data_path = model_inputs_root / 'use_at_your_own_risk' / 'full_data_extra_hospital.csv'
+    data = pd.read_csv(data_path)
+    data = data.rename(columns={'Confirmed': 'cumulative_cases',
+                                'Hospitalizations': 'cumulative_hospitalizations',
+                                'Deaths': 'cumulative_deaths',})
     data['date'] = pd.to_datetime(data['Date'])
     keep_cols = ['location_id', 'date', f'cumulative_{input_measure}']
     data = data.loc[:, keep_cols].dropna()

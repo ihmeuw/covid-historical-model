@@ -9,9 +9,6 @@ from covid_shared import cli_tools
 from covid_historical_model.rates.pipeline import pipeline_wrapper
 from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
 
-import warnings
-warnings.simplefilter('ignore')
-
 ## IMPORTANT TODO:
 ##     - use date midpoint
 ##     - make comparison routine; plot all fits in cascade

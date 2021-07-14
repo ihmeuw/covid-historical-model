@@ -15,7 +15,7 @@ def load_input_data(model_inputs_root: Path, age_pattern_root: Path,
                     verbose: bool = True) -> Dict:
     # load data
     cumulative_hospitalizations, daily_hospitalizations = model_inputs.reported_epi(
-        model_inputs_root, 'hospitalizations', shared['hierarchy'], shared['gbd_hierarchy']
+        model_inputs_root, 'hospitalizations', shared['hierarchy'], shared['gbd_hierarchy'],
     )
     sero_age_pattern = estimates.seroprevalence_age_pattern(age_pattern_root)
     ihr_age_pattern = estimates.ihr_age_pattern(age_pattern_root)

@@ -1,6 +1,5 @@
 # makefile for easy manage package
 .PHONY: clean
-
 clean:
 	find . -name "*.so*" | xargs rm -rf
 	find . -name "*.pyc" | xargs rm -rf
@@ -14,9 +13,9 @@ clean:
 
 install_env:
 	( \
-        git clone https://github.com/zhengp0/limetr.git && \
-        git clone https://github.com/ihmeuw-msca/MRTool.git && \
-        source $(CONDA_PREFIX)/etc/profile.d/conda.sh && \
+		git clone https://github.com/zhengp0/limetr.git && \
+		git clone https://github.com/ihmeuw-msca/MRTool.git && \
+		source $(CONDA_PREFIX)/etc/profile.d/conda.sh && \
 		conda create -n $(ENV_NAME) -y -c conda-forge python=3.7 cyipopt gmp h5py && \
 		conda activate $(ENV_NAME) && \
 		pip install --global-option=build_ext --global-option '-I$(CONDA_PREFIX)/envs/$(ENV_NAME)/include/' pycddlib && \
@@ -28,10 +27,3 @@ install_env:
 .PHONY: test
 test:
 	pytest -vv tests
-
-
-uninstall_env:
-	( \
-		source $(CONDA_PREFIX)/etc/profile.d/conda.sh && \
-		conda remove --name $(ENV_NAME) --all ; \
-	)
