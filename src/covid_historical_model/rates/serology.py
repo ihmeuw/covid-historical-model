@@ -112,12 +112,12 @@ def remove_vaccinated(seroprevalence: pd.DataFrame,
     return seroprevalence
 
 
-def apply_waning_adjustment(model_inputs_root: Path,
-                            hospitalized_weights: pd.Series,
-                            seroprevalence: pd.DataFrame,
-                            daily_deaths: pd.Series,
-                            pred_ifr: pd.Series,
-                            verbose: bool = True,) -> pd.DataFrame:
+def apply_serorev_adjustment(model_inputs_root: Path,
+                             hospitalized_weights: pd.Series,
+                             seroprevalence: pd.DataFrame,
+                             daily_deaths: pd.Series,
+                             pred_ifr: pd.Series,
+                             verbose: bool = True,) -> pd.DataFrame:
     sensitivity = model_inputs.assay_sensitivity(model_inputs_root)
     
     data_assays = sensitivity['assay'].unique().tolist()
@@ -172,7 +172,7 @@ def apply_waning_adjustment(model_inputs_root: Path,
                              .groupby(['location_id', 't'])['sensitivity'].mean())
         ac_seroprevalence = (seroprevalence
                              .loc[seroprevalence['assay_map'] == assay_combination].copy())
-        ac_seroprevalence = waning_adjustment(
+        ac_seroprevalence = serorev_adjustment(
             pred_ifr.copy(),
             daily_deaths.copy(),
             ac_sensitivity.copy(),
@@ -242,37 +242,37 @@ def fit_hospital_weighted_sensitivity_decay(sensitivity: pd.DataFrame, increasin
     return sensitivity.loc[:, ['location_id', 'assay', 't', 'sensitivity', 'hosp_sensitivity', 'nonhosp_sensitivity']]
 
 
-def calulate_waning_factor(infections: pd.DataFrame, sensitivity: pd.DataFrame,
+def calulate_serorev_factor(infections: pd.DataFrame, sensitivity: pd.DataFrame,
                            sero_date: pd.Timestamp) -> float:
     infections['t'] = (sero_date - infections['date']).dt.days
     infections = infections.loc[infections['t'] >= 0]
     infections = infections.merge(sensitivity.reset_index(), how='left')
     if infections['sensitivity'].isnull().any():
         raise ValueError(f"Unmatched sero/sens points: {infections.loc[infections['sensitivity'].isnull()]}")
-    waning_factor = infections['infections'].sum() / (infections['infections'] * infections['sensitivity']).sum()
-    waning_factor = max(1, waning_factor)
+    serorev_factor = infections['infections'].sum() / (infections['infections'] * infections['sensitivity']).sum()
+    serorev_factor = max(1, serorev_factor)
 
-    return waning_factor
+    return serorev_factor
     
     
-def location_waning_adjustment(infections: pd.DataFrame, sensitivity: pd.DataFrame,
+def location_serorev_adjustment(infections: pd.DataFrame, sensitivity: pd.DataFrame,
                                seroprevalence: pd.DataFrame) -> pd.DataFrame:
     adj_seroprevalence = []
     for i, (sero_data_id, sero_date, sero_value) in enumerate(zip(seroprevalence['data_id'],
                                                                   seroprevalence['date'],
                                                                   seroprevalence['seroprevalence'])):
-        waning_factor = calulate_waning_factor(infections, sensitivity, sero_date)
+        serorev_factor = calulate_serorev_factor(infections, sensitivity, sero_date)
         adj_seroprevalence.append(pd.DataFrame({
             'data_id': sero_data_id,
             'date': sero_date,
-            'seroprevalence': sero_value * waning_factor
+            'seroprevalence': sero_value * serorev_factor
         }, index=[i]))
     adj_seroprevalence = pd.concat(adj_seroprevalence)
     
     return adj_seroprevalence
 
 
-def waning_adjustment(pred_ifr: pd.Series, daily_deaths: pd.Series, sensitivity: pd.DataFrame,
+def serorev_adjustment(pred_ifr: pd.Series, daily_deaths: pd.Series, sensitivity: pd.DataFrame,
                       seroprevalence: pd.DataFrame) -> pd.DataFrame:
     infections = ((daily_deaths / pred_ifr)
                   .dropna()
@@ -281,7 +281,7 @@ def waning_adjustment(pred_ifr: pd.Series, daily_deaths: pd.Series, sensitivity:
                   .set_index('location_id'))
     infections['date'] -= pd.Timedelta(days=SERO_TO_DEATH)
     
-    # determine waning adjustment based on midpoint of survey
+    # determine seroreversion adjustment based on midpoint of survey
     orig_date = seroprevalence[['data_id', 'date']].copy()
     seroprevalence['n_midpoint_days'] = (seroprevalence['date'] - seroprevalence['start_date']).dt.days / 2
     seroprevalence['n_midpoint_days'] = seroprevalence['n_midpoint_days'].astype(int)
@@ -292,7 +292,7 @@ def waning_adjustment(pred_ifr: pd.Series, daily_deaths: pd.Series, sensitivity:
     location_ids = seroprevalence['location_id'].unique().tolist()
     location_ids = [location_id for location_id in location_ids if location_id in infections.reset_index()['location_id'].to_list()]
     for location_id in location_ids:
-        _sero = location_waning_adjustment(infections.loc[location_id],
+        _sero = location_serorev_adjustment(infections.loc[location_id],
                                            sensitivity.loc[location_id],
                                            (seroprevalence
                                             .loc[seroprevalence['location_id'] == location_id,
@@ -368,11 +368,14 @@ def plotter(location_id: int, location_name: str,
 
     inliers = seroprevalence.loc[seroprevalence['seroprevalence'].notnull()]
     sero_ax.scatter(inliers['date'], inliers['reported_seroprevalence'],
-                    marker='s', c='none', edgecolors='black', s=100, alpha=0.5, label='Reported')
+                    marker='s', c='none', edgecolors='black', s=100, alpha=0.5,
+                    label='Reported')
     sero_ax.scatter(inliers['date'], inliers['seroprevalence_sub_vacc'],
-                    marker='^', c='none', edgecolors='black', s=100, alpha=0.5, label='No vaccinated')
+                    marker='^', c='none', edgecolors='black', s=100, alpha=0.5,
+                    label='No vaccinated')
     sero_ax.scatter(inliers['date'], inliers['seroprevalence'],
-                    marker='o', c='none', edgecolors='black', s=100, alpha=0.5, label='No vaccinated, waning-adjusted')
+                    marker='o', c='none', edgecolors='black', s=100, alpha=0.5,
+                    label='No vaccinated, with reinfections, seroreversion-adjusted')
     outliers = seroprevalence.loc[seroprevalence['seroprevalence'].isnull()]
     sero_ax.scatter(outliers['date'], outliers['reported_seroprevalence'],
                     marker='x', c='black', s=100, alpha=0.5, label='Outlier')

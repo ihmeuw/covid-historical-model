@@ -26,7 +26,7 @@ def pipeline(out_dir: Path, storage_dir: Path, plots_dir: Path,
              verbose: bool = True,) -> Tuple:
     if verbose:
         logger.info('\n*************************************\n'
-                    f"PRE-LOADING SPECIFIED DATASETS\n"
+                    'PRE-LOADING SPECIFIED DATASETS\n'
                     '*************************************')
     escape_variant_prevalence = estimates.variant_scaleup(variant_scaleup_root, 'escape', verbose=verbose)
     severity_variant_prevalence = estimates.variant_scaleup(variant_scaleup_root, 'severity', verbose=verbose)

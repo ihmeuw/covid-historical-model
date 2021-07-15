@@ -8,34 +8,34 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_DEATH, EXPOSU
 CROSS_VARIANT_IMMUNITY = 0.6
 
 
-# def fill_non_covid_locs(escape_variant_prevalence: pd.Series,
-#                         hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame,):
-#     location_ids = gbd_hierarchy['location_id'].to_list()
-#     covid_location_ids = hierarchy['location_id'].to_list()
-#     location_ids = [l for l in location_ids if l not in covid_location_ids]
-#     data_location_ids = escape_variant_prevalence.index.get_level_values(0).unique().to_list()
-#     location_ids = [l for l in location_ids if l not in data_location_ids]
-#     for location_id in location_ids:
-#         parent_ids = gbd_hierarchy.loc[gbd_hierarchy['location_id'] == location_id, 'path_to_top_parent'].item()
-#         parent_ids = [int(l) for l in reversed(parent_ids.split(','))][1:]
-#         parent_ids = [l for l in parent_ids if l in data_location_ids]
-#         if parent_ids:
-#             escape_variant_prevalence = escape_variant_prevalence.append(
-#                         pd.concat({location_id: escape_variant_prevalence.loc[parent_ids[0]]},
-#                                   names=['location_id'])
-#             )
+def generate_waning_dist(lower, upper, inflection=75, proportion_at_inflection=0.8, max_t=700, draws=1):
+    immunity_reduction = np.random.uniform(lower, upper, draws)
+    y_inflection = (1 - immunity_reduction * proportion_at_inflection)
+    y_180 = (1 - immunity_reduction)
+    m1 = (y_inflection - 1) / (inflection - 0)
+    m2 = (y_180 - y_inflection) / (180 - inflection)
+    t1 = np.repeat(np.arange(inflection).reshape(1, -1), draws, axis=0).T
+    y1 = t1 * m1 + 1
+    t2 = np.repeat(np.arange(inflection, max_t).reshape(1, -1), draws, axis=0).T
+    y2 = t2 * m2 + (m1 - m2) * inflection + 1
+    y = np.vstack([y1, y2])
+    data = pd.DataFrame(y, columns=[f'draw_{i}' for i in range(draws)], index=pd.Index(np.arange(max_t), name='Days'))
+    mean = data.mean(axis=1).rename('mean')
+    # upper = data.quantile(.975, axis=1).rename('upper')
+    # lower = data.quantile(.025, axis=1).rename('lower')
+    # summary = pd.concat([mean, upper, lower], axis=1)
     
-#     return escape_variant_prevalence, location_ids
+    return (1 - mean)  # data, summary
 
 
-def add_repeat_infections(escape_variant_prevalence: pd.Series,
-                          daily_deaths: pd.Series, pred_ifr: pd.Series,
-                          seroprevalence: pd.DataFrame,
-                          hierarchy: pd.DataFrame,
-                          gbd_hierarchy: pd.DataFrame,
-                          population: pd.Series,
-                          cross_variant_immunity: float = CROSS_VARIANT_IMMUNITY,
-                          verbose: bool = True) -> pd.DataFrame:
+def divide_infections(escape_variant_prevalence: pd.Series,
+                      daily_deaths: pd.Series, pred_ifr: pd.Series,
+                      # seroprevalence: pd.DataFrame,
+                      hierarchy: pd.DataFrame,
+                      gbd_hierarchy: pd.DataFrame,
+                      population: pd.Series,
+                      cross_variant_immunity: float = CROSS_VARIANT_IMMUNITY,
+                      verbose: bool = True) -> pd.DataFrame:
     infections = (daily_deaths / pred_ifr).dropna().rename('infections')
     infections = infections.reset_index()
     infections['date'] -= pd.Timedelta(days=EXPOSURE_TO_DEATH)
@@ -43,42 +43,42 @@ def add_repeat_infections(escape_variant_prevalence: pd.Series,
                   .set_index(['location_id', 'date'])
                   .loc[:, 'infections'])
     
-    # # COULD use this to fill in, but that should come from variant modeler
-    # escape_variant_prevalence, extra_locations = fill_non_covid_locs(escape_variant_prevalence,
-    #                                                                  hierarchy, gbd_hierarchy)
-    extra_locations = gbd_hierarchy.loc[gbd_hierarchy['most_detailed'] == 1, 'location_id'].to_list()
-    extra_locations = [l for l in extra_locations if l not in hierarchy['location_id'].to_list()]
+    waning_rate = generate_waning_dist(0.05, 0.25, max_t=1000, draws=1000)
+    
+    ## MAY NEED THIS...?
+    # extra_locations = gbd_hierarchy.loc[gbd_hierarchy['most_detailed'] == 1, 'location_id'].to_list()
+    # extra_locations = [l for l in extra_locations if l not in hierarchy['location_id'].to_list()]
     
     escape_variant_prevalence = pd.concat([infections, escape_variant_prevalence], axis=1)  # borrow axis
     escape_variant_prevalence = escape_variant_prevalence['escape_variant_prevalence'].fillna(0)
     
     ancestral_infections = (infections * (1 - escape_variant_prevalence)).groupby(level=0).cumsum().dropna()
-    repeat_infections = ((ancestral_infections / population) * (1 - cross_variant_immunity) * infections * escape_variant_prevalence).rename('infections')
-    repeat_infections = repeat_infections.fillna(infections).dropna()
+    repeat_variant_infections = ((ancestral_infections / population) * (1 - cross_variant_immunity) * infections * escape_variant_prevalence).rename('infections')
+    repeat_variant_infections = repeat_variant_infections.fillna(infections).dropna()
     
     obs_infections = infections.groupby(level=0).cumsum().dropna()
-    first_infections = (infections - repeat_infections).groupby(level=0).cumsum().dropna()
+    first_infections = (infections - repeat_variant_infections).groupby(level=0).cumsum().dropna()
     
-    extra_obs_infections = obs_infections.reset_index()
-    extra_obs_infections = (extra_obs_infections
-                            .loc[extra_obs_infections['location_id'].isin(extra_locations)]
-                            .reset_index(drop=True))
-    obs_infections = aggregate_data_from_md(obs_infections.reset_index(), hierarchy, 'infections')
-    obs_infections = obs_infections.append(extra_obs_infections)
-    obs_infections = (obs_infections
-                      .set_index(['location_id', 'date'])
-                      .loc[:, 'infections'])
-    extra_first_infections = first_infections.reset_index()
-    extra_first_infections = (extra_first_infections
-                              .loc[extra_first_infections['location_id'].isin(extra_locations)]
-                              .reset_index(drop=True))
-    first_infections = aggregate_data_from_md(first_infections.reset_index(), hierarchy, 'infections')
-    first_infections = first_infections.append(extra_first_infections)
-    first_infections = (first_infections
-                        .set_index(['location_id', 'date'])
-                        .loc[:, 'infections'])
+    ## MAY NEED THIS...?
+    # extra_obs_infections = obs_infections.reset_index()
+    # extra_obs_infections = (extra_obs_infections
+    #                         .loc[extra_obs_infections['location_id'].isin(extra_locations)]
+    #                         .reset_index(drop=True))
+    # obs_infections = aggregate_data_from_md(obs_infections.reset_index(), hierarchy, 'infections')
+    # obs_infections = obs_infections.append(extra_obs_infections)
+    # obs_infections = (obs_infections
+    #                   .set_index(['location_id', 'date'])
+    #                   .loc[:, 'infections'])
+    # extra_first_infections = first_infections.reset_index()
+    # extra_first_infections = (extra_first_infections
+    #                           .loc[extra_first_infections['location_id'].isin(extra_locations)]
+    #                           .reset_index(drop=True))
+    # first_infections = aggregate_data_from_md(first_infections.reset_index(), hierarchy, 'infections')
+    # first_infections = first_infections.append(extra_first_infections)
+    # first_infections = (first_infections
+    #                     .set_index(['location_id', 'date'])
+    #                     .loc[:, 'infections'])
     
-    inflation_factor = (obs_infections / first_infections).rename('inflation_factor').dropna()
     
     '''
     fig, ax = plt.subplots(4, figsize=(8, 8), sharex=True)
@@ -101,16 +101,4 @@ def add_repeat_infections(escape_variant_prevalence: pd.Series,
     fig.show()
     '''
     
-    inflation_factor = inflation_factor.reset_index()
-    inflation_factor['date'] += pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
-    
-    seroprevalence = seroprevalence.merge(inflation_factor, how='left')
-    seroprevalence['inflation_factor'] = seroprevalence['inflation_factor'].fillna(1)
-    
-    inflation_factor['date'] -= pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
-    
-    seroprevalence['seroprevalence'] *= seroprevalence['inflation_factor']
-    
-    del seroprevalence['inflation_factor']
-    
-    return inflation_factor, seroprevalence
+    return inflation_factor  # , seroprevalence
