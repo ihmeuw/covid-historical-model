@@ -108,6 +108,9 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     
     data['test_target'] = helpers.str_fmt(data['test_target']).str.lower()
     
+    data['study_start_age'] = helpers.str_fmt(data['study_start_age']).replace(('not specified'), np.nan).astype(float)
+    data['study_end_age'] = helpers.str_fmt(data['study_end_age']).replace(('not specified'), np.nan).astype(float)
+    
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     ## manually specify certain tests when reporting is mixed (might just be US?)
     # Oxford "mixed" is spike
@@ -200,6 +203,7 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
 
     keep_columns = ['data_id', 'nid', 'location_id', 'start_date', 'date',
                     'seroprevalence',  # 'sample_size',
+                    'study_start_age', 'study_end_age',
                     'test_name', 'test_target', 'isotype',
                     'bias', 'bias_type',
                     'correction_status', 'geo_accordance',
