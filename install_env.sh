@@ -20,6 +20,3 @@ cd limetr && git checkout master && make install && cd ..
 cd MRTool && python setup.py install && cd ..
 
 pip install -e .[internal]
-
-rm -rf limetr
-rm -rf MRTool
