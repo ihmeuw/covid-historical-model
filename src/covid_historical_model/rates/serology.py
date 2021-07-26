@@ -47,36 +47,67 @@ def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.
     
     ## ## ## ## ## #### ## ## ## ## ## ## ## ## ## ## ##
     ## tweaks
-    # only take some old age from Danish blood bank data
-    age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
-    pct_65_69 = age_spec_population.loc[78, 65].item() / age_spec_population.loc[78, 65:].sum()
-    danish_sub_70plus = (vaccinated.loc[[78], 'cumulative_adults_vaccinated'] + \
-        vaccinated.loc[[78], 'cumulative_essential_vaccinated'] + \
-        (pct_65_69 * vaccinated.loc[[78], 'cumulative_elderly_vaccinated'])).rename('cumulative_all_vaccinated')
-    vaccinated.loc[[78], 'cumulative_all_vaccinated'] = danish_sub_70plus
-    ## ## ## ## ## #### ## ## ## ## ## ## ## ## ## ## ##
-    
-    # use 80% of total vaccinated (effective not sufficient)
-    population = model_inputs.population(model_inputs_root)
-    vaccinated = vaccinated['cumulative_all_vaccinated'].rename('vaccinated') * 0.8
-    vaccinated /= population
+    # # only take some old age from Danish blood bank data
+    # age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
+    # pct_65_69 = age_spec_population.loc[78, 65].item() / age_spec_population.loc[78, 65:].sum()
+    # danish_sub_70plus = (vaccinated.loc[[78], 'cumulative_adults_vaccinated'] + \
+    #     vaccinated.loc[[78], 'cumulative_essential_vaccinated'] + \
+    #     (pct_65_69 * vaccinated.loc[[78], 'cumulative_elderly_vaccinated'])).rename('cumulative_all_vaccinated')
+    # vaccinated.loc[[78], 'cumulative_all_vaccinated'] = danish_sub_70plus
     
     # above chunk not sufficient, don't pull vaccinated people out of Danish data
     vaccinated.loc[[78]] *= 0
+    ## ## ## ## ## #### ## ## ## ## ## ## ## ## ## ## ##
     
-    # vaccinated = vaccinated.reset_index()
-    # vaccinated['date'] += pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
-    # vaccinated = vaccinated.set_index(['location_id', 'date'])
+    # make pop group specific
+    age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
+    vaccinated = get_pop_vaccinated(age_spec_population, vaccinated)
+    
+    # use 80% of total vaccinated
+    vaccinated['vaccinated'] *= 0.8
     
     if verbose:
-        logger.info('Removing (effectively?) vaccinated from reported seroprevalence.')
+        logger.info('Removing vaccinated from reported seroprevalence.')
     seroprevalence = remove_vaccinated(seroprevalence, vaccinated,)
     
     return seroprevalence
 
 
+def get_pop_vaccinated(age_spec_population: pd.Series, vaccinated: pd.Series):
+    age_spec_population = age_spec_population.reset_index()
+    population = []
+    for age_start in range(0, 25, 5):
+        for age_end in [65, 125]:
+            _population = (age_spec_population
+                           .loc[(age_spec_population['age_group_years_start'] >= age_start) &
+                                (age_spec_population['age_group_years_end'] <= age_end)]
+                           .groupby('location_id', as_index=False)['population'].sum())
+            _population['age_group_years_start'] = age_start
+            _population['age_group_years_end'] = age_end
+            population.append(_population)
+    population = pd.concat(population)
+    vaccinated = vaccinated.reset_index().merge(population)
+    is_adult_only = vaccinated['age_group_years_end'] == 65
+    vaccinated.loc[is_adult_only, 'vaccinated'] = vaccinated.loc[is_adult_only, ['cumulative_adults_vaccinated',
+                                                                                 'cumulative_essential_vaccinated']].sum(axis=1) / \
+                                                  vaccinated.loc[is_adult_only, 'population']
+    vaccinated.loc[~is_adult_only, 'vaccinated'] = vaccinated.loc[~is_adult_only, 'cumulative_all_vaccinated'] / \
+                                                   vaccinated.loc[~is_adult_only, 'population']
+    vaccinated = vaccinated.loc[:, ['location_id', 'date', 'age_group_years_start', 'age_group_years_end', 'vaccinated']]
+    
+    return vaccinated
+
+
 def remove_vaccinated(seroprevalence: pd.DataFrame,
                       vaccinated: pd.Series,) -> pd.DataFrame:
+    seroprevalence['age_group_years_start'] = seroprevalence['study_start_age'].fillna(20)
+    seroprevalence['age_group_years_start'] = np.round(seroprevalence['age_group_years_start'] / 5) * 5
+    seroprevalence.loc[seroprevalence['age_group_years_start'] > 20, 'age_group_years_start'] = 20
+    
+    seroprevalence['age_group_years_end'] = seroprevalence['study_end_age'].fillna(125)
+    seroprevalence.loc[seroprevalence['age_group_years_end'] <= 65, 'age_group_years_end'] = 65
+    seroprevalence.loc[seroprevalence['age_group_years_end'] > 65, 'age_group_years_end'] = 125
+        
     ## start
     # seroprevalence = seroprevalence.rename(columns={'date':'end_date'})
     # seroprevalence = seroprevalence.rename(columns={'start_date':'date'})
@@ -88,7 +119,13 @@ def remove_vaccinated(seroprevalence: pd.DataFrame,
     seroprevalence['date'] = seroprevalence.apply(lambda x: x['end_date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
     ##
     ## always
-    seroprevalence = seroprevalence.merge(vaccinated.reset_index(), how='left')
+    start_len = len(seroprevalence)
+    seroprevalence = seroprevalence.merge(vaccinated, how='left')
+    if len(seroprevalence) != start_len:
+        raise ValueError('Sero data expanded in vax merge.')
+    if seroprevalence.loc[seroprevalence['vaccinated'].isnull(), 'date'].max() >= pd.Timestamp('2020-12-01'):
+        raise ValueError('Missing vax after model start (2020-12-01).')
+    seroprevalence['vaccinated'] = seroprevalence['vaccinated'].fillna(0)
     ##
     ## start
     # seroprevalence = seroprevalence.rename(columns={'date':'start_date'})
@@ -99,7 +136,6 @@ def remove_vaccinated(seroprevalence: pd.DataFrame,
     del seroprevalence['n_midpoint_days']
     seroprevalence = seroprevalence.rename(columns={'end_date':'date'})
     ##
-    seroprevalence['vaccinated'] = seroprevalence['vaccinated'].fillna(0)
     
     seroprevalence.loc[seroprevalence['test_target'] != 'spike', 'vaccinated'] = 0
     
@@ -324,7 +360,7 @@ def plotter(location_id: int, location_name: str,
     infections = (ifr_results.daily_numerator / ifr_results.pred).rename('infections').loc[location_id].dropna()
     infections.index -= pd.Timedelta(days=SERO_TO_DEATH)
     sensitivity = sensitivity.loc[sensitivity['location_id'] == location_id]
-    effectively_vaccinated = vaccine_coverage.loc[location_id, 'cumulative_all_effective'] / population.loc[location_id]
+    vaccinated = vaccine_coverage.loc[location_id, 'cumulative_all_vaccinated'] / population.loc[location_id]
 
     # remove repeat infections we added earlier
     adj_seroprevalence = adj_seroprevalence.merge(reinfection_inflation_factor, how='left')
@@ -431,7 +467,7 @@ def plotter(location_id: int, location_name: str,
     sens_ax.set_xlabel('Time from exposure to test')
 
     vacc_ax = fig.add_subplot(gs[1, 1])
-    vacc_ax.plot(effectively_vaccinated * 100, color='black')
+    vacc_ax.plot(vaccinated * 100, color='black')
     vacc_ax.set_ylabel('Vaccinated (%)')
     vacc_ax.set_xlim(PLOT_START_DATE, PLOT_END_DATE)
     vacc_ax.xaxis.set_major_locator(PLOT_DATE_LOCATOR)
