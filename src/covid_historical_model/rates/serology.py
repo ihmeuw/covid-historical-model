@@ -15,6 +15,8 @@ from covid_historical_model.durations.durations import SERO_TO_DEATH, EXPOSURE_T
 from covid_historical_model.etl import model_inputs
 from covid_historical_model.utils.misc import text_wrap
 
+VAX_SERO_PROB = 0.9
+
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 # should have module for these that is more robust to additions
 ASSAYS = ['N-Abbott',  # IgG
@@ -64,7 +66,7 @@ def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.
     vaccinated = get_pop_vaccinated(age_spec_population, vaccinated)
     
     # use 80% of total vaccinated
-    vaccinated['vaccinated'] *= 0.8
+    vaccinated['vaccinated'] *= VAX_SERO_PROB
     
     if verbose:
         logger.info('Removing vaccinated from reported seroprevalence.')
@@ -107,7 +109,7 @@ def remove_vaccinated(seroprevalence: pd.DataFrame,
     seroprevalence['age_group_years_end'] = seroprevalence['study_end_age'].fillna(125)
     seroprevalence.loc[seroprevalence['age_group_years_end'] <= 65, 'age_group_years_end'] = 65
     seroprevalence.loc[seroprevalence['age_group_years_end'] > 65, 'age_group_years_end'] = 125
-        
+    
     ## start
     # seroprevalence = seroprevalence.rename(columns={'date':'end_date'})
     # seroprevalence = seroprevalence.rename(columns={'start_date':'date'})

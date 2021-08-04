@@ -133,7 +133,7 @@ def variant_scaleup(variant_scaleup_root: Path, variant_type: str, verbose: bool
     data['date'] = pd.to_datetime(data['date'])
     
     variants_in_data = data['variant'].unique().tolist()
-    variants_in_model = ['B1351', 'P1', 'B16171', 'B16172', 'B117', 'wild_type']
+    variants_in_model = ['B1351', 'P1', 'B16172', 'B117', 'wild_type']  # , 'B16171'
     
     if any([v not in variants_in_data for v in variants_in_model]):
         missing_in_data = ', '.join([v for v in variants_in_model if v not in variants_in_data])
