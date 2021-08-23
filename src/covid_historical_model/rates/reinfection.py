@@ -5,7 +5,7 @@ import pandas as pd
 from covid_historical_model.etl.helpers import aggregate_data_from_md
 from covid_historical_model.durations.durations import EXPOSURE_TO_DEATH, EXPOSURE_TO_SEROPOSITIVE
 
-CROSS_VARIANT_IMMUNITY = 0.6
+CROSS_VARIANT_IMMUNITY = 0.5
 
 
 # def fill_non_covid_locs(escape_variant_prevalence: pd.Series,
