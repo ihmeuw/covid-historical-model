@@ -349,6 +349,13 @@ def assay_sensitivity(model_inputs_root: Path, assay_day_0: int = 21,) -> pd.Dat
     return sensitivity
 
 
+def assay_map(model_inputs_root: Path,):
+    data_path = model_inputs_root / 'serology' / 'waning_immunity' / 'assay_map.xlsx'
+    data = pd.read_excel(data_path)
+    
+    return data
+
+
 def validate_hierarchies(hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame):
     covid = hierarchy.loc[:, ['location_id', 'path_to_top_parent']]
     covid = covid.rename(columns={'path_to_top_parent': 'covid_path'})

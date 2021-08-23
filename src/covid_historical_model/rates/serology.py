@@ -157,6 +157,7 @@ def apply_waning_adjustment(model_inputs_root: Path,
                             pred_ifr: pd.Series,
                             verbose: bool = True,) -> pd.DataFrame:
     sensitivity = model_inputs.assay_sensitivity(model_inputs_root)
+    assay_map = model_inputs.assay_map(model_inputs_root)
     
     data_assays = sensitivity['assay'].unique().tolist()
     excluded_data_assays = [da for da in data_assays if da not in ASSAYS]
@@ -179,11 +180,6 @@ def apply_waning_adjustment(model_inputs_root: Path,
     ).set_index(['assay', 'location_id', 't']).sort_index()
     
     seroprevalence = seroprevalence.loc[seroprevalence['is_outlier'] == 0]
-    
-    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
-    ## DO THIS DIFFERENTLY...?
-    assay_map = pd.read_excel('/'.join(__file__.split('/')[:-2]) + '/maps/assay_map.xlsx')
-    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
     seroprevalence = seroprevalence.merge(assay_map, how='left')
     missing_match = seroprevalence['assay_map'].isnull()
