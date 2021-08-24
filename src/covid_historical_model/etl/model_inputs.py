@@ -131,6 +131,11 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     data.loc[is_ny & is_cdc & is_nov_or_later, 'isotype'] = 'IgG'
     data.loc[is_ny & is_cdc & is_nov_or_later & is_N, 'test_target'] = 'nucleocapsid'
     data.loc[is_ny & is_cdc & is_nov_or_later & is_N, 'test_name'] = 'Abbott ARCHITECT SARS-CoV-2 IgG immunoassay'
+    
+    # Belgian blood bank data is clearly showing vaccinations, must be spike
+    is_belgium = data['location_id'] == 76
+    is_blood_bank = data['survey_series'] == 'belgium_blood'
+    data.loc[is_belgium & is_blood_bank, 'test_target'] = 'spike'
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
     outliers = []
