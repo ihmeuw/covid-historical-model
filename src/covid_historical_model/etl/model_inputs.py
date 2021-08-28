@@ -318,7 +318,7 @@ def population(model_inputs_root: Path, by_age: bool = False) -> pd.Series:
     return data
 
 
-def assay_sensitivity(model_inputs_root: Path, assay_day_0: int = 21,) -> pd.DataFrame:
+def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     # TODO: bootstrapping or something to incorporate uncertainty (would need to digitize this portion from Perez-Saez plots)?
     peluso_path = model_inputs_root / 'serology' / 'waning_immunity' / 'peluso_assay_sensitivity.xlsx'
     perez_saez_paths = [
@@ -326,7 +326,11 @@ def assay_sensitivity(model_inputs_root: Path, assay_day_0: int = 21,) -> pd.Dat
         model_inputs_root / 'serology' / 'waning_immunity' / 'perez-saez_rbd-euroimmun.xlsx',
         model_inputs_root / 'serology' / 'waning_immunity' / 'perez-saez_rbd-roche.xlsx',
     ]
+    bond_path = model_inputs_root / 'serology' / 'waning_immunity' / 'bond.xlsx'
+    muecksch_path = model_inputs_root / 'serology' / 'waning_immunity' / 'muecksch.xlsx'
+    lumley_path = model_inputs_root / 'serology' / 'waning_immunity' / 'lumley.xlsx'
     
+    ## PELUSO
     peluso = pd.read_excel(peluso_path)
     peluso['t'] = peluso['Time'].apply(lambda x: int(x.split(' ')[0]) * 30)
     peluso = peluso.rename(columns={'mean': 'sensitivity',
@@ -339,17 +343,72 @@ def assay_sensitivity(model_inputs_root: Path, assay_day_0: int = 21,) -> pd.Dat
                                                'N(frag)-Lum', 'N-Split Luc'])]
     peluso['source'] = 'Peluso'
     
-    # could try to manually apply hosp/non-hosp split
+    ## PEREZ-SAEZ - start at 21 days out
     perez_saez = pd.concat([pd.read_excel(perez_saez_path) for perez_saez_path in perez_saez_paths])
-    perez_saez = perez_saez.loc[perez_saez['t'] >= assay_day_0]
-    perez_saez['t'] -= assay_day_0
+    perez_saez = perez_saez.loc[perez_saez['t'] >= 21]
+    perez_saez['t'] -= 21
     perez_saez = pd.concat([
         pd.concat([perez_saez, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=perez_saez.index)], axis=1),
         pd.concat([perez_saez, pd.DataFrame({'hospitalization_status':'Hospitalized'}, index=perez_saez.index)], axis=1)
     ])
     perez_saez['source'] = 'Perez-Saez'
     
-    sensitivity = pd.concat([peluso, perez_saez]).reset_index(drop=True)
+    ## BOND - drop 121-150 point, is only 11 people and can't possibly be at 100%; start 21 days out; only keep Abbott
+    bond = pd.read_excel(bond_path)
+    bond = bond.loc[bond['days since symptom onset'] != '121–150']
+    bond['t_start'] = bond['days since symptom onset'].str.split('–').apply(lambda x: int(x[0]))
+    bond['t_end'] = bond['days since symptom onset'].str.split('–').apply(lambda x: int(x[1]))
+    bond['t'] = bond[['t_start', 't_end']].mean(axis=1)
+    for assay in ['N-Abbott', 'S-DiaSorin', 'N-Roche']:
+        bond[assay] = bond[assay].str.split('%').apply(lambda x: float(x[0])) / 100
+    bond = pd.melt(bond, id_vars='t', value_vars=['N-Abbott', 'S-DiaSorin', 'N-Roche'],
+                   var_name='assay', value_name='sensitivity')
+    bond = bond.loc[bond['t'] >= 21]
+    bond['t'] -= 21
+    bond = pd.concat([
+        pd.concat([bond, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=bond.index)], axis=1),
+        pd.concat([bond, pd.DataFrame({'hospitalization_status':'Hospitalized'}, index=bond.index)], axis=1)
+    ])
+    bond = bond.loc[bond['assay'] == 'N-Abbott']
+    bond['source'] = 'Bond'
+    
+    # ## MUECKSCH - top end of terminal group is 110 days; only keep Abbott
+    # muecksch = pd.read_excel(muecksch_path)
+    # muecksch.loc[muecksch['Time, d'] == '>81', 'Time, d'] = '81-110'
+    # muecksch['t_start'] = muecksch['Time, d'].str.split('-').apply(lambda x: int(x[0]))
+    # muecksch['t_end'] = muecksch['Time, d'].str.split('-').apply(lambda x: int(x[1]))
+    # muecksch['t'] = muecksch[['t_start', 't_end']].mean(axis=1)
+    # for assay in ['N-Abbott', 'S-DiaSorin', 'RBD-Siemens']:
+    #     muecksch[assay] = muecksch[assay].str.split(' ').apply(lambda x: float(x[0])) / 100
+    # muecksch = pd.melt(muecksch, id_vars='t', value_vars=['N-Abbott', 'S-DiaSorin', 'RBD-Siemens'],
+    #                    var_name='assay', value_name='sensitivity')
+    # muecksch['t'] -= 24
+    # muecksch = pd.concat([
+    #     pd.concat([muecksch, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=muecksch.index)], axis=1),
+    #     pd.concat([muecksch, pd.DataFrame({'hospitalization_status':'Hospitalized'}, index=muecksch.index)], axis=1)
+    # ])
+    # muecksch = muecksch.loc[muecksch['assay'] == 'N-Abbott']
+    # muecksch['source'] = 'Muecksch'
+    
+    ## LUMLEY
+    logger.warning('Need to update Lumley path...')
+    lumley_path = Path('/ihme/covid-19-2/data_intake/serology/waning_immunity/lumley.xlsx')
+    lumley = pd.read_excel(lumley_path)
+    lumley = lumley.loc[lumley['keep'] == 1]
+    lumley['sensitivity'] *= (lumley['num_60'] / lumley['denom_60']) / lumley['avg_60']
+    lumley = pd.concat([
+        pd.concat([lumley, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=lumley.index)], axis=1),
+        pd.concat([lumley, pd.DataFrame({'hospitalization_status':'Hospitalized'}, index=lumley.index)], axis=1)
+    ])
+    lumley['source'] = 'Lumley'
+    
+    # combine them all
+    keep_cols = ['source', 'assay', 'hospitalization_status', 't', 'sensitivity',]
+    sensitivity = pd.concat([peluso.loc[:, keep_cols],
+                             perez_saez.loc[:, keep_cols],
+                             bond.loc[:, keep_cols],
+                             # muecksch.loc[:, keep_cols],
+                             lumley.loc[:, keep_cols],]).reset_index(drop=True)
     
     return sensitivity
 
