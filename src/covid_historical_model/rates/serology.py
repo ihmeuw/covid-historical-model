@@ -15,8 +15,10 @@ import seaborn as sns
 from covid_historical_model.durations.durations import SERO_TO_DEATH, EXPOSURE_TO_SEROPOSITIVE, EXPOSURE_TO_DEATH
 from covid_historical_model.etl import model_inputs
 from covid_historical_model.utils.misc import text_wrap
+from covid_historical_model.utils.math import scale_to_bounds
 
 VAX_SERO_PROB = 0.9
+SEROREV_LB = 0.25
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 # should have module for these that is more robust to additions
@@ -283,6 +285,11 @@ def fit_hospital_weighted_sensitivity_decay(sensitivity: pd.DataFrame, increasin
                                  (sensitivity['nonhosp_sensitivity'] * (1 - sensitivity['hospitalized_weights']))
     sensitivity = sensitivity.reset_index()
     sensitivity['assay'] = assay
+    
+    sensitivity['hosp_sensitivity'] = scale_to_bounds(sensitivity['hosp_sensitivity'],
+                                                      SEROREV_LB, 1.,)
+    sensitivity['nonhosp_sensitivity'] = scale_to_bounds(sensitivity['nonhosp_sensitivity'],
+                                                         SEROREV_LB, 1.,)
     
     return sensitivity.loc[:, ['location_id', 'assay', 't', 'sensitivity', 'hosp_sensitivity', 'nonhosp_sensitivity']]
 

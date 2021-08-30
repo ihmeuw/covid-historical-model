@@ -5,6 +5,8 @@ from loguru import logger
 import pandas as pd
 import numpy as np
 
+from covid_historical_model.utils.math import scale_to_bounds
+
 
 def manual_floor_setting(rmse: pd.DataFrame,
                          best_floor: pd.Series,
@@ -55,15 +57,6 @@ def find_idr_floor(pred: pd.Series,
     return rmse, best_floor
 
 
-def rescale_idr(pred: pd.Series, floor: float, ceiling: float) -> pd.Series:
-    squeeze_floor = max(floor, pred.min())
-    squeeze_ceiling = min(ceiling, pred.max())
-    squeeze_ceiling = max(squeeze_floor, squeeze_ceiling)
-    
-    pred = ((pred - pred.min()) / pred.values.ptp()) * (squeeze_ceiling - squeeze_floor) + squeeze_floor
-    
-    return pred
-
 
 def test_floor_value(pred: pd.Series,
                      daily_cases: pd.Series,
@@ -78,7 +71,7 @@ def test_floor_value(pred: pd.Series,
     
     pred = (pred
             .groupby(level=0)
-            .apply(lambda x: rescale_idr(x, floor, 1.))
+            .apply(lambda x: scale_to_bounds(x, floor, 1.))
             .rename('idr'))
     
     daily_infections = (daily_cases / pred).dropna()
