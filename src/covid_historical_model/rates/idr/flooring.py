@@ -83,6 +83,7 @@ def test_floor_value(pred: pd.Series,
     
     rmses = pd.Series([],
                       name='rmse',
+                      dtype='float',
                       index=pd.Index([], name='location_id'))
     location_ids = hierarchy.sort_values(['level', 'sort_order'])['location_id']
     for location_id in tqdm(location_ids):

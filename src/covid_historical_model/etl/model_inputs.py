@@ -391,8 +391,6 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     # muecksch['source'] = 'Muecksch'
     
     ## LUMLEY
-    logger.warning('Need to update Lumley path...')
-    lumley_path = Path('/ihme/covid-19-2/data_intake/serology/waning_immunity/lumley.xlsx')
     lumley = pd.read_excel(lumley_path)
     lumley = lumley.loc[lumley['keep'] == 1]
     lumley['sensitivity'] *= (lumley['num_60'] / lumley['denom_60']) / lumley['avg_60']

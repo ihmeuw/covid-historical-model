@@ -281,15 +281,16 @@ def fit_hospital_weighted_sensitivity_decay(sensitivity: pd.DataFrame, increasin
     hospitalized_weights = hospitalized_weights.reset_index()
     hospitalized_weights['key'] = 0
     sensitivity = sensitivity.merge(hospitalized_weights, on='key', how='outer')
-    sensitivity['sensitivity'] = (sensitivity['hosp_sensitivity'] * sensitivity['hospitalized_weights']) + \
-                                 (sensitivity['nonhosp_sensitivity'] * (1 - sensitivity['hospitalized_weights']))
-    sensitivity = sensitivity.reset_index()
-    sensitivity['assay'] = assay
     
     sensitivity['hosp_sensitivity'] = scale_to_bounds(sensitivity['hosp_sensitivity'],
                                                       SEROREV_LB, 1.,)
     sensitivity['nonhosp_sensitivity'] = scale_to_bounds(sensitivity['nonhosp_sensitivity'],
                                                          SEROREV_LB, 1.,)
+    sensitivity['sensitivity'] = (sensitivity['hosp_sensitivity'] * sensitivity['hospitalized_weights']) + \
+                                 (sensitivity['nonhosp_sensitivity'] * (1 - sensitivity['hospitalized_weights']))
+    sensitivity = sensitivity.reset_index()
+    
+    sensitivity['assay'] = assay
     
     return sensitivity.loc[:, ['location_id', 'assay', 't', 'sensitivity', 'hosp_sensitivity', 'nonhosp_sensitivity']]
 
