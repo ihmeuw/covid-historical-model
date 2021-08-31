@@ -60,8 +60,8 @@ def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.
     #     (pct_65_69 * vaccinated.loc[[78], 'cumulative_elderly_vaccinated'])).rename('cumulative_all_vaccinated')
     # vaccinated.loc[[78], 'cumulative_all_vaccinated'] = danish_sub_70plus
     
-    # above chunk not sufficient, don't pull vaccinated people out of Danish data
-    vaccinated.loc[[78]] *= 0
+    # # above chunk not sufficient, don't pull vaccinated people out of Danish data
+    # vaccinated.loc[[78]] *= 0
     ## ## ## ## ## #### ## ## ## ## ## ## ## ## ## ## ##
     
     # make pop group specific

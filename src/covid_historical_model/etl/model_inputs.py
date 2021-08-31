@@ -133,19 +133,20 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     data.loc[is_ny & is_cdc & is_nov_or_later, 'test_target'] = 'nucleocapsid'  #  & is_N
     data.loc[is_ny & is_cdc & is_nov_or_later, 'test_name'] = 'Abbott ARCHITECT SARS-CoV-2 IgG immunoassay'  #  & is_N
     
-    # Louisiana mixed portion looks the same as the Abbott; recode
+    # Louisiana mixed portion looks the same as the nucleocapsid; recode (will actually use average, see below)
     is_la = data['location_id'] == 541
     is_cdc = data['survey_series'] == 'cdc_series'
     is_nov_or_later = data['date'] >= pd.Timestamp('2020-11-01')
-    data.loc[is_la & is_cdc & is_nov_or_later, 'isotype'] = 'IgG'
+    data.loc[is_la & is_cdc & is_nov_or_later, 'isotype'] = 'pan-Ig'
     data.loc[is_la & is_cdc & is_nov_or_later, 'test_target'] = 'nucleocapsid'
-    data.loc[is_la & is_cdc & is_nov_or_later, 'test_name'] = 'Abbott ARCHITECT SARS-CoV-2 IgG immunoassay'
+    data.loc[is_la & is_cdc & is_nov_or_later, 'test_name'] = 'Abbott Architect IgG; Roche Elecsys N pan-Ig'
     
     # BIG CDC CHANGE
     # many states are coded as Abbott, seem be Roche after the changes in Nov; recode
     for location_id in [523,  # Alabama
                         526,  # Arkansas
                         527,  # California
+                        530,  # Delaware
                         531,  # District of Columbia
                         532,  # Florida
                         536,  # Illinois
@@ -171,7 +172,7 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
         is_nov_or_later = data['date'] >= pd.Timestamp('2020-11-01')
         data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'isotype'] = 'pan-Ig'
         data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'test_target'] = 'nucleocapsid'
-        data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'test_name'] = 'Roche Elecsys N pan-Ig'  # Abbott Architect IgG; Roche Elecsys N pan-Ig
+        data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'test_name'] = 'Roche Elecsys N pan-Ig'  # 'Abbott Architect IgG; Roche Elecsys N pan-Ig'
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
     outliers = []
@@ -233,6 +234,26 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     outliers.append(uk_vax_outlier)
     if verbose:
         logger.info(f'{uk_vax_outlier.sum()} rows from sero data dropped due to UK vax issues.')
+        
+    # vaccine debacle, lose all the Danish data from Feb 2021 onward
+    is_den = data['location_id'].isin([78])
+    is_spike = data['test_target'] == 'spike'
+    is_2021 = data['date'] >= pd.Timestamp('2021-02-01')
+    
+    den_vax_outlier = is_den & is_spike & is_2021
+    outliers.append(den_vax_outlier)
+    if verbose:
+        logger.info(f'{den_vax_outlier.sum()} rows from sero data dropped due to Denmark vax issues.')
+        
+    # vaccine debacle, lose all the Estonia and Netherlands data from Junue 2021 onward
+    is_est_ndl = data['location_id'].isin([58, 89])
+    is_spike = data['test_target'] == 'spike'
+    is_2021 = data['date'] >= pd.Timestamp('2021-06-01')
+    
+    est_ndl_vax_outlier = is_est_ndl & is_spike & is_2021
+    outliers.append(est_ndl_vax_outlier)
+    if verbose:
+        logger.info(f'{est_ndl_vax_outlier.sum()} rows from sero data dropped due to Netherlands and Estonia vax issues.')
         
     # # drop Rio Grande do Sul
     # rgds_outlier = data['location_id'] == 4772
