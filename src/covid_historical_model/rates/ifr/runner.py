@@ -33,6 +33,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
            pred_start_date: str = '2019-11-01',
            pred_end_date: str = '2021-12-31',
            verbose: bool = True,) -> Dict:
+    ## SET UP
     day_inflection = pd.Timestamp(day_inflection)
     day_0 = pd.Timestamp(day_0)
     pred_start_date = pd.Timestamp(pred_start_date)
@@ -49,6 +50,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
         day_0=day_0, **input_data
     )
     
+    ## STAGE 1 MODEL
     # check what NAs in pred data might be about, get rid of them in safer way
     mr_model_dict, prior_dicts, pred, pred_fe, pred_location_map, age_stand_scaling_factor, level_lambdas = ifr.model.run_model(
         model_data=model_data.copy(),
@@ -58,6 +60,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
         **input_data
     )
     
+    ## REINFECTION
     # account for escape variant re-infection
     reinfection_inflation_factor, seroprevalence = reinfection.add_repeat_infections(
         input_data['escape_variant_prevalence'].copy(),
@@ -70,6 +73,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
         verbose=verbose,
     )
 
+    ## WANING SENSITIVITY ADJUSTMENT
     # account for waning antibody detection
     ihr_age_pattern = ihr.data.load_input_data(model_inputs_root, age_pattern_root,
                                                seroprevalence, vaccine_coverage,
@@ -88,6 +92,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
         pred.copy(),
     )
     
+    ## SET UP REFIT
     refit_input_data = input_data.copy()
     refit_input_data['seroprevalence'] = seroprevalence
     refit_model_data = ifr.data.create_model_data(day_0=day_0, **refit_input_data)
@@ -95,7 +100,8 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,
         day_0=day_0, **refit_input_data
     )
-
+    
+    ## STAGE 2 MODEL
     # check what NAs in pred data might be about, get rid of them in safer way
     refit_mr_model_dict, refit_prior_dicts, refit_pred, refit_pred_fe, \
     refit_pred_location_map, refit_age_stand_scaling_factor, refit_level_lambdas = ifr.model.run_model(
@@ -107,6 +113,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Pa
     )
     refit_pred_unadj = refit_pred.copy()
     
+    ## POST
     refit_pred, refit_pred_lr, refit_pred_hr, pct_inf_lr, pct_inf_hr = post.variants_vaccines(
         rate_age_pattern=refit_input_data['ifr_age_pattern'].copy(),
         denom_age_pattern=refit_input_data['sero_age_pattern'].copy(),
