@@ -18,7 +18,7 @@ from covid_historical_model.utils.misc import text_wrap
 from covid_historical_model.utils.math import scale_to_bounds
 
 VAX_SERO_PROB = 0.9
-SEROREV_LB = 0.25
+SEROREV_LB = 0.
 
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 # should have module for these that is more robust to additions

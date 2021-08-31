@@ -124,18 +124,54 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     data.loc[is_peru & is_roche, 'isotype'] = 'pan-Ig'
     
     # New York (after Nov 2020 onwards, nucleocapsid test is Abbott, not Roche)
+    # ADDENDUM (2021-08-31): mixed portion looks the same as the Abbott; recode that as well
     is_ny = data['location_id'] == 555
     is_cdc = data['survey_series'] == 'cdc_series'
-    is_N = data['test_target'] == 'nucleocapsid'
+    #is_N = data['test_target'] == 'nucleocapsid'
     is_nov_or_later = data['date'] >= pd.Timestamp('2020-11-01')
     data.loc[is_ny & is_cdc & is_nov_or_later, 'isotype'] = 'IgG'
-    data.loc[is_ny & is_cdc & is_nov_or_later & is_N, 'test_target'] = 'nucleocapsid'
-    data.loc[is_ny & is_cdc & is_nov_or_later & is_N, 'test_name'] = 'Abbott ARCHITECT SARS-CoV-2 IgG immunoassay'
+    data.loc[is_ny & is_cdc & is_nov_or_later, 'test_target'] = 'nucleocapsid'  #  & is_N
+    data.loc[is_ny & is_cdc & is_nov_or_later, 'test_name'] = 'Abbott ARCHITECT SARS-CoV-2 IgG immunoassay'  #  & is_N
     
-    # Belgian blood bank data is clearly showing vaccinations, must be spike
-    is_belgium = data['location_id'] == 76
-    is_blood_bank = data['survey_series'] == 'belgium_blood'
-    data.loc[is_belgium & is_blood_bank, 'test_target'] = 'spike'
+    # Louisiana mixed portion looks the same as the Abbott; recode
+    is_la = data['location_id'] == 541
+    is_cdc = data['survey_series'] == 'cdc_series'
+    is_nov_or_later = data['date'] >= pd.Timestamp('2020-11-01')
+    data.loc[is_la & is_cdc & is_nov_or_later, 'isotype'] = 'IgG'
+    data.loc[is_la & is_cdc & is_nov_or_later, 'test_target'] = 'nucleocapsid'
+    data.loc[is_la & is_cdc & is_nov_or_later, 'test_name'] = 'Abbott ARCHITECT SARS-CoV-2 IgG immunoassay'
+    
+    # BIG CDC CHANGE
+    # many states are coded as Abbott, seem be Roche after the changes in Nov; recode
+    for location_id in [523,  # Alabama
+                        526,  # Arkansas
+                        527,  # California
+                        531,  # District of Columbia
+                        532,  # Florida
+                        536,  # Illinois
+                        540,  # Kentucky
+                        545,  # Michigan
+                        547,  # Mississippi
+                        548,  # Missouri
+                        551,  # Nevada
+                        556,  # North Carolina
+                        558,  # Ohio
+                        563,  # South Carolina
+                        564,  # South Dakota
+                        565,  # Tennessee
+                        566,  # Texas
+                        567,  # Utah
+                        571,  # West Virginia
+                        572,  # Wisconsin
+                        573,  # Wyoming
+                       ]:
+        is_state = data['location_id'] == location_id
+        is_cdc = data['survey_series'] == 'cdc_series'
+        is_N = data['test_target'] == 'nucleocapsid'
+        is_nov_or_later = data['date'] >= pd.Timestamp('2020-11-01')
+        data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'isotype'] = 'pan-Ig'
+        data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'test_target'] = 'nucleocapsid'
+        data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'test_name'] = 'Roche Elecsys N pan-Ig'  # Abbott Architect IgG; Roche Elecsys N pan-Ig
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
     outliers = []
@@ -372,23 +408,23 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     bond = bond.loc[bond['assay'] == 'N-Abbott']
     bond['source'] = 'Bond'
     
-    # ## MUECKSCH - top end of terminal group is 110 days; only keep Abbott
-    # muecksch = pd.read_excel(muecksch_path)
-    # muecksch.loc[muecksch['Time, d'] == '>81', 'Time, d'] = '81-110'
-    # muecksch['t_start'] = muecksch['Time, d'].str.split('-').apply(lambda x: int(x[0]))
-    # muecksch['t_end'] = muecksch['Time, d'].str.split('-').apply(lambda x: int(x[1]))
-    # muecksch['t'] = muecksch[['t_start', 't_end']].mean(axis=1)
-    # for assay in ['N-Abbott', 'S-DiaSorin', 'RBD-Siemens']:
-    #     muecksch[assay] = muecksch[assay].str.split(' ').apply(lambda x: float(x[0])) / 100
-    # muecksch = pd.melt(muecksch, id_vars='t', value_vars=['N-Abbott', 'S-DiaSorin', 'RBD-Siemens'],
-    #                    var_name='assay', value_name='sensitivity')
-    # muecksch['t'] -= 24
-    # muecksch = pd.concat([
-    #     pd.concat([muecksch, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=muecksch.index)], axis=1),
-    #     pd.concat([muecksch, pd.DataFrame({'hospitalization_status':'Hospitalized'}, index=muecksch.index)], axis=1)
-    # ])
-    # muecksch = muecksch.loc[muecksch['assay'] == 'N-Abbott']
-    # muecksch['source'] = 'Muecksch'
+    ## MUECKSCH - top end of terminal group is 110 days; only keep Abbott
+    muecksch = pd.read_excel(muecksch_path)
+    muecksch.loc[muecksch['Time, d'] == '>81', 'Time, d'] = '81-110'
+    muecksch['t_start'] = muecksch['Time, d'].str.split('-').apply(lambda x: int(x[0]))
+    muecksch['t_end'] = muecksch['Time, d'].str.split('-').apply(lambda x: int(x[1]))
+    muecksch['t'] = muecksch[['t_start', 't_end']].mean(axis=1)
+    for assay in ['N-Abbott', 'S-DiaSorin', 'RBD-Siemens']:
+        muecksch[assay] = muecksch[assay].str.split(' ').apply(lambda x: float(x[0])) / 100
+    muecksch = pd.melt(muecksch, id_vars='t', value_vars=['N-Abbott', 'S-DiaSorin', 'RBD-Siemens'],
+                       var_name='assay', value_name='sensitivity')
+    muecksch['t'] -= 24
+    muecksch = pd.concat([
+        pd.concat([muecksch, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=muecksch.index)], axis=1),
+        pd.concat([muecksch, pd.DataFrame({'hospitalization_status':'Hospitalized'}, index=muecksch.index)], axis=1)
+    ])
+    muecksch = muecksch.loc[muecksch['assay'] == 'N-Abbott']
+    muecksch['source'] = 'Muecksch'
     
     ## LUMLEY
     lumley = pd.read_excel(lumley_path)
@@ -405,7 +441,7 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     sensitivity = pd.concat([peluso.loc[:, keep_cols],
                              perez_saez.loc[:, keep_cols],
                              bond.loc[:, keep_cols],
-                             # muecksch.loc[:, keep_cols],
+                             muecksch.loc[:, keep_cols],
                              lumley.loc[:, keep_cols],]).reset_index(drop=True)
     
     return sensitivity
