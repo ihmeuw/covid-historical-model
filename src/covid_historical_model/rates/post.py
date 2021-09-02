@@ -15,8 +15,7 @@ def variants_vaccines(rate_age_pattern: pd.Series,
                       escape_variant_prevalence: pd.Series,
                       severity_variant_prevalence: pd.Series,
                       vaccine_coverage: pd.DataFrame,
-                      population: pd.Series,
-                      variant_rate_scalar: float = SEVERE_DISEASE_INFLATION,):
+                      population: pd.Series,):
     escape_variant_prevalence = escape_variant_prevalence.reset_index()
     escape_variant_prevalence['date'] += pd.Timedelta(days=day_shift)
     escape_variant_prevalence = (escape_variant_prevalence
@@ -45,15 +44,15 @@ def variants_vaccines(rate_age_pattern: pd.Series,
     numerator /= population
     
     denominator_a = (numerator / rate)
-    denominator_ev = (numerator / (rate * variant_rate_scalar))
-    denominator_sv = (numerator / (rate * variant_rate_scalar))
+    denominator_ev = (numerator / (rate * SEVERE_DISEASE_INFLATION))
+    denominator_sv = (numerator / (rate * SEVERE_DISEASE_INFLATION))
     denominator_a *= (1 - (escape_variant_prevalence + severity_variant_prevalence)[denominator_a.index])
     denominator_ev *= escape_variant_prevalence[denominator_ev.index]
     denominator_sv *= severity_variant_prevalence[denominator_sv.index]
 
     numerator_a = (rate * denominator_a)
-    numerator_ev = (rate * variant_rate_scalar * denominator_ev)
-    numerator_sv = (rate * variant_rate_scalar * denominator_sv)
+    numerator_ev = (rate * SEVERE_DISEASE_INFLATION * denominator_ev)
+    numerator_sv = (rate * SEVERE_DISEASE_INFLATION * denominator_sv)
     
     numerator_lr_a, numerator_hr_a, denominator_lr_a, denominator_hr_a = adjust_by_variant_classification(
         numerator_a,
@@ -118,7 +117,7 @@ def adjust_by_variant_classification(numerator: pd.Series,
 
     lr_denom_rr, hr_denom_rr = age_standardization.get_risk_group_rr(
         denom_age_pattern.copy()**0,  # REMOVE THIS IF WE WANT TO USE THE ACTUAL SERO AGE PATTERN
-        denom_age_pattern.copy()**0,
+        denom_age_pattern.copy()**0,  # REMOVE THIS IF WE WANT TO USE THE ACTUAL SERO AGE PATTERN
         age_spec_population.copy(),
     )
     denominator_lr = denominator * lr_denom_rr

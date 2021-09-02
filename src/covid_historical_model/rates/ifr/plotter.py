@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Dict
 from collections import namedtuple
+from datetime import datetime
 
 import pandas as pd
 import numpy as np
@@ -16,7 +17,7 @@ DATE_LOCATOR = mdates.AutoDateLocator(maxticks=10)
 DATE_FORMATTER = mdates.ConciseDateFormatter(DATE_LOCATOR, show_offset=False)
 
 START_DATE = pd.Timestamp('2020-03-01')
-END_DATE = pd.Timestamp('2021-08-01')
+END_DATE = pd.Timestamp(str(datetime.today().date()))
 
 L_RAW = 'lightgrey'
 D_RAW = 'darkgrey'

@@ -115,6 +115,9 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     
     data['test_target'] = helpers.str_fmt(data['test_target']).str.lower()
     
+    data['study_start_age'] = helpers.str_fmt(data['study_start_age']).replace(('not specified'), np.nan).astype(float)
+    data['study_end_age'] = helpers.str_fmt(data['study_end_age']).replace(('not specified'), np.nan).astype(float)
+    
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     ## manually specify certain tests when reporting is mixed (might just be US?)
     # Oxford "mixed" is spike
@@ -128,13 +131,55 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     data.loc[is_peru & is_roche, 'isotype'] = 'pan-Ig'
     
     # New York (after Nov 2020 onwards, nucleocapsid test is Abbott, not Roche)
+    # ADDENDUM (2021-08-31): mixed portion looks the same as the Abbott; recode that as well
     is_ny = data['location_id'] == 555
     is_cdc = data['survey_series'] == 'cdc_series'
-    is_N = data['test_target'] == 'nucleocapsid'
+    #is_N = data['test_target'] == 'nucleocapsid'
     is_nov_or_later = data['date'] >= pd.Timestamp('2020-11-01')
-    data.loc[is_ny & is_cdc & is_nov_or_later, 'isotype'] = 'IgG'
-    data.loc[is_ny & is_cdc & is_nov_or_later & is_N, 'test_target'] = 'nucleocapsid'
-    data.loc[is_ny & is_cdc & is_nov_or_later & is_N, 'test_name'] = 'Abbott ARCHITECT SARS-CoV-2 IgG immunoassay'
+    data.loc[is_ny & is_cdc & is_nov_or_later, 'isotype'] = 'pan-Ig'
+    data.loc[is_ny & is_cdc & is_nov_or_later, 'test_target'] = 'nucleocapsid'  #  & is_N
+    data.loc[is_ny & is_cdc & is_nov_or_later, 'test_name'] = 'Abbott Architect IgG; Roche Elecsys N pan-Ig'  #  & is_N
+    
+    # Louisiana mixed portion looks the same as the nucleocapsid; recode (will actually use average, see below)
+    is_la = data['location_id'] == 541
+    is_cdc = data['survey_series'] == 'cdc_series'
+    is_nov_or_later = data['date'] >= pd.Timestamp('2020-11-01')
+    data.loc[is_la & is_cdc & is_nov_or_later, 'isotype'] = 'pan-Ig'
+    data.loc[is_la & is_cdc & is_nov_or_later, 'test_target'] = 'nucleocapsid'
+    data.loc[is_la & is_cdc & is_nov_or_later, 'test_name'] = 'Abbott Architect IgG; Roche Elecsys N pan-Ig'
+    
+    # BIG CDC CHANGE
+    # many states are coded as Abbott, seem be Roche after the changes in Nov; recode
+    for location_id in [523,  # Alabama
+                        526,  # Arkansas
+                        527,  # California
+                        530,  # Delaware
+                        531,  # District of Columbia
+                        532,  # Florida
+                        536,  # Illinois
+                        540,  # Kentucky
+                        545,  # Michigan
+                        547,  # Mississippi
+                        548,  # Missouri
+                        551,  # Nevada
+                        556,  # North Carolina
+                        558,  # Ohio
+                        563,  # South Carolina
+                        564,  # South Dakota
+                        565,  # Tennessee
+                        566,  # Texas
+                        567,  # Utah
+                        571,  # West Virginia
+                        572,  # Wisconsin
+                        573,  # Wyoming
+                       ]:
+        is_state = data['location_id'] == location_id
+        is_cdc = data['survey_series'] == 'cdc_series'
+        is_N = data['test_target'] == 'nucleocapsid'
+        is_nov_or_later = data['date'] >= pd.Timestamp('2020-11-01')
+        data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'isotype'] = 'pan-Ig'
+        data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'test_target'] = 'nucleocapsid'
+        data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'test_name'] = 'Roche Elecsys N pan-Ig'  # 'Abbott Architect IgG; Roche Elecsys N pan-Ig'
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
     outliers = []
@@ -185,6 +230,26 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     if verbose:
         logger.info(f'{uk_vax_outlier.sum()} rows from sero data dropped due to UK vax issues.')
         
+    # vaccine debacle, lose all the Danish data from Feb 2021 onward
+    is_den = data['location_id'].isin([78])
+    is_spike = data['test_target'] == 'spike'
+    is_2021 = data['date'] >= pd.Timestamp('2021-02-01')
+    
+    den_vax_outlier = is_den & is_spike & is_2021
+    outliers.append(den_vax_outlier)
+    if verbose:
+        logger.info(f'{den_vax_outlier.sum()} rows from sero data dropped due to Denmark vax issues.')
+        
+    # vaccine debacle, lose all the Estonia and Netherlands data from Junue 2021 onward
+    is_est_ndl = data['location_id'].isin([58, 89])
+    is_spike = data['test_target'] == 'spike'
+    is_2021 = data['date'] >= pd.Timestamp('2021-06-01')
+    
+    est_ndl_vax_outlier = is_est_ndl & is_spike & is_2021
+    outliers.append(est_ndl_vax_outlier)
+    if verbose:
+        logger.info(f'{est_ndl_vax_outlier.sum()} rows from sero data dropped due to Netherlands and Estonia vax issues.')
+        
     # # drop Rio Grande do Sul
     # rgds_outlier = data['location_id'] == 4772
 
@@ -193,8 +258,9 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     #     logger.info(f'{rgds_outlier.sum()} rows from sero data dropped due to implausible in Rio Grande do Sul.')
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
-    keep_columns = ['data_id', 'nid', 'location_id', 'date',  # 'start_date', 'end_date',
+    keep_columns = ['data_id', 'nid', 'location_id', 'start_date', 'date',
                     'seroprevalence',  'seroprevalence_lower', 'seroprevalence_upper', 'sample_size',
+                    'study_start_age', 'study_end_age',
                     'test_name', 'test_target', 'isotype',
                     'bias', 'bias_type',
                     'correction_status', 'geo_accordance',
@@ -304,7 +370,7 @@ def population(model_inputs_root: Path, by_age: bool = False) -> pd.Series:
     return data
 
 
-def assay_sensitivity(model_inputs_root: Path, assay_day_0: int = 21,) -> pd.DataFrame:
+def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     # TODO: bootstrapping or something to incorporate uncertainty (would need to digitize this portion from Perez-Saez plots)?
     peluso_path = model_inputs_root / 'serology' / 'waning_immunity' / 'peluso_assay_sensitivity.xlsx'
     perez_saez_paths = [
@@ -312,7 +378,11 @@ def assay_sensitivity(model_inputs_root: Path, assay_day_0: int = 21,) -> pd.Dat
         model_inputs_root / 'serology' / 'waning_immunity' / 'perez-saez_rbd-euroimmun.xlsx',
         model_inputs_root / 'serology' / 'waning_immunity' / 'perez-saez_rbd-roche.xlsx',
     ]
+    bond_path = model_inputs_root / 'serology' / 'waning_immunity' / 'bond.xlsx'
+    muecksch_path = model_inputs_root / 'serology' / 'waning_immunity' / 'muecksch.xlsx'
+    lumley_path = model_inputs_root / 'serology' / 'waning_immunity' / 'lumley.xlsx'
     
+    ## PELUSO
     peluso = pd.read_excel(peluso_path)
     peluso['t'] = peluso['Time'].apply(lambda x: int(x.split(' ')[0]) * 30)
     peluso = peluso.rename(columns={'mean': 'sensitivity',
@@ -325,19 +395,79 @@ def assay_sensitivity(model_inputs_root: Path, assay_day_0: int = 21,) -> pd.Dat
                                                'N(frag)-Lum', 'N-Split Luc'])]
     peluso['source'] = 'Peluso'
     
-    # could try to manually apply hosp/non-hosp split
+    ## PEREZ-SAEZ - start at 21 days out
     perez_saez = pd.concat([pd.read_excel(perez_saez_path) for perez_saez_path in perez_saez_paths])
-    perez_saez = perez_saez.loc[perez_saez['t'] >= assay_day_0]
-    perez_saez['t'] -= assay_day_0
+    perez_saez = perez_saez.loc[perez_saez['t'] >= 21]
+    perez_saez['t'] -= 21
     perez_saez = pd.concat([
         pd.concat([perez_saez, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=perez_saez.index)], axis=1),
         pd.concat([perez_saez, pd.DataFrame({'hospitalization_status':'Hospitalized'}, index=perez_saez.index)], axis=1)
     ])
     perez_saez['source'] = 'Perez-Saez'
     
-    sensitivity = pd.concat([peluso, perez_saez]).reset_index(drop=True)
+    ## BOND - drop 121-150 point, is only 11 people and can't possibly be at 100%; start 21 days out; only keep Abbott
+    bond = pd.read_excel(bond_path)
+    bond = bond.loc[bond['days since symptom onset'] != '121–150']
+    bond['t_start'] = bond['days since symptom onset'].str.split('–').apply(lambda x: int(x[0]))
+    bond['t_end'] = bond['days since symptom onset'].str.split('–').apply(lambda x: int(x[1]))
+    bond['t'] = bond[['t_start', 't_end']].mean(axis=1)
+    for assay in ['N-Abbott', 'S-DiaSorin', 'N-Roche']:
+        bond[assay] = bond[assay].str.split('%').apply(lambda x: float(x[0])) / 100
+    bond = pd.melt(bond, id_vars='t', value_vars=['N-Abbott', 'S-DiaSorin', 'N-Roche'],
+                   var_name='assay', value_name='sensitivity')
+    bond = bond.loc[bond['t'] >= 21]
+    bond['t'] -= 21
+    bond = pd.concat([
+        pd.concat([bond, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=bond.index)], axis=1),
+        pd.concat([bond, pd.DataFrame({'hospitalization_status':'Hospitalized'}, index=bond.index)], axis=1)
+    ])
+    bond = bond.loc[bond['assay'] == 'N-Abbott']
+    bond['source'] = 'Bond'
+    
+    ## MUECKSCH - top end of terminal group is 110 days; only keep Abbott
+    muecksch = pd.read_excel(muecksch_path)
+    muecksch.loc[muecksch['Time, d'] == '>81', 'Time, d'] = '81-110'
+    muecksch['t_start'] = muecksch['Time, d'].str.split('-').apply(lambda x: int(x[0]))
+    muecksch['t_end'] = muecksch['Time, d'].str.split('-').apply(lambda x: int(x[1]))
+    muecksch['t'] = muecksch[['t_start', 't_end']].mean(axis=1)
+    for assay in ['N-Abbott', 'S-DiaSorin', 'RBD-Siemens']:
+        muecksch[assay] = muecksch[assay].str.split(' ').apply(lambda x: float(x[0])) / 100
+    muecksch = pd.melt(muecksch, id_vars='t', value_vars=['N-Abbott', 'S-DiaSorin', 'RBD-Siemens'],
+                       var_name='assay', value_name='sensitivity')
+    muecksch['t'] -= 24
+    muecksch = pd.concat([
+        pd.concat([muecksch, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=muecksch.index)], axis=1),
+        pd.concat([muecksch, pd.DataFrame({'hospitalization_status':'Hospitalized'}, index=muecksch.index)], axis=1)
+    ])
+    muecksch = muecksch.loc[muecksch['assay'] == 'N-Abbott']
+    muecksch['source'] = 'Muecksch'
+    
+    ## LUMLEY
+    lumley = pd.read_excel(lumley_path)
+    lumley = lumley.loc[lumley['keep'] == 1]
+    lumley['sensitivity'] *= (lumley['num_60'] / lumley['denom_60']) / lumley['avg_60']
+    lumley = pd.concat([
+        pd.concat([lumley, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=lumley.index)], axis=1),
+        pd.concat([lumley, pd.DataFrame({'hospitalization_status':'Hospitalized'}, index=lumley.index)], axis=1)
+    ])
+    lumley['source'] = 'Lumley'
+    
+    # combine them all
+    keep_cols = ['source', 'assay', 'hospitalization_status', 't', 'sensitivity',]
+    sensitivity = pd.concat([peluso.loc[:, keep_cols],
+                             perez_saez.loc[:, keep_cols],
+                             bond.loc[:, keep_cols],
+                             muecksch.loc[:, keep_cols],
+                             lumley.loc[:, keep_cols],]).reset_index(drop=True)
     
     return sensitivity
+
+
+def assay_map(model_inputs_root: Path,):
+    data_path = model_inputs_root / 'serology' / 'waning_immunity' / 'assay_map.xlsx'
+    data = pd.read_excel(data_path)
+    
+    return data
 
 
 def validate_hierarchies(hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame):

@@ -9,6 +9,7 @@ from covid_historical_model.rates import idr
 from covid_historical_model.rates import squeeze
 from covid_historical_model.durations.durations import EXPOSURE_TO_CASE
 from covid_historical_model.etl import model_inputs
+from covid_historical_model.utils.math import scale_to_bounds
 
 RESULTS = namedtuple('Results',
                      'seroprevalence testing_capacity model_data mr_model_dict pred_location_map level_lambdas ' \
@@ -54,9 +55,9 @@ def runner(input_data: Dict, shared: Dict,
     pred = (pred
             .reset_index()
             .groupby('location_id')
-            .apply(lambda x: idr.flooring.rescale_idr(x.set_index('date').loc[:, 'pred_idr'],
-                                                      x['idr_floor'].unique().item(),
-                                                      ceiling=1.,))
+            .apply(lambda x: scale_to_bounds(x.set_index('date').loc[:, 'pred_idr'],
+                                             x['idr_floor'].unique().item(),
+                                             ceiling=1.,))
             .rename('pred_idr'))
     
     pred = squeeze.squeeze(

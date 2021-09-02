@@ -131,9 +131,14 @@ def variant_scaleup(variant_scaleup_root: Path, variant_type: str, verbose: bool
     data_path = variant_scaleup_root / 'variant_reference.csv'
     data = pd.read_csv(data_path)
     data['date'] = pd.to_datetime(data['date'])
-    
     variants_in_data = data['variant'].unique().tolist()
-    variants_in_model = ['B1351', 'P1', 'B1617', 'B117', 'wild_type']
+    
+    status_path = variant_scaleup_root / 'outputs' / 'variant_by_escape_status.csv'
+    status = pd.read_csv(status_path)
+    severity = status.loc[status['escape'] == 0, 'variant'].unique().tolist()
+    severity = [v for v in severity if v != 'wild_type']
+    escape = status.loc[status['escape'] == 1, 'variant'].unique().tolist()
+    variants_in_model = ['wild_type'] + severity + escape
     
     if any([v not in variants_in_data for v in variants_in_model]):
         missing_in_data = ', '.join([v for v in variants_in_model if v not in variants_in_data])
@@ -143,14 +148,14 @@ def variant_scaleup(variant_scaleup_root: Path, variant_type: str, verbose: bool
         raise ValueError(f'The following variants are in the data but not expected: {missing_in_model}')
     
     if variant_type == 'escape':
-        is_escape_variant = data['variant'].isin(['B1351', 'P1', 'B1617'])
+        is_escape_variant = data['variant'].isin(escape)
         data = data.loc[is_escape_variant]
         if verbose:
             logger.info(f"Escape variants: {', '.join(data['variant'].unique())}")
         data = data.rename(columns={'prevalence': 'escape_variant_prevalence'})
         data = data.groupby(['location_id', 'date'])['escape_variant_prevalence'].sum()
     elif variant_type == 'severity':
-        is_variant = data['variant'].isin(['B117'])
+        is_variant = data['variant'].isin(severity)
         data = data.loc[is_variant]
         if verbose:
             logger.info(f"Variants: {', '.join(data['variant'].unique())}")

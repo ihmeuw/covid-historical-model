@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-CEILING = 0.8
+CEILING = 0.9
 
 def squeeze(daily: pd.Series, rate: pd.Series,
             day_shift: int,
@@ -37,7 +37,7 @@ def squeeze(daily: pd.Series, rate: pd.Series,
     limits = population * ceiling
     
     excess = (seroprevalence - limits).dropna().clip(0, np.inf)
-    excess_scaling_factor = ((cumul_infections - excess) / cumul_infections).rename('scalar')
+    excess_scaling_factor = ((seroprevalence - excess) / seroprevalence).rename('scalar')
     excess_scaling_factor = excess_scaling_factor.fillna(1)
     
     rate = (rate / excess_scaling_factor).fillna(rate)
