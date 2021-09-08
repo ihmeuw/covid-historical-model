@@ -75,6 +75,7 @@ def runner(input_data: Dict,
     )
     sensitivity, seroprevalence = serology.apply_waning_adjustment(
         input_data['sensitivity'].copy(),
+        input_data['assay_map'].copy(),
         hospitalized_weights.copy(),
         input_data['seroprevalence'].copy(),
         input_data['daily_deaths'].copy(),

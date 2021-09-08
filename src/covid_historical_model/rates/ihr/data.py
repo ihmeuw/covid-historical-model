@@ -33,7 +33,7 @@ def load_input_data(model_inputs_root: Path, age_pattern_root: Path,
         'escape_variant_prevalence': escape_variant_prevalence,
         'severity_variant_prevalence': severity_variant_prevalence,
     }
-    input_data = input_data.update(shared)
+    input_data.update(shared)
     
     return input_data
 

@@ -28,7 +28,8 @@ def pipeline_wrapper(out_dir: Path,
                      n_samples: int,
                      day_inflection_list: List[str] = ['2020-05-01', '2020-06-01', '2020-07-01', '2020-08-01',
                                                        '2020-09-01', '2020-10-01', '2020-11-01', '2020-12-01',],
-                     correlate_samples: bool = True,
+                     correlate_samples: bool = False,
+                     bootstrap: bool = True,
                      verbose: bool = True,) -> Tuple:
     np.random.seed(15243)
     if verbose:
@@ -52,10 +53,9 @@ def pipeline_wrapper(out_dir: Path,
     escape_variant_prevalence = estimates.variant_scaleup(variant_scaleup_root, 'escape', verbose=verbose)
     severity_variant_prevalence = estimates.variant_scaleup(variant_scaleup_root, 'severity', verbose=verbose)
     vaccine_coverage = estimates.vaccine_coverage(vaccine_coverage_root)
-    sensitivity_data = model_inputs.assay_sensitivity(model_inputs_root)
     reported_seroprevalence, seroprevalence_samples = serology.load_seroprevalence_sub_vacccinated(
         model_inputs_root, vaccine_coverage.copy(), n_samples=n_samples,
-        correlate_samples=correlate_samples,
+        correlate_samples=correlate_samples, bootstrap=bootstrap,
         verbose=verbose,
     )
     
@@ -91,7 +91,7 @@ def pipeline_wrapper(out_dir: Path,
         with (pipeline_dir / str(n) / 'outputs.pkl').open('rb') as file:
             outputs = pickle.load(file)
         pipeline_results.update(outputs)
-        
+    
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     logger.warning('NEED THINK ABOUT RIGHT APPROACH TO PLOTTING.')
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
@@ -205,6 +205,7 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                                               shared, adj_seroprevalence.copy(), vaccine_coverage.copy(),
                                               verbose=verbose)
     idr_results = idr.runner.runner(idr_input_data,
+                                    shared,
                                     ifr_results.pred.copy(),
                                     reinfection_inflation_factor.copy(),
                                     verbose=verbose)

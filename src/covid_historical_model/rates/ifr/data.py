@@ -18,16 +18,18 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool, age_pattern
         model_inputs_root, 'deaths', shared['hierarchy'], shared['gbd_hierarchy'], excess_mortality
     )
     sensitivity = model_inputs.assay_sensitivity(model_inputs_root)
+    assay_map = model_inputs.assay_map(model_inputs_root)
     sero_age_pattern = estimates.seroprevalence_age_pattern(age_pattern_root)
     ifr_age_pattern = estimates.ifr_age_pattern(age_pattern_root)
     ihr_age_pattern = estimates.ihr_age_pattern(age_pattern_root)
-    covariates = [db.obesity(adj_gbd_hierarchy)]
+    covariates = [db.obesity(shared['adj_gbd_hierarchy'])]
     
     input_data = {
         'cumulative_deaths': cumulative_deaths,
         'daily_deaths': daily_deaths,
         'seroprevalence': seroprevalence,
         'sensitivity': sensitivity,
+        'assay_map': assay_map,
         'vaccine_coverage': vaccine_coverage,
         'covariates': covariates,
         'sero_age_pattern': sero_age_pattern,

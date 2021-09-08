@@ -16,9 +16,10 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
 ##     - reinfection NAs (probably 0 deaths) -> add checks for location/date matching
 ##     - other NAs in IES inputs?
 ##     - best way to fill where we have no assay information
-##     - bias covariate?
+##     - bias covariates?
 ##     - for waning, do something to Perez-Saez to crosswalk for baseline sensitivity?
 ##     - smarter posterior IFR forecast
+##     - 
 
 ## RATIO FUTURE TODO:
 ##     - try trimming in certain levels (probably just global)?
@@ -44,6 +45,7 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
 ##          (a) try higher degree, fewer knot-days?
 ##          (b) would it work to fix them e.g. every month?
 ##          (c) "fix" uncertainty (maybe the measure cascade)
+##     - issue w/ low days pulling down composite (e.g. Connecticut)
 
 
 def main(app_metadata: cli_tools.Metadata, out_dir: Path,
