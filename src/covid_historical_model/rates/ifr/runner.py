@@ -55,7 +55,7 @@ def runner(input_data: Dict,
     
     ## REINFECTION
     # account for escape variant re-infection
-    reinfection_inflation_factor, seroprevalence = reinfection.add_repeat_infections(
+    cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor, seroprevalence = reinfection.add_repeat_infections(
         input_data['escape_variant_prevalence'].copy(),
         input_data['daily_deaths'].copy(),
         pred.copy(),
@@ -68,7 +68,6 @@ def runner(input_data: Dict,
 
     ## WANING SENSITIVITY ADJUSTMENT
     # account for waning antibody detection
-
     hospitalized_weights = age_standardization.get_all_age_rate(
         input_data['ihr_age_pattern'].copy(), input_data['sero_age_pattern'].copy(),
         input_data['age_spec_population'].copy()
@@ -124,10 +123,10 @@ def runner(input_data: Dict,
         rate=refit_pred.copy(),
         day_shift=EXPOSURE_TO_DEATH,
         population=refit_input_data['population'].copy(),
-        reinfection_inflation_factor=(reinfection_inflation_factor
-                                      .set_index(['location_id', 'date'])
-                                      .loc[:, 'inflation_factor']
-                                      .copy()),
+        daily_reinfection_inflation_factor=(daily_reinfection_inflation_factor
+                                            .set_index(['location_id', 'date'])
+                                            .loc[:, 'inflation_factor']
+                                            .copy()),
         vaccine_coverage=refit_input_data['vaccine_coverage'].copy(),
     )
     refit_pred_lr = lr_rr * refit_pred
@@ -175,7 +174,8 @@ def runner(input_data: Dict,
                                            refit_mr_model_dict.copy(),)
 
     return {'raw_results': results, 'refit_results': refit_results,
-            'reinfection_inflation_factor': reinfection_inflation_factor,
+            'cumul_reinfection_inflation_factor': cumul_reinfection_inflation_factor,
+            'daily_reinfection_inflation_factor': daily_reinfection_inflation_factor,
             'sensitivity': sensitivity, 'nrmse': nrmse, 'residuals': residuals,}
 
 

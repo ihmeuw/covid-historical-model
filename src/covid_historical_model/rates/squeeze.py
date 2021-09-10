@@ -6,7 +6,7 @@ CEILING = 0.9
 def squeeze(daily: pd.Series, rate: pd.Series,
             day_shift: int,
             population: pd.Series,
-            reinfection_inflation_factor: pd.Series,
+            daily_reinfection_inflation_factor: pd.Series,
             vaccine_coverage: pd.DataFrame,
             ceiling: float = CEILING,) -> pd.Series:
     daily += 1e-4
@@ -14,17 +14,19 @@ def squeeze(daily: pd.Series, rate: pd.Series,
     daily_infections = daily_infections.reset_index()
     daily_infections['date'] -= pd.Timedelta(days=day_shift)
     daily_infections = daily_infections.set_index(['location_id', 'date']).loc[:, 'infections']
-    cumul_infections = daily_infections.groupby(level=0).cumsum()
-    cumul_infections = pd.concat([cumul_infections,
-                                  reinfection_inflation_factor], axis=1)
-    cumul_infections = cumul_infections.sort_index()
-    cumul_infections['inflation_factor'] = (cumul_infections['inflation_factor']
+    daily_infections = pd.concat([daily_infections,
+                                  daily_reinfection_inflation_factor], axis=1)
+    daily_infections = daily_infections.sort_index()
+    daily_infections['inflation_factor'] = (daily_infections['inflation_factor']
                                             .groupby(level=0).apply(lambda x: x.fillna(method='ffill')))
-    cumul_infections['inflation_factor'] = cumul_infections['inflation_factor'].fillna(1)
-    cumul_infections['seroprevalence'] = cumul_infections['infections'] / cumul_infections['inflation_factor']
-    seroprevalence = cumul_infections['seroprevalence'].dropna()
-    cumul_infections = cumul_infections['infections'].dropna()
+    daily_infections['inflation_factor'] = daily_infections['inflation_factor'].fillna(1)
+    daily_infections['seroprevalence'] = daily_infections['infections'] / daily_infections['inflation_factor']
     
+    cumul_infections = (daily_infections['infections'].dropna()
+                        .groupby(level=0).cumsum())
+    seroprevalence = (daily_infections['seroprevalence'].dropna()
+                      .groupby(level=0).cumsum())
+
     max_cumul_infections = cumul_infections.groupby(level=0).max()
     max_seroprevalence = seroprevalence.groupby(level=0).max()
     
@@ -43,6 +45,7 @@ def squeeze(daily: pd.Series, rate: pd.Series,
     
     rate = (rate / excess_scaling_factor).fillna(rate)
     
-    adj_reinfection_inflation_factor = (cumul_infections * excess_scaling_factor) / (seroprevalence * excess_scaling_factor)
+    ## unnecessary, obvs
+    # adj_reinfection_inflation_factor = (cumul_infections * excess_scaling_factor) / (seroprevalence * excess_scaling_factor)
     
-    return rate.dropna(), adj_reinfection_inflation_factor.fillna(1)
+    return rate.dropna()  # , adj_reinfection_inflation_factor.fillna(1)

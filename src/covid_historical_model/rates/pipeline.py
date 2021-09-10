@@ -152,8 +152,8 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
         logger.info('\n*************************************\n'
                     'IFR ESTIMATION -- determining best models and compiling adjusted seroprevalence\n'
                     '*************************************')
-    ifr_nrmse, best_ifr_models, ifr_results, adj_seroprevalence, \
-    sensitivity, reinfection_inflation_factor = extract_ifr_results(full_ifr_results)
+    ifr_nrmse, best_ifr_models, ifr_results, adj_seroprevalence, sensitivity, \
+    cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor = extract_ifr_results(full_ifr_results)
 
     if verbose:
         logger.info('\n*************************************\n'
@@ -165,7 +165,7 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
     idr_results = idr.runner.runner(idr_input_data,
                                     shared,
                                     ifr_results.pred.copy(),
-                                    reinfection_inflation_factor.copy(),
+                                    daily_reinfection_inflation_factor.copy(),
                                     verbose=verbose)
     
     if verbose:
@@ -177,12 +177,13 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                                               escape_variant_prevalence.copy(),
                                               severity_variant_prevalence.copy(),
                                               verbose=verbose)
-    ihr_results = ihr.runner.runner(ihr_input_data, reinfection_inflation_factor.copy(),
+    ihr_results = ihr.runner.runner(ihr_input_data, daily_reinfection_inflation_factor.copy(),
                                     verbose=verbose)
     
     pipeline_results = {
         'seroprevalence':adj_seroprevalence,
-        'reinfection_inflation_factor':reinfection_inflation_factor,
+        'cumul_reinfection_inflation_factor':cumul_reinfection_inflation_factor,
+        'daily_reinfection_inflation_factor':daily_reinfection_inflation_factor,
         'day_inflection_list': day_inflection_list,
         'ifr_nrmse':ifr_nrmse,
         'best_ifr_models':best_ifr_models,
@@ -209,7 +210,8 @@ def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
                    .reset_index())
 
     sensitivity = pd.DataFrame({'location_id':[]})
-    reinfection_inflation_factor =[]
+    cumul_reinfection_inflation_factor =[]
+    daily_reinfection_inflation_factor =[]
     seroprevalence = []
     model_data = []
     mr_model_dict = {}
@@ -230,9 +232,13 @@ def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
         loc_seroprevalence = loc_seroprevalence.loc[loc_seroprevalence['location_id'] == location_id]
         seroprevalence.append(loc_seroprevalence)
         
-        loc_rif = full_ifr_results[day_inflection]['reinfection_inflation_factor']
-        loc_rif = loc_rif.loc[loc_rif['location_id'] == location_id]
-        reinfection_inflation_factor.append(loc_rif)
+        loc_crif = full_ifr_results[day_inflection]['cumul_reinfection_inflation_factor']
+        loc_crif = loc_crif.loc[loc_crif['location_id'] == location_id]
+        cumul_reinfection_inflation_factor.append(loc_crif)
+        
+        loc_drif = full_ifr_results[day_inflection]['daily_reinfection_inflation_factor']
+        loc_drif = loc_drif.loc[loc_drif['location_id'] == location_id]
+        daily_reinfection_inflation_factor.append(loc_drif)
 
         loc_model_data = full_ifr_results[day_inflection]['refit_results'].model_data
         loc_model_data = loc_model_data.loc[loc_model_data['location_id'] == location_id]
@@ -307,7 +313,8 @@ def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
             pass
         
     sensitivity = sensitivity.reset_index(drop=True)
-    reinfection_inflation_factor = pd.concat(reinfection_inflation_factor).reset_index(drop=True)
+    cumul_reinfection_inflation_factor = pd.concat(cumul_reinfection_inflation_factor).reset_index(drop=True)
+    daily_reinfection_inflation_factor = pd.concat(daily_reinfection_inflation_factor).reset_index(drop=True)
     ifr_results = ifr.runner.RESULTS(
         seroprevalence=pd.concat(seroprevalence).reset_index(drop=True),
         model_data=pd.concat(model_data).reset_index(drop=True),
@@ -326,7 +333,8 @@ def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
     )
     seroprevalence = ifr_results.seroprevalence.copy()
 
-    return nrmse, best_models, ifr_results, seroprevalence, sensitivity, reinfection_inflation_factor
+    return nrmse, best_models, ifr_results, seroprevalence, sensitivity, \
+           cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor
 
 
 def compile_pdfs(plots_dir: Path, out_dir: Path, hierarchy: pd.DataFrame,
@@ -355,7 +363,8 @@ def submit_plots():
         'seroprevalence': seroprevalence,
         'sensitivity': sensitivity,
         'sensitivity_data': sensitivity_data,
-        'reinfection_inflation_factor': reinfection_inflation_factor,
+        'cumul_reinfection_inflation_factor': cumul_reinfection_inflation_factor,
+        'daily_reinfection_inflation_factor': daily_reinfection_inflation_factor,
         'full_ifr_results': full_ifr_results,
         'ifr_results': ifr_results,
         'vaccine_coverage': vaccine_coverage,

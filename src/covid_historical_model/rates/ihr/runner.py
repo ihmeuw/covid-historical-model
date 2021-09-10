@@ -16,7 +16,7 @@ RESULTS = namedtuple('Results',
 
 
 def runner(input_data: Dict,
-           reinfection_inflation_factor: pd.Series,
+           daily_reinfection_inflation_factor: pd.Series,
            day_0: str = '2020-03-15',
            pred_start_date: str = '2019-11-01',
            pred_end_date: str = '2021-12-31',
@@ -59,10 +59,10 @@ def runner(input_data: Dict,
         rate=pred.copy(),
         day_shift=EXPOSURE_TO_ADMISSION,
         population=input_data['population'].copy(),
-        reinfection_inflation_factor=(reinfection_inflation_factor
-                                      .set_index(['location_id', 'date'])
-                                      .loc[:, 'inflation_factor']
-                                      .copy()),
+        daily_reinfection_inflation_factor=(daily_reinfection_inflation_factor
+                                            .set_index(['location_id', 'date'])
+                                            .loc[:, 'inflation_factor']
+                                            .copy()),
         vaccine_coverage=input_data['vaccine_coverage'].copy(),
     )
     pred_lr = lr_rr * pred

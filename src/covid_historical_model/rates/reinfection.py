@@ -36,8 +36,11 @@ def add_repeat_infections(escape_variant_prevalence: pd.Series,
                           population: pd.Series,
                           cross_variant_immunity: float = CROSS_VARIANT_IMMUNITY,
                           verbose: bool = True) -> pd.DataFrame:
-    infections = (daily_deaths / pred_ifr).dropna().rename('infections')
-    infections = infections.reset_index()
+    infections = ((daily_deaths / pred_ifr)
+                  .clip(1e-4, np.inf)
+                  .dropna()
+                  .rename('infections')
+                  .reset_index())
     infections['date'] -= pd.Timedelta(days=EXPOSURE_TO_DEATH)
     infections = (infections
                   .set_index(['location_id', 'date'])
@@ -78,7 +81,10 @@ def add_repeat_infections(escape_variant_prevalence: pd.Series,
                         .set_index(['location_id', 'date'])
                         .loc[:, 'infections'])
     
-    inflation_factor = (obs_infections / first_infections).rename('inflation_factor').dropna()
+    cumul_inflation_factor = (obs_infections / first_infections).rename('inflation_factor').dropna()
+    daily_inflation_factor = (obs_infections.groupby(level=0).diff().replace(obs_infections) / \
+                              first_infections.groupby(level=0).diff().replace(first_infections)
+                             ).rename('inflation_factor').dropna()
     
     '''
     fig, ax = plt.subplots(4, figsize=(8, 8), sharex=True)
@@ -101,16 +107,17 @@ def add_repeat_infections(escape_variant_prevalence: pd.Series,
     fig.show()
     '''
     
-    inflation_factor = inflation_factor.reset_index()
-    inflation_factor['date'] += pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
+    cumul_inflation_factor = cumul_inflation_factor.reset_index()
+    cumul_inflation_factor['date'] += pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
+    daily_inflation_factor = daily_inflation_factor.reset_index()
     
-    seroprevalence = seroprevalence.merge(inflation_factor, how='left')
+    seroprevalence = seroprevalence.merge(cumul_inflation_factor, how='left')
     seroprevalence['inflation_factor'] = seroprevalence['inflation_factor'].fillna(1)
     
-    inflation_factor['date'] -= pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
+    cumul_inflation_factor['date'] -= pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
     
     seroprevalence['seroprevalence'] *= seroprevalence['inflation_factor']
     
     del seroprevalence['inflation_factor']
     
-    return inflation_factor, seroprevalence
+    return cumul_inflation_factor, daily_inflation_factor, seroprevalence
