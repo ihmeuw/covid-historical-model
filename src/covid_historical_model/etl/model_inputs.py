@@ -113,10 +113,14 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
                            .replace(('unchecked', 'not specified'), np.nan).astype(float))
     
     data['bias'] = (helpers.str_fmt(data['bias'])
-                    .replace(('unchecked', 'not specified'), '0').astype(int))
+                    .replace(('unchecked', 'not specified'), '0')
+                    .fillna('0')
+                    .astype(int))
     
-    data['correction_status'] = (helpers.str_fmt(data['correction_status'])
-                                 .replace(('not specified',), '0').astype(int))
+    data['manufacturer_correction'] = (helpers.str_fmt(data['manufacturer_correction'])
+                                       .replace(('not specified', 'not specifed'), '0')
+                                       .fillna('0')
+                                       .astype(int))
     
     data['test_target'] = helpers.str_fmt(data['test_target']).str.lower()
     
@@ -270,7 +274,7 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
                     'study_start_age', 'study_end_age',
                     'test_name', 'test_target', 'isotype',
                     'bias', 'bias_type',
-                    'correction_status', 'geo_accordance',
+                    'manufacturer_correction', 'geo_accordance',
                     'is_outlier', 'manual_outlier']
     data['is_outlier'] = pd.concat(outliers, axis=1).max(axis=1).astype(int)
     data = (data

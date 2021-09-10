@@ -373,7 +373,7 @@ def calulate_waning_factor(infections: pd.DataFrame, sensitivity: pd.DataFrame,
     infections['t'] = (sero_date - infections['date']).dt.days
     infections = infections.loc[infections['t'] >= 0]
     if sero_corr not in [0, 1]:
-        raise ValueError('Correction status should be 0 or 1.')
+        raise ValueError('`manufacturer_correction` should be 0 or 1.')
     if sero_corr == 1:
         # study adjusted for sensitivity, set baseline to 1
         sensitivity /= sensitivity.max()
@@ -391,7 +391,7 @@ def location_waning_adjustment(infections: pd.DataFrame, sensitivity: pd.DataFra
     adj_seroprevalence = []
     for i, (sero_data_id, sero_date, sero_corr, sero_value) in enumerate(zip(seroprevalence['data_id'],
                                                                   seroprevalence['date'],
-                                                                  seroprevalence['correction_status'],
+                                                                  seroprevalence['manufacturer_correction'],
                                                                   seroprevalence['seroprevalence'],)):
         waning_factor = calulate_waning_factor(infections.copy(), sensitivity.copy(),
                                                sero_date, sero_corr,)
@@ -429,7 +429,7 @@ def waning_adjustment(pred_ifr: pd.Series, daily_deaths: pd.Series, sensitivity:
                                            sensitivity.loc[location_id],
                                            (seroprevalence
                                             .loc[seroprevalence['location_id'] == location_id,
-                                                 ['data_id', 'date', 'seroprevalence']
+                                                 ['data_id', 'date', 'manufacturer_correction', 'seroprevalence']
                                                 ].reset_index(drop=True)))
         _sero['location_id'] = location_id
         seroprevalence_list.append(_sero)
