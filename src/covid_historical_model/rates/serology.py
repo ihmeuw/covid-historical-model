@@ -369,9 +369,14 @@ def fit_hospital_weighted_sensitivity_decay(sensitivity: pd.DataFrame, increasin
 
 
 def calulate_waning_factor(infections: pd.DataFrame, sensitivity: pd.DataFrame,
-                           sero_date: pd.Timestamp) -> float:
+                           sero_date: pd.Timestamp, sero_corr: bool,) -> float:
     infections['t'] = (sero_date - infections['date']).dt.days
     infections = infections.loc[infections['t'] >= 0]
+    if sero_corr not in [0, 1]:
+        raise ValueError('Correction status should be 0 or 1.')
+    if sero_corr == 1:
+        # study adjusted for sensitivity, set baseline to 1
+        sensitivity /= sensitivity.max()
     infections = infections.merge(sensitivity.reset_index(), how='left')
     if infections['sensitivity'].isnull().any():
         raise ValueError(f"Unmatched sero/sens points: {infections.loc[infections['sensitivity'].isnull()]}")
@@ -384,10 +389,12 @@ def calulate_waning_factor(infections: pd.DataFrame, sensitivity: pd.DataFrame,
 def location_waning_adjustment(infections: pd.DataFrame, sensitivity: pd.DataFrame,
                                seroprevalence: pd.DataFrame) -> pd.DataFrame:
     adj_seroprevalence = []
-    for i, (sero_data_id, sero_date, sero_value) in enumerate(zip(seroprevalence['data_id'],
+    for i, (sero_data_id, sero_date, sero_corr, sero_value) in enumerate(zip(seroprevalence['data_id'],
                                                                   seroprevalence['date'],
-                                                                  seroprevalence['seroprevalence'])):
-        waning_factor = calulate_waning_factor(infections, sensitivity, sero_date)
+                                                                  seroprevalence['correction_status'],
+                                                                  seroprevalence['seroprevalence'],)):
+        waning_factor = calulate_waning_factor(infections.copy(), sensitivity.copy(),
+                                               sero_date, sero_corr,)
         adj_seroprevalence.append(pd.DataFrame({
             'data_id': sero_data_id,
             'date': sero_date,

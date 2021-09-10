@@ -109,14 +109,21 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     data['seroprevalence'] = data['value'] / 100
     data['seroprevalence_lower'] = data['lower'] / 100
     data['seroprevalence_upper'] = data['upper'] / 100
-    data['sample_size'] = helpers.str_fmt(data['sample_size']).replace(('unchecked', 'not specified'), np.nan).astype(float)
+    data['sample_size'] = (helpers.str_fmt(data['sample_size'])
+                           .replace(('unchecked', 'not specified'), np.nan).astype(float))
     
-    data['bias'] = helpers.str_fmt(data['bias']).replace(('unchecked', 'not specified'), np.nan).astype(float)
+    data['bias'] = (helpers.str_fmt(data['bias'])
+                    .replace(('unchecked', 'not specified'), '0').astype(int))
+    
+    data['correction_status'] = (helpers.str_fmt(data['correction_status'])
+                                 .replace(('not specified',), '0').astype(int))
     
     data['test_target'] = helpers.str_fmt(data['test_target']).str.lower()
     
-    data['study_start_age'] = helpers.str_fmt(data['study_start_age']).replace(('not specified'), np.nan).astype(float)
-    data['study_end_age'] = helpers.str_fmt(data['study_end_age']).replace(('not specified'), np.nan).astype(float)
+    data['study_start_age'] = (helpers.str_fmt(data['study_start_age'])
+                               .replace(('not specified'), np.nan).astype(float))
+    data['study_end_age'] = (helpers.str_fmt(data['study_end_age'])
+                             .replace(('not specified'), np.nan).astype(float))
     
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     ## manually specify certain tests when reporting is mixed (might just be US?)
