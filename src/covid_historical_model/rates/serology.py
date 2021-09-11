@@ -1,7 +1,11 @@
+import sys
 from pathlib import Path
 from loguru import logger
 from collections import namedtuple
 from datetime import datetime
+import functools
+import multiprocessing
+from tqdm import tqdm
 
 import numpy as np
 import pandas as pd
@@ -16,6 +20,7 @@ from covid_historical_model.durations.durations import SERO_TO_DEATH, EXPOSURE_T
 from covid_historical_model.etl import model_inputs
 from covid_historical_model.utils.misc import text_wrap
 from covid_historical_model.utils.math import logit, expit, scale_to_bounds
+from covid_historical_model.cluster import OMP_NUM_THREADS
 
 VAX_SERO_PROB = 0.9
 SEROREV_LB = 0.
@@ -274,18 +279,25 @@ def apply_waning_adjustment(sensitivity: pd.DataFrame,
 
     assay_combinations = seroprevalence['assay_map'].unique().tolist()
     
+    infections = ((daily_deaths / pred_ifr)
+                  .dropna()
+                  .rename('infections')
+                  .reset_index()
+                  .set_index('location_id'))
+    infections['date'] -= pd.Timedelta(days=SERO_TO_DEATH)
+    
     sensitivity_list = []
     seroprevalence_list = []
     for assay_combination in assay_combinations:
+        logger.info(f'Adjusting for sensitvity decay: {assay_combination}')
         ac_sensitivity = (sensitivity
-                             .loc[assay_combination.split(', ')]
-                             .reset_index()
-                             .groupby(['location_id', 't'])['sensitivity'].mean())
+                          .loc[assay_combination.split(', ')]
+                          .reset_index()
+                          .groupby(['location_id', 't'])['sensitivity'].mean())
         ac_seroprevalence = (seroprevalence
                              .loc[seroprevalence['assay_map'] == assay_combination].copy())
         ac_seroprevalence = waning_adjustment(
-            pred_ifr.copy(),
-            daily_deaths.copy(),
+            infections.copy(),
             ac_sensitivity.copy(),
             ac_seroprevalence.copy()
         )
@@ -386,13 +398,19 @@ def calulate_waning_factor(infections: pd.DataFrame, sensitivity: pd.DataFrame,
     return waning_factor
     
     
-def location_waning_adjustment(infections: pd.DataFrame, sensitivity: pd.DataFrame,
+def location_waning_adjustment(location_id: int,
+                               infections: pd.DataFrame, sensitivity: pd.DataFrame,
                                seroprevalence: pd.DataFrame) -> pd.DataFrame:
+    infections = infections.loc[location_id]
+    sensitivity = sensitivity.loc[location_id]
+    seroprevalence = seroprevalence.loc[seroprevalence['location_id'] == location_id,
+                                        ['data_id', 'date', 'manufacturer_correction', 'seroprevalence']
+                                       ].reset_index(drop=True)
     adj_seroprevalence = []
     for i, (sero_data_id, sero_date, sero_corr, sero_value) in enumerate(zip(seroprevalence['data_id'],
-                                                                  seroprevalence['date'],
-                                                                  seroprevalence['manufacturer_correction'],
-                                                                  seroprevalence['seroprevalence'],)):
+                                                                             seroprevalence['date'],
+                                                                             seroprevalence['manufacturer_correction'],
+                                                                             seroprevalence['seroprevalence'],)):
         waning_factor = calulate_waning_factor(infections.copy(), sensitivity.copy(),
                                                sero_date, sero_corr,)
         adj_seroprevalence.append(pd.DataFrame({
@@ -401,19 +419,13 @@ def location_waning_adjustment(infections: pd.DataFrame, sensitivity: pd.DataFra
             'seroprevalence': sero_value * waning_factor
         }, index=[i]))
     adj_seroprevalence = pd.concat(adj_seroprevalence)
+    adj_seroprevalence['location_id'] = location_id
     
     return adj_seroprevalence
 
 
-def waning_adjustment(pred_ifr: pd.Series, daily_deaths: pd.Series, sensitivity: pd.DataFrame,
+def waning_adjustment(infections: pd.Series, sensitivity: pd.DataFrame,
                       seroprevalence: pd.DataFrame) -> pd.DataFrame:
-    infections = ((daily_deaths / pred_ifr)
-                  .dropna()
-                  .rename('infections')
-                  .reset_index()
-                  .set_index('location_id'))
-    infections['date'] -= pd.Timedelta(days=SERO_TO_DEATH)
-    
     # # determine waning adjustment based on midpoint of survey
     # orig_date = seroprevalence[['data_id', 'date']].copy()
     # seroprevalence['n_midpoint_days'] = (seroprevalence['date'] - seroprevalence['start_date']).dt.days / 2
@@ -424,16 +436,16 @@ def waning_adjustment(pred_ifr: pd.Series, daily_deaths: pd.Series, sensitivity:
     seroprevalence_list = []
     location_ids = seroprevalence['location_id'].unique().tolist()
     location_ids = [location_id for location_id in location_ids if location_id in infections.reset_index()['location_id'].to_list()]
-    for location_id in location_ids:
-        _sero = location_waning_adjustment(infections.loc[location_id],
-                                           sensitivity.loc[location_id],
-                                           (seroprevalence
-                                            .loc[seroprevalence['location_id'] == location_id,
-                                                 ['data_id', 'date', 'manufacturer_correction', 'seroprevalence']
-                                                ].reset_index(drop=True)))
-        _sero['location_id'] = location_id
-        seroprevalence_list.append(_sero)
-    seroprevalence = pd.concat(seroprevalence_list).reset_index(drop=True)
+    
+    _lwa = functools.partial(
+        location_waning_adjustment,
+        infections=infections, sensitivity=sensitivity,
+        seroprevalence=seroprevalence,
+    )
+    with multiprocessing.Pool(int(OMP_NUM_THREADS)) as p:
+        seroprevalence = list(tqdm(p.imap(_lwa, location_ids), total=len(location_ids), file=sys.stdout))
+    seroprevalence = pd.concat(seroprevalence).reset_index(drop=True)
+        
     # del seroprevalence['date']
     # seroprevalence = seroprevalence.merge(orig_date)
     

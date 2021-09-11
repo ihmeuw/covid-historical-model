@@ -398,7 +398,7 @@ def main(n: int, inputs_path: str, pipeline_dir: str):
     shell_tools.mkdir(root_dir)
     shell_tools.mkdir(storage_dir)
     
-    np.random.seed(15243 * (n + 1))
+    np.random.seed(123 * (n + 1))
     pipeline_outputs = pipeline(storage_dir=storage_dir,
                                 **inputs)
     
