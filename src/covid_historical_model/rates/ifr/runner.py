@@ -32,6 +32,7 @@ def runner(input_data: Dict,
            pred_end_date: str = '2021-12-31',
            verbose: bool = True,) -> Dict:
     ## SET UP
+    logger.info('set up')
     day_inflection = pd.Timestamp(day_inflection)
     day_0 = pd.Timestamp(day_0)
     pred_start_date = pd.Timestamp(pred_start_date)
@@ -45,16 +46,18 @@ def runner(input_data: Dict,
     
     ## STAGE 1 MODEL
     # check what NAs in pred data might be about, get rid of them in safer way
+    logger.info('stage 1 model')
     mr_model_dict, prior_dicts, pred, pred_fe, pred_location_map, age_stand_scaling_factor, level_lambdas = ifr.model.run_model(
         model_data=model_data.copy(),
         pred_data=pred_data.copy(),
         day_0=day_0, day_inflection=day_inflection,
-        verbose=verbose,
+        verbose=False,
         **input_data
     )
     
     ## REINFECTION
     # account for escape variant re-infection
+    logger.info('reinfection')
     cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor, seroprevalence = reinfection.add_repeat_infections(
         input_data['escape_variant_prevalence'].copy(),
         input_data['daily_deaths'].copy(),
@@ -63,11 +66,12 @@ def runner(input_data: Dict,
         input_data['hierarchy'],
         input_data['gbd_hierarchy'],
         input_data['population'],
-        verbose=verbose,
+        verbose=False,
     )
 
     ## WANING SENSITIVITY ADJUSTMENT
     # account for waning antibody detection
+    logger.info('sensitivity')
     hospitalized_weights = age_standardization.get_all_age_rate(
         input_data['ihr_age_pattern'].copy(), input_data['sero_age_pattern'].copy(),
         input_data['age_spec_population'].copy()
@@ -82,6 +86,7 @@ def runner(input_data: Dict,
     )
     
     ## SET UP REFIT
+    logger.info('set up stage 2')
     refit_input_data = input_data.copy()
     refit_input_data['seroprevalence'] = seroprevalence
     del seroprevalence
@@ -93,17 +98,19 @@ def runner(input_data: Dict,
     
     ## STAGE 2 MODEL
     # check what NAs in pred data might be about, get rid of them in safer way
+    logger.info('stage 2 model')
     refit_mr_model_dict, refit_prior_dicts, refit_pred, refit_pred_fe, \
     refit_pred_location_map, refit_age_stand_scaling_factor, refit_level_lambdas = ifr.model.run_model(
         model_data=refit_model_data.copy(),
         pred_data=refit_pred_data.dropna().copy(),
         day_0=day_0, day_inflection=day_inflection,
-        verbose=verbose,
+        verbose=False,
         **refit_input_data
     )
     refit_pred_unadj = refit_pred.copy()
     
     ## POST
+    logger.info('post')
     refit_pred, refit_pred_lr, refit_pred_hr, pct_inf_lr, pct_inf_hr = post.variants_vaccines(
         rate_age_pattern=refit_input_data['ifr_age_pattern'].copy(),
         denom_age_pattern=refit_input_data['sero_age_pattern'].copy(),
@@ -116,6 +123,8 @@ def runner(input_data: Dict,
         population=refit_input_data['population'].copy(),
     )
     
+    ## SQUEEZE
+    logger.info('squeeze')
     lr_rr = refit_pred_lr / refit_pred
     hr_rr = refit_pred_hr / refit_pred
     refit_pred = squeeze.squeeze(
@@ -132,6 +141,8 @@ def runner(input_data: Dict,
     refit_pred_lr = lr_rr * refit_pred
     refit_pred_hr = hr_rr * refit_pred
     
+    ## results
+    logger.info('compiling results')
     results = RESULTS(
         seroprevalence=input_data['seroprevalence'],
         model_data=model_data,
@@ -165,6 +176,8 @@ def runner(input_data: Dict,
         age_stand_scaling_factor=refit_age_stand_scaling_factor,
     )
     
+    ## NRMSE
+    logger.info('performance metrics')
     nrmse, residuals = ifr.model.get_nrmse(refit_input_data['seroprevalence'].copy(),
                                            refit_input_data['daily_deaths'].copy(),
                                            refit_pred.copy(),
@@ -180,13 +193,17 @@ def runner(input_data: Dict,
 
 
 def main(inputs_path: str, outputs_path: str):
+    logger.info('reading inputs')
     with Path(inputs_path).open('rb') as file:
         inputs = pickle.load(file)
         
     outputs = runner(**inputs)
     
+    logger.info('writing')
     with Path(outputs_path).open('wb') as file:
         pickle.dump({inputs['day_inflection']: outputs}, file)
+    
+    logger.info('done')
 
 
 if __name__ == '__main__':
