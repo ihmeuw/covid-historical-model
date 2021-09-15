@@ -10,7 +10,7 @@ from covid_historical_model.durations.durations import SERO_TO_DEATH
 
 
 def load_input_data(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Path,
-                    shared: Dict, seroprevalence: pd.DataFrame, sensitivity: pd.DataFrame,
+                    shared: Dict, seroprevalence: pd.DataFrame, sensitivity_data: pd.DataFrame,
                     vaccine_coverage: pd.DataFrame,
                     escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
                     covariates: List[pd.Series],
@@ -28,7 +28,7 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool, age_pattern
         'cumulative_deaths': cumulative_deaths,
         'daily_deaths': daily_deaths,
         'seroprevalence': seroprevalence,
-        'sensitivity': sensitivity,
+        'sensitivity_data': sensitivity_data,
         'assay_map': assay_map,
         'vaccine_coverage': vaccine_coverage,
         'covariates': covariates,

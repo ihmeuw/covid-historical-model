@@ -73,55 +73,70 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     
     ## save IFR
     ifr_draws = pd.concat([pipeline_results[n]['ifr_results'].pred.rename(f'draw_{n}') for n in range(n_samples)],
-                          axis=1).reset_index()
-    ifr_lr_draws = pd.concat([pipeline_results[n]['ifr_results'].pred_lr.rename(f'draw_{n}') for n in range(n_samples)],
-                             axis=1).reset_index()
-    ifr_hr_draws = pd.concat([pipeline_results[n]['ifr_results'].pred_hr.rename(f'draw_{n}') for n in range(n_samples)],
-                             axis=1).reset_index()
+                          axis=1)
+    ifr_lr_rr_draws = pd.concat([pipeline_results[n]['ifr_results'].pred_lr.rename(f'draw_{n}') for n in range(n_samples)],
+                                axis=1) / ifr_draws
+    ifr_hr_rr_draws = pd.concat([pipeline_results[n]['ifr_results'].pred_hr.rename(f'draw_{n}') for n in range(n_samples)],
+                                axis=1) / ifr_draws
+    ifr_draws = ifr_draws.reset_index()
+    ifr_lr_rr_draws = ifr_lr_rr_draws.reset_index()
+    ifr_hr_rr_draws = ifr_hr_rr_draws.reset_index()
     ifr_global_draws = pd.concat([pipeline_results[n]['ifr_results'].pred_fe.rename(f'draw_{n}') for n in range(n_samples)],
                                  axis=1).reset_index()
     
     ifr_model_data_draws = []
-    for ifr_model_data in [pipeline_results[n]['ifr_results'].model_data.copy() for n in range(n_samples)]:
+    for n, ifr_model_data in [(n, pipeline_results[n]['ifr_results'].model_data.copy()) for n in range(n_samples)]:
         del ifr_model_data['date']
         ifr_model_data = ifr_model_data.rename(columns={'mean_death_date':'date'})
         ifr_model_data['draw'] = n
         ifr_model_data['is_outlier'] = 0
-        ifr_model_data = ifr_model_data.loc[:, ['location_id', 'date', 'draw', 'ifr', 'is_outlier']]
-        ifr_model_data_draws.append(ifr_model_data)
+        ifr_model_data_draws.append(ifr_model_data.loc[:, ['location_id', 'date', 'draw', 'ifr', 'is_outlier']])
     ifr_model_data_draws = pd.concat(ifr_model_data_draws).reset_index(drop=True)
     
     ifr_age_stand = pipeline_results[0]['ifr_results'].age_stand_scaling_factor.reset_index()
     
-    ifr_level_lambdas = pd.DataFrame(pipeline_results[0]['ifr_results'].level_lambdas).T
-    ifr_level_lambdas.index.name = 'hierarchy_level'
-    ifr_level_lambdas = ifr_level_lambdas.reset_index()
+    ifr_level_lambdas_draws = []
+    for n, ifr_level_lambdas in [(n, pipeline_results[n]['ifr_results'].level_lambdas) for n in range(n_samples)]:
+        ifr_level_lambdas = pd.DataFrame(ifr_level_lambdas).T
+        ifr_level_lambdas.index.name = 'hierarchy_level'
+        ifr_level_lambdas = ifr_level_lambdas.reset_index()
+        ifr_level_lambdas['draw'] = n
+        ifr_level_lambdas_draws.append(ifr_level_lambdas)
+    ifr_level_lambdas_draws = pd.concat(ifr_level_lambdas_draws).reset_index(drop=True)
 
     ## save IHR
     ihr_draws = pd.concat([pipeline_results[n]['ihr_results'].pred.rename(f'draw_{n}') for n in range(n_samples)],
-                          axis=1).reset_index()
-    ihr_lr_draws = pd.concat([pipeline_results[n]['ihr_results'].pred_lr.rename(f'draw_{n}') for n in range(n_samples)],
-                             axis=1).reset_index()
-    ihr_hr_draws = pd.concat([pipeline_results[n]['ihr_results'].pred_hr.rename(f'draw_{n}') for n in range(n_samples)],
-                             axis=1).reset_index()
+                          axis=1)
+    ihr_lr_rr_draws = pd.concat([pipeline_results[n]['ihr_results'].pred_lr.rename(f'draw_{n}') for n in range(n_samples)],
+                                axis=1) / ihr_draws
+    ihr_hr_rr_draws = pd.concat([pipeline_results[n]['ihr_results'].pred_hr.rename(f'draw_{n}') for n in range(n_samples)],
+                             axis=1) / ihr_draws
+    ihr_draws = ihr_draws.reset_index()
+    ihr_lr_rr_draws = ihr_lr_rr_draws.reset_index()
+    ihr_hr_rr_draws = ihr_hr_rr_draws.reset_index()
     ihr_global_draws = pd.concat([pipeline_results[n]['ihr_results'].pred_fe.rename(f'draw_{n}') for n in range(n_samples)],
                                  axis=1).reset_index()
 
     ihr_model_data_draws = []
-    for ihr_model_data in [pipeline_results[n]['ihr_results'].model_data.copy() for n in range(n_samples)]:
+    for n, ihr_model_data in [(n, pipeline_results[n]['ihr_results'].model_data.copy()) for n in range(n_samples)]:
         del ihr_model_data['date']
         ihr_model_data = ihr_model_data.rename(columns={'mean_hospitalization_date':'date'})
         ihr_model_data['draw'] = n
         ihr_model_data['is_outlier'] = 0
-        ihr_model_data = ihr_model_data.loc[:, ['location_id', 'date', 'draw', 'ihr', 'is_outlier']]
+        ihr_model_data_draws.append(ihr_model_data.loc[:, ['location_id', 'date', 'draw', 'ihr', 'is_outlier']])
     ihr_model_data_draws = pd.concat(ihr_model_data_draws).reset_index(drop=True)
     
     ihr_age_stand = pipeline_results[0]['ihr_results'].age_stand_scaling_factor.reset_index()
     
-    ihr_level_lambdas = pd.DataFrame(pipeline_results[0]['ihr_results'].level_lambdas).T
-    ihr_level_lambdas.index.name = 'hierarchy_level'
-    ihr_level_lambdas = ihr_level_lambdas.reset_index()
-
+    ihr_level_lambdas_draws = []
+    for n, ihr_level_lambdas in [(n, pipeline_results[n]['ihr_results'].level_lambdas) for n in range(n_samples)]:
+        ihr_level_lambdas = pd.DataFrame(ihr_level_lambdas).T
+        ihr_level_lambdas.index.name = 'hierarchy_level'
+        ihr_level_lambdas = ihr_level_lambdas.reset_index()
+        ihr_level_lambdas['draw'] = n
+        ihr_level_lambdas_draws.append(ihr_level_lambdas)
+    ihr_level_lambdas_draws = pd.concat(ihr_level_lambdas_draws).reset_index(drop=True)
+    
     ## save IDR
     idr_draws = pd.concat([pipeline_results[n]['idr_results'].pred.rename(f'draw_{n}') for n in range(n_samples)],
                           axis=1).reset_index()
@@ -129,17 +144,22 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
                                  axis=1).reset_index()
 
     idr_model_data_draws = []
-    for idr_model_data in [pipeline_results[n]['idr_results'].model_data.copy() for n in range(n_samples)]:
+    for n, idr_model_data in [(n, pipeline_results[n]['idr_results'].model_data.copy()) for n in range(n_samples)]:
         del idr_model_data['date']
         idr_model_data = idr_model_data.rename(columns={'avg_date_of_infection':'date'})
         idr_model_data['draw'] = n
         idr_model_data['is_outlier'] = 0
-        idr_model_data = idr_model_data.loc[:, ['location_id', 'date', 'draw', 'idr', 'is_outlier']]
+        idr_model_data_draws.append(idr_model_data.loc[:, ['location_id', 'date', 'draw', 'idr', 'is_outlier']])
     idr_model_data_draws = pd.concat(idr_model_data_draws).reset_ndex(drop=True)
     
-    idr_level_lambdas = pd.DataFrame(pipeline_results[0]['idr_results'].level_lambdas).T
-    idr_level_lambdas.index.name = 'hierarchy_level'
-    idr_level_lambdas = idr_level_lambdas.reset_index()
+    idr_level_lambdas_draws = []
+    for n, idr_level_lambdas in [(n, pipeline_results[n]['idr_results'].level_lambdas) for n in range(n_samples)]:
+        idr_level_lambdas = pd.DataFrame(idr_level_lambdas).T
+        idr_level_lambdas.index.name = 'hierarchy_level'
+        idr_level_lambdas = idr_level_lambdas.reset_index()
+        idr_level_lambdas['draw'] = n
+        idr_level_lambdas_draws.append(idr_level_lambdas)
+    idr_level_lambdas_draws = pd.concat(idr_level_lambdas_draws).reset_index(drop=True)
     
     ## save serology
     seroprevalence = reported_seroprevalence.copy()
@@ -159,8 +179,6 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
 
     ## save testing
     testing = pipeline_results[0]['idr_results'].testing_capacity.reset_index()
-
-    raise ValueError('Remaining: \n    -format sero\n    -save draw files\n    -take this time to improve storage structure')
     
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     ## write outputs
@@ -169,24 +187,28 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     
     em_data.to_csv(out_dir / 'excess_mortality.csv', index=False)
 
-    ifr.to_csv(out_dir / 'allage_ifr_by_loctime.csv', index=False)
-    ifr_risk_adjustment.to_csv(out_dir / 'terminal_ifr.csv', index=False)
-    ifr_data.to_csv(out_dir / 'ifr_model_data.csv', index=False)
-    ifr_age_stand.to_csv(out_dir / 'ifr_age_stand_data.csv', index=False)
-    ifr_level_lambdas.to_csv(out_dir / 'ifr_level_lambdas.csv', index=False)
-    ifr_nrmse.to_csv(out_dir / 'ifr_nrmse.csv', index=False)
-    best_ifr_models.to_csv(out_dir / 'best_ifr_models.csv', index=False)
+    ifr_draws.to_parquet(out_dir / 'ifr_draws.parquet', index=False)
+    ifr_lr_rr_draws.to_parquet(out_dir / 'ifr_lr_rr_draws.parquet', index=False)
+    ifr_hr_rr_draws.to_parquet(out_dir / 'ifr_hr_rr_draws.parquet', index=False)
+    ifr_global_draws.to_parquet(out_dir / 'ifr_global_draws.parquet', index=False)
+    ifr_model_data_draws.to_parquet(out_dir / 'ifr_model_data_draws.parquet', index=False)
+    ifr_age_stand.to_parquet(out_dir / 'ifr_age_stand_data.parquet', index=False)
+    ifr_level_lambdas_draws.to_parquet(out_dir / 'ifr_level_lambdas_draws.parquet', index=False)
+    # ifr_nrmse.to_csv(out_dir / 'ifr_nrmse.csv', index=False)
+    # best_ifr_models.to_csv(out_dir / 'best_ifr_models.csv', index=False)
 
-    ihr.to_csv(out_dir / 'allage_ihr_by_loctime.csv', index=False)
-    ihr_data.to_csv(out_dir / 'ihr_model_data.csv', index=False)
-    ihr_age_stand.to_csv(out_dir / 'ihr_age_stand_data.csv', index=False)
-    ihr_level_lambdas.to_csv(out_dir / 'ihr_level_lambdas.csv', index=False)
+    ihr_draws.to_parquet(out_dir / 'allage_ihr_by_loctime.parquet', index=False)
+    ihr_model_data_draws.to_parquet(out_dir / 'ihr_model_data_draws.parquet', index=False)
+    ihr_age_stand.to_parquet(out_dir / 'ihr_age_stand_data.parquet', index=False)
+    ihr_level_lambdas_draws.to_parquet(out_dir / 'ihr_level_lambdas_draws.parquet', index=False)
 
-    idr.to_csv(out_dir / 'pred_idr.csv', index=False)
-    idr_data.to_csv(out_dir / 'idr_plot_data.csv', index=False)
-    idr_level_lambdas.to_csv(out_dir / 'idr_level_lambdas.csv', index=False)
+    idr_draws.to_parquet(out_dir / 'idr_draws.parquet', index=False)
+    idr_model_data_draws.to_parquet(out_dir / 'idr_model_data_draws.parquet', index=False)
+    idr_level_lambdas_draws.to_parquet(out_dir / 'idr_level_lambdas_draws.parquet', index=False)
 
-    seroprevalence.to_csv(out_dir / 'sero_data.csv', index=False)
+    seroprevalence.to_parquet(out_dir / 'seroprevalence_data.parquet', index=False)
+    
+    raise ValueError('Remaining: \n    -reinfection, etc\n    -take this time to improve storage structure')
 
     reinfection_inflation_factor.to_csv(out_dir / 'reinfection_data.csv', index=False)
 
