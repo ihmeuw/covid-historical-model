@@ -29,7 +29,7 @@ def squeeze(daily: pd.Series, rate: pd.Series,
     
     vaccinations = vaccine_coverage.join(daily, how='right')['cumulative_all_effective'].fillna(0)
     daily_vaccinations = vaccinations.groupby(level=0).diff().fillna(vaccinations)
-    eff_daily_vaccinations = daily_vaccinations * (1 - seroprevalence)
+    eff_daily_vaccinations = daily_vaccinations * (1 - seroprevalence / population).clip(0, 1)
     eff_vaccinations = eff_daily_vaccinations.groupby(level=0).cumsum()
     
     immune = seroprevalence + eff_vaccinations
