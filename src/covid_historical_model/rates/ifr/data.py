@@ -10,20 +10,20 @@ from covid_historical_model.durations.durations import SERO_TO_DEATH
 
 
 def load_input_data(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Path,
-                    shared: Dict, seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
+                    shared: Dict, seroprevalence: pd.DataFrame, sensitivity: pd.DataFrame,
+                    vaccine_coverage: pd.DataFrame,
                     escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
+                    covariates: List[pd.Series],
                     verbose: bool = True) -> Dict:
     # load data
     cumulative_deaths, daily_deaths = model_inputs.reported_epi(
         model_inputs_root, 'deaths', shared['hierarchy'], shared['gbd_hierarchy'], excess_mortality
     )
-    sensitivity = model_inputs.assay_sensitivity(model_inputs_root)
     assay_map = model_inputs.assay_map(model_inputs_root)
     sero_age_pattern = estimates.seroprevalence_age_pattern(age_pattern_root)
     ifr_age_pattern = estimates.ifr_age_pattern(age_pattern_root)
     ihr_age_pattern = estimates.ihr_age_pattern(age_pattern_root)
-    covariates = [db.obesity(shared['adj_gbd_hierarchy'])]
-    
+
     input_data = {
         'cumulative_deaths': cumulative_deaths,
         'daily_deaths': daily_deaths,

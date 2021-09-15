@@ -1,7 +1,7 @@
 import sys
 import os
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 import itertools
 from collections import namedtuple
 from loguru import logger
@@ -27,12 +27,13 @@ RESULTS = namedtuple('Results',
 
 def runner(input_data: Dict,
            day_inflection: str,
+           covariate_list: List[str],
            day_0: str = '2020-03-15',
            pred_start_date: str = '2019-11-01',
            pred_end_date: str = '2021-12-31',
            verbose: bool = True,) -> Dict:
     ## SET UP
-    logger.info('set up')
+    logger.info(f"set up:\n day_inflection: {day_inflection}\n covariates: {', '.join(covariate_list)}")
     day_inflection = pd.Timestamp(day_inflection)
     day_0 = pd.Timestamp(day_0)
     pred_start_date = pd.Timestamp(pred_start_date)
@@ -51,6 +52,7 @@ def runner(input_data: Dict,
         model_data=model_data.copy(),
         pred_data=pred_data.copy(),
         day_0=day_0, day_inflection=day_inflection,
+        covariate_list=covariate_list,
         verbose=False,
         **input_data
     )
@@ -77,7 +79,7 @@ def runner(input_data: Dict,
         input_data['age_spec_population'].copy()
     )
     sensitivity, seroprevalence = serology.apply_waning_adjustment(
-        input_data['sensitivity'].copy(),
+        input_data['sensitivity_data'].copy(),
         input_data['assay_map'].copy(),
         hospitalized_weights.copy(),
         input_data['seroprevalence'].copy(),
@@ -104,6 +106,7 @@ def runner(input_data: Dict,
         model_data=refit_model_data.copy(),
         pred_data=refit_pred_data.dropna().copy(),
         day_0=day_0, day_inflection=day_inflection,
+        covariate_list=covariate_list,
         verbose=False,
         **refit_input_data
     )

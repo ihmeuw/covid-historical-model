@@ -1,4 +1,4 @@
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List
 
 import pandas as pd
 import numpy as np
@@ -7,11 +7,13 @@ from covid_historical_model.utils.math import logit, expit
 from covid_historical_model.mrbrt import cascade
 from covid_historical_model.rates import age_standardization
 from covid_historical_model.etl import model_inputs
+from covid_historical_model.rates.covariate_priors import COVARIATE_PRIORS
 
 
 def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
               ihr_age_pattern: pd.Series, sero_age_pattern: pd.Series, age_spec_population: pd.Series,
               hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame,
+              covariate_list: List[str],
               verbose: bool = True,
               **kwargs) -> Tuple[Dict, Dict, pd.Series, pd.Series, pd.Series]:
     age_stand_scaling_factor = age_standardization.get_scaling_factor(
@@ -30,23 +32,26 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     
     # lose 0s and 1s
     model_data = model_data.loc[model_data['logit_ihr'].notnull()]
+    
+    covariate_priors = {covariate: COVARIATE_PRIORS[covariate] for covariate in covariate_list}
+    covariate_lambdas = {covariate: 1. for covariate in covariate_list}
 
     var_args = {'dep_var': 'logit_ihr',
                 'dep_var_se': 'logit_ihr_se',
-                'fe_vars': ['intercept'],
-                'prior_dict': {},
+                'fe_vars': ['intercept'] + covariate_list,
+                'prior_dict': covariate_priors,
                 're_vars': [],
                 'group_var': 'location_id',}
-    global_prior_dict = {}
+    global_prior_dict = covariate_priors
     pred_replace_dict = {}
     pred_exclude_vars = []
     level_lambdas = {
-        0: {'intercept': 2.  ,},
-        1: {'intercept': 2.  ,},
-        2: {'intercept': 100.,},
-        3: {'intercept': 100.,},
-        4: {'intercept': 100.,},
-        5: {'intercept': 100.,},
+        0: {'intercept': 2.  , **covariate_lambdas,},  # G->SR
+        1: {'intercept': 2.  , **covariate_lambdas,},  # SR->R
+        2: {'intercept': 100., **covariate_lambdas,},  # R->A0
+        3: {'intercept': 100., **covariate_lambdas,},  # A0->A1
+        4: {'intercept': 100., **covariate_lambdas,},  # A1->A2
+        5: {'intercept': 100., **covariate_lambdas,},  # A2->A3
     }
     
     if var_args['group_var'] != 'location_id':

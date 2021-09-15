@@ -12,6 +12,7 @@ from covid_historical_model.durations.durations import ADMISSION_TO_SERO
 def load_input_data(model_inputs_root: Path, age_pattern_root: Path,
                     shared: Dict, seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
                     escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
+                    covariates: List[pd.Series],
                     verbose: bool = True) -> Dict:
     # load data
     cumulative_hospitalizations, daily_hospitalizations = model_inputs.reported_epi(
@@ -19,8 +20,6 @@ def load_input_data(model_inputs_root: Path, age_pattern_root: Path,
     )
     sero_age_pattern = estimates.seroprevalence_age_pattern(age_pattern_root)
     ihr_age_pattern = estimates.ihr_age_pattern(age_pattern_root)
-    
-    covariates = []
     
     input_data = {
         'cumulative_hospitalizations': cumulative_hospitalizations,

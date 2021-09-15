@@ -56,7 +56,8 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
          n_samples: int,):
     ## run models
     pipeline_results, shared, reported_seroprevalence, sensitivity_data, \
-    escape_variant_prevalence, severity_variant_prevalence, vaccine_coverage, em_data = pipeline_wrapper(
+    escape_variant_prevalence, severity_variant_prevalence, vaccine_coverage, em_data, \
+    covariate_options = pipeline_wrapper(
         out_dir,
         model_inputs_root, excess_mortality,
         vaccine_coverage_root, variant_scaleup_root,
@@ -65,19 +66,20 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
         n_samples,
     )
     
-    ## save models
-    with (out_dir / 'pipeline_results.pkl').open('wb') as file:
-        pickle.dump(pipeline_results, file, -1)
+    # ## THIS SEEMS LIKE A WASTE OF SPACE
+    # ## save models
+    # with (out_dir / 'pipeline_results.pkl').open('wb') as file:
+    #     pickle.dump(pipeline_results, file, -1)
     
     ## save IFR
-    ifr_draws = pd.concat([pipeline_results[n]['ifr_results'].pred.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
-    ifr_draws = ifr_draws.reset_index()
-    ifr_lr_draws = pd.concat([pipeline_results[n]['ifr_results'].pred_lr.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
-    ifr_lr_draws = ifr_lr_draws.reset_index()
-    ifr_hr_draws = pd.concat([pipeline_results[n]['ifr_results'].pred_hr.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
-    ifr_hr_draws = ifr_hr_draws.reset_index()
-    ifr_global_draws = pd.concat([pipeline_results[n]['ifr_results'].pred_fe.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
-    ifr_global_draws = ifr_global_draws.reset_index()
+    ifr_draws = pd.concat([pipeline_results[n]['ifr_results'].pred.rename(f'draw_{n}') for n in range(n_samples)],
+                          axis=1).reset_index()
+    ifr_lr_draws = pd.concat([pipeline_results[n]['ifr_results'].pred_lr.rename(f'draw_{n}') for n in range(n_samples)],
+                             axis=1).reset_index()
+    ifr_hr_draws = pd.concat([pipeline_results[n]['ifr_results'].pred_hr.rename(f'draw_{n}') for n in range(n_samples)],
+                             axis=1).reset_index()
+    ifr_global_draws = pd.concat([pipeline_results[n]['ifr_results'].pred_fe.rename(f'draw_{n}') for n in range(n_samples)],
+                                 axis=1).reset_index()
     
     ifr_model_data_draws = []
     for ifr_model_data in [pipeline_results[n]['ifr_results'].model_data.copy() for n in range(n_samples)]:
@@ -96,14 +98,14 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ifr_level_lambdas = ifr_level_lambdas.reset_index()
 
     ## save IHR
-    ihr_draws = pd.concat([pipeline_results[n]['ihr_results'].pred.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
-    ihr_draws = ihr_draws.reset_index()
-    ihr_lr_draws = pd.concat([pipeline_results[n]['ihr_results'].pred_lr.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
-    ihr_lr_draws = ihr_lr_draws.reset_index()
-    ihr_hr_draws = pd.concat([pipeline_results[n]['ihr_results'].pred_hr.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
-    ihr_hr_draws = ihr_hr_draws.reset_index()
-    ihr_global_draws = pd.concat([pipeline_results[n]['ihr_results'].pred_fe.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
-    ihr_global_draws = ihr_global_draws.reset_index()
+    ihr_draws = pd.concat([pipeline_results[n]['ihr_results'].pred.rename(f'draw_{n}') for n in range(n_samples)],
+                          axis=1).reset_index()
+    ihr_lr_draws = pd.concat([pipeline_results[n]['ihr_results'].pred_lr.rename(f'draw_{n}') for n in range(n_samples)],
+                             axis=1).reset_index()
+    ihr_hr_draws = pd.concat([pipeline_results[n]['ihr_results'].pred_hr.rename(f'draw_{n}') for n in range(n_samples)],
+                             axis=1).reset_index()
+    ihr_global_draws = pd.concat([pipeline_results[n]['ihr_results'].pred_fe.rename(f'draw_{n}') for n in range(n_samples)],
+                                 axis=1).reset_index()
 
     ihr_model_data_draws = []
     for ihr_model_data in [pipeline_results[n]['ihr_results'].model_data.copy() for n in range(n_samples)]:
@@ -121,10 +123,10 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ihr_level_lambdas = ihr_level_lambdas.reset_index()
 
     ## save IDR
-    idr_draws = pd.concat([pipeline_results[n]['idr_results'].pred.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
-    idr_draws = idr_draws.reset_index()
-    idr_global_draws = pd.concat([pipeline_results[n]['idr_results'].pred_fe.rename(f'draw_{n}') for n in range(n_samples)], axis=1)
-    idr_global_draws = idr_global_draws.reset_index()
+    idr_draws = pd.concat([pipeline_results[n]['idr_results'].pred.rename(f'draw_{n}') for n in range(n_samples)],
+                          axis=1).reset_index()
+    idr_global_draws = pd.concat([pipeline_results[n]['idr_results'].pred_fe.rename(f'draw_{n}') for n in range(n_samples)],
+                                 axis=1).reset_index()
 
     idr_model_data_draws = []
     for idr_model_data in [pipeline_results[n]['idr_results'].model_data.copy() for n in range(n_samples)]:
@@ -138,22 +140,28 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     idr_level_lambdas = pd.DataFrame(pipeline_results[0]['idr_results'].level_lambdas).T
     idr_level_lambdas.index.name = 'hierarchy_level'
     idr_level_lambdas = idr_level_lambdas.reset_index()
-
-    raise ValueError('Remaining: \n    -format sero\n    -save draw files\n    -take this time to improve storage structure')
     
     ## save serology
+    seroprevalence = reported_seroprevalence.copy()
     seroprevalence = seroprevalence.rename(columns={'seroprevalence':'seroprev_mean_no_vacc',
                                                     'reported_seroprevalence':'seroprev_mean'})
-    seroprevalence = (seroprevalence
-                      .merge(ifr_results.seroprevalence.loc[:, ['data_id', 'location_id', 'date', 'seroprevalence']]
-                             .rename(columns={'seroprevalence':'seroprev_mean_no_vacc_waning'}),
-                    how='left'))
+    seroprevalence_samples = [pipeline_results[n]['idr_results'].seroprevalence for n in range(n_samples)]
+    seroprevalence_samples = pd.concat([ss.groupby('data_id')['seroprevalence'].mean().rename(f'draw_{n}')
+                                        for n, ss in enumerate(seroprevalence_samples)], axis=1)
+    seroprevalence_samples = pd.concat([seroprevalence_samples.mean(axis=1).rename('sero_mean'),
+                                        seroprevalence_samples.percentile(2.5, axis=1).rename('sero_lower'),
+                                        seroprevalence_samples.percentile(97.5, axis=1).rename('sero_upper'),],
+                                       axis=1).reset_index()
+    seroprevalence = seroprevalence.merge(seroprevalence_samples, how='left')
     seroprevalence['infection_date'] = seroprevalence['date'] - pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
     seroprevalence = seroprevalence.rename(columns={'start_date': 'sero_start_date',
                                                     'date': 'sero_end_date'})
 
-    testing = idr_results.testing_capacity.reset_index()
+    ## save testing
+    testing = pipeline_results[0]['idr_results'].testing_capacity.reset_index()
 
+    raise ValueError('Remaining: \n    -format sero\n    -save draw files\n    -take this time to improve storage structure')
+    
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     ## write outputs
     hierarchy.to_csv(out_dir / 'hierarchy.csv', index=False)

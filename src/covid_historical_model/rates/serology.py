@@ -153,7 +153,12 @@ def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.
     
     if verbose:
         logger.info('Removing vaccinated from reported seroprevalence.')
-    seroprevalence_samples = [remove_vaccinated(sample, vaccinated,) for sample in seroprevalence_samples]
+    _rv = functools.partial(
+        remove_vaccinated,
+        vaccinated=vaccinated
+    )
+    with multiprocessing.Pool(int(OMP_NUM_THREADS)) as p:
+        seroprevalence_samples = list(tqdm(p.imap(_rv, seroprevalence_samples), total=n_samples, file=sys.stdout))
     
     return seroprevalence, seroprevalence_samples
 
@@ -233,27 +238,27 @@ def remove_vaccinated(seroprevalence: pd.DataFrame,
     return seroprevalence
 
 
-def apply_waning_adjustment(sensitivity: pd.DataFrame,
+def apply_waning_adjustment(sensitivity_data: pd.DataFrame,
                             assay_map: pd.DataFrame,
                             hospitalized_weights: pd.Series,
                             seroprevalence: pd.DataFrame,
                             daily_deaths: pd.Series,
                             pred_ifr: pd.Series,
                             verbose: bool = True,) -> pd.DataFrame:
-    data_assays = sensitivity['assay'].unique().tolist()
+    data_assays = sensitivity_data['assay'].unique().tolist()
     excluded_data_assays = [da for da in data_assays if da not in ASSAYS]
     if verbose and excluded_data_assays:
         logger.warning(f"Excluding the following assays found in sensitivity data: {', '.join(excluded_data_assays)}")
     if any([a not in data_assays for a in ASSAYS]):
         raise ValueError('Assay mis-labelled.')
-    sensitivity = sensitivity.loc[sensitivity['assay'].isin(ASSAYS)]
+    sensitivity_data = sensitivity_data.loc[sensitivity_data['assay'].isin(ASSAYS)]
     
-    source_assays = sensitivity[['source', 'assay']].drop_duplicates().values.tolist()
+    source_assays = sensitivity_data[['source', 'assay']].drop_duplicates().values.tolist()
     
     sensitivity = pd.concat(
         [
             fit_hospital_weighted_sensitivity_decay(
-                sensitivity.loc[(sensitivity['source'] == source) & (sensitivity['assay'] == assay)].copy(),
+                sensitivity_data.loc[(sensitivity_data['source'] == source) & (sensitivity_data['assay'] == assay)].copy(),
                 assay in INCREASING,
                 hospitalized_weights.copy()
             )

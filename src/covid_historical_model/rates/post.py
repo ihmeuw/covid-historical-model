@@ -57,7 +57,7 @@ def variants_vaccines(rate_age_pattern: pd.Series,
     
     denominator_a = (numerator / rate)
     denominator_ev = (numerator / (rate * SEVERE_DISEASE_INFLATION))
-    denominator_sv = (numerator / (rate * SEVERE_DISEASE_INFLATION))
+    denominator_sv = denominator_ev.copy()
     denominator_a *= (1 - (escape_variant_prevalence + severity_variant_prevalence)[denominator_a.index])
     denominator_ev *= escape_variant_prevalence[denominator_ev.index]
     denominator_sv *= severity_variant_prevalence[denominator_sv.index]

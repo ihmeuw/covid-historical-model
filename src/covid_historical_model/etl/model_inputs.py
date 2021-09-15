@@ -348,7 +348,9 @@ def hierarchy(model_inputs_root:Path, hierarchy_type: str = 'covid_modeling') ->
     elif hierarchy_type == 'covid_covariate':
         data_path = model_inputs_root / 'locations' / 'covariate_with_aggregates_hierarchy.csv'
     elif hierarchy_type == 'covid_gbd':
-        data_path = model_inputs_root / 'locations' / 'gbd_analysis_hierarchy.csv'
+        logger.warning('Not actually using GBD hierarchy (to save space)...')
+        # data_path = model_inputs_root / 'locations' / 'gbd_analysis_hierarchy.csv'
+        data_path = model_inputs_root / 'locations' / 'modeling_hierarchy.csv'
     
     data = pd.read_csv(data_path)
     data = data.sort_values('sort_order').reset_index(drop=True)

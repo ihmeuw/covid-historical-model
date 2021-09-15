@@ -1,6 +1,7 @@
 import sys
 from typing import List, Tuple, Dict
 from pathlib import Path
+import itertools
 from loguru import logger
 import dill as pickle
 
@@ -10,7 +11,7 @@ import numpy as np
 from covid_shared import shell_tools
 from covid_shared.cli_tools.logging import configure_logging_to_terminal
 
-from covid_historical_model.etl import model_inputs, estimates
+from covid_historical_model.etl import model_inputs, estimates, db
 from covid_historical_model.rates import serology
 from covid_historical_model.rates import age_standardization
 from covid_historical_model.rates import ifr
@@ -29,7 +30,7 @@ def pipeline_wrapper(out_dir: Path,
                      day_inflection_list: List[str] = ['2020-05-01', '2020-06-01', '2020-07-01', '2020-08-01',
                                                        '2020-09-01', '2020-10-01', '2020-11-01', '2020-12-01',],
                      correlate_samples: bool = False,
-                     bootstrap: bool = False,
+                     bootstrap: bool = True,
                      verbose: bool = True,) -> Tuple:
     np.random.seed(15243)
     if verbose:
@@ -58,26 +59,54 @@ def pipeline_wrapper(out_dir: Path,
         correlate_samples=correlate_samples, bootstrap=bootstrap,
         verbose=verbose,
     )
+    sensitivity_data = model_inputs.assay_sensitivity(model_inputs_root)
+    
+    covariate_options = ['obesity', 'smoking', 'diabetes', 'ckd',
+                         'cancer', 'copd', 'cvd', 'uhc', 'haq',]
+    covariates = [db.obesity(adj_gbd_hierarchy),
+                  db.smoking(adj_gbd_hierarchy),
+                  db.diabetes(adj_gbd_hierarchy),
+                  db.ckd(adj_gbd_hierarchy),
+                  db.cancer(adj_gbd_hierarchy),
+                  db.copd(adj_gbd_hierarchy),
+                  db.cvd(adj_gbd_hierarchy),
+                  db.uhc(adj_gbd_hierarchy) / 100,
+                  db.haq(adj_gbd_hierarchy) / 100,]
     
     if verbose:
-        logger.info('Submitting sero-sample jobs.')
+        logger.info('Getting covariate combinations and creating input data.')
+    # for now, just make up covariates
+    test_combinations = []
+    for i in range(len(covariate_options)):
+        test_combinations += [list(set(cc)) for cc in itertools.combinations(covariate_options, i + 1)]
+    # test_combinations = [','.join(set(cc)) for cc in itertools.product(from itertools import combinations,
+    #                                                                    repeat=len(covariate_options))]
+    test_combinations = [cc for cc in test_combinations if 
+                         len([c for c in cc if c in ['diabetes', 'cancer', 'copd', 'cvd', 'ckd']]) <= 2]
+    test_combinations = [cc for cc in test_combinations if 
+                        len([c for c in cc if c in ['uhc', 'haq']]) <= 1]
     inputs = {
         n: {
             'orig_seroprevalence': seroprevalence,
             'shared': shared,
             'model_inputs_root': model_inputs_root,
             'excess_mortality': excess_mortality,
+            'sensitivity_data': sensitivity_data,
             'vaccine_coverage': vaccine_coverage,
             'escape_variant_prevalence': escape_variant_prevalence,
             'severity_variant_prevalence': severity_variant_prevalence,
             'age_pattern_root': age_pattern_root,
             'testing_root': testing_root,
             'day_inflection_list': day_inflection_list,
+            'covariates': covariates,
+            'covariate_list': np.random.choice(test_combinations),
             'verbose': verbose,
         }
         for n, seroprevalence in enumerate(seroprevalence_samples)
     }
     
+    if verbose:
+        logger.info('Storing inputs and submitting sero-sample jobs.')
     inputs_path = out_dir / 'pipeline_inputs.pkl'
     with inputs_path.open('wb') as file:
         pickle.dump(inputs, file, -1)
@@ -92,25 +121,24 @@ def pipeline_wrapper(out_dir: Path,
             outputs = pickle.load(file)
         pipeline_results.update(outputs)
     
-    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
-    logger.warning('NEED THINK ABOUT RIGHT APPROACH TO PLOTTING.')
-    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
-    raise ValueError('DONE')
-        
     em_data = estimates.excess_mortailty_scalars(model_inputs_root, excess_mortality)
     
     return pipeline_results, shared, reported_seroprevalence, sensitivity_data, \
-           escape_variant_prevalence, severity_variant_prevalence, vaccine_coverage, em_data
+           escape_variant_prevalence, severity_variant_prevalence, vaccine_coverage, em_data, \
+           covariate_options
 
 
 def pipeline(orig_seroprevalence: pd.DataFrame,
              shared: Dict,
              model_inputs_root: Path, excess_mortality: bool,
+             sensitivity_data: pd.DataFrame,
              vaccine_coverage: pd.DataFrame,
              escape_variant_prevalence: pd.Series,
              severity_variant_prevalence: pd.Series,
              age_pattern_root: Path, testing_root: Path,
              day_inflection_list: List[str],
+             covariates: List[pd.Series],
+             covariate_list: List[str],
              storage_dir: Path,
              verbose: bool,) -> Tuple:
     if verbose:
@@ -118,15 +146,17 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                     f"IFR ESTIMATION -- testing inflection points: {', '.join(day_inflection_list)}\n"
                     '*************************************')
     ifr_input_data = ifr.data.load_input_data(model_inputs_root, excess_mortality, age_pattern_root,
-                                              shared, orig_seroprevalence, vaccine_coverage,
+                                              shared, orig_seroprevalence, sensitivity_data, vaccine_coverage,
                                               escape_variant_prevalence,
                                               severity_variant_prevalence,
+                                              covariates,
                                               verbose=verbose)
     job_args_map = {}
     outputs_paths = []
     for day_inflection in day_inflection_list:
         inputs = {
-            'input_data': ifr_input_data, 'day_inflection': day_inflection
+            'input_data': ifr_input_data, 'day_inflection': day_inflection,
+            'covariate_list': covariate_list,
         }
         # ifr.runner.runner(**inputs)
         # raise ValueError('STOP')
@@ -176,20 +206,24 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                                               shared, adj_seroprevalence.copy(), vaccine_coverage.copy(),
                                               escape_variant_prevalence.copy(),
                                               severity_variant_prevalence.copy(),
+                                              covariates,
                                               verbose=verbose)
     ihr_results = ihr.runner.runner(ihr_input_data, daily_reinfection_inflation_factor.copy(),
+                                    covariate_list,
                                     verbose=verbose)
     
     pipeline_results = {
-        'seroprevalence':adj_seroprevalence,
-        'cumul_reinfection_inflation_factor':cumul_reinfection_inflation_factor,
-        'daily_reinfection_inflation_factor':daily_reinfection_inflation_factor,
+        'covariate_list': covariate_list,
+        'seroprevalence': adj_seroprevalence,
+        'sensitivity': sensitivity,
+        'cumul_reinfection_inflation_factor': cumul_reinfection_inflation_factor,
+        'daily_reinfection_inflation_factor': daily_reinfection_inflation_factor,
         'day_inflection_list': day_inflection_list,
-        'ifr_nrmse':ifr_nrmse,
-        'best_ifr_models':best_ifr_models,
-        'ifr_results':ifr_results,
-        'idr_results':idr_results,
-        'ihr_results':ihr_results,
+        'ifr_nrmse': ifr_nrmse,
+        'best_ifr_models': best_ifr_models,
+        'ifr_results': ifr_results,
+        'idr_results': idr_results,
+        'ihr_results': ihr_results,
     }
     
     return pipeline_results
