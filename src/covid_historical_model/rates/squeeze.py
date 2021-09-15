@@ -24,20 +24,19 @@ def squeeze(daily: pd.Series, rate: pd.Series,
     cumul_infections['seroprevalence'] = cumul_infections['infections'] / cumul_infections['inflation_factor']
     seroprevalence = cumul_infections['seroprevalence'].dropna()
     cumul_infections = cumul_infections['infections'].dropna()
-    cumul_infections = cumul_infections.groupby(level=0).max()
-    seroprevalence = seroprevalence.groupby(level=0).max()
     
-    ## don't worry about vaccinations for now...
-    # vaccine_coverage = vaccine_coverage.join(daily, how='right')['cumulative_all_effective'].fillna(0)
-    # vaccine_coverage = vaccine_coverage.groupby(level=0).max()
-    # vaccine_coverage /= population
-    # limits = ceiling * (1 - vaccine_coverage)
-    # limits *= population
+    vaccinations = vaccine_coverage.join(daily, how='right')['cumulative_all_effective'].fillna(0)
+    daily_vaccinations = vaccinations.groupby(level=0).diff().fillna(vaccinations)
+    eff_daily_vaccinations = daily_vaccinations * (1 - seroprevalence / population).clip(0, 1)
+    eff_vaccinations = eff_daily_vaccinations.groupby(level=0).cumsum()
     
+    immune = seroprevalence + eff_vaccinations
+    max_immune = immune.groupby(level=0).max()
+
     limits = population * ceiling
     
-    excess = (seroprevalence - limits).dropna().clip(0, np.inf)
-    excess_scaling_factor = ((seroprevalence - excess) / seroprevalence).rename('scalar')
+    excess = (max_immune - limits).dropna().clip(0, np.inf)
+    excess_scaling_factor = ((max_immune - excess) / max_immune).rename('scalar')
     excess_scaling_factor = excess_scaling_factor.fillna(1)
     
     rate = (rate / excess_scaling_factor).fillna(rate)
