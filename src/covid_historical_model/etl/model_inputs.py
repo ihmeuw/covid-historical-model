@@ -260,7 +260,17 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     outliers.append(est_ndl_vax_outlier)
     if verbose:
         logger.info(f'{est_ndl_vax_outlier.sum()} rows from sero data dropped due to Netherlands and Estonia vax issues.')
-        
+    
+    # vaccine debacle, lose all the Puerto Rico data from April 2021 onward
+    is_pr = data['location_id'].isin([385])
+    is_spike = data['test_target'] == 'spike'
+    is_2021 = data['date'] >= pd.Timestamp('2021-04-01')
+    
+    pr_vax_outlier = is_pr & is_spike & is_2021
+    outliers.append(pr_vax_outlier)
+    if verbose:
+        logger.info(f'{pr_vax_outlier.sum()} rows from sero data dropped due to Puerto Rico vax issues.')
+
     # # drop Rio Grande do Sul
     # rgds_outlier = data['location_id'] == 4772
 

@@ -19,7 +19,7 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
 ##     - bias covariates?
 ##     - for waning, do something to Perez-Saez to crosswalk for baseline sensitivity?
 ##     - smarter posterior IFR forecast
-##     - 
+##     - problem in vax proccess (i.e., timing seems important)
 
 ## RATIO FUTURE TODO:
 ##     - try trimming in certain levels (probably just global)?
