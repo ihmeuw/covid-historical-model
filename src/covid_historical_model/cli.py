@@ -48,7 +48,7 @@ from covid_historical_model import untitled_unmastered
                     'if not already present).'))
 @click.option('-n', '--n-samples',
               type=click.INT,
-              default=20,
+              default=100,
               help='Number of seroprevalence samples.')
 @click.option('-b', '--mark-best', 'mark_dir_as_best',
               is_flag=True,

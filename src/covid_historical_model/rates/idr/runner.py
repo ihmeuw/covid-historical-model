@@ -78,9 +78,8 @@ def runner(input_data: Dict, shared: Dict,
         pred=pred.copy()
     )
     model_data = model_data.merge(dates_data, how='left')
-    model_data['avg_date_of_infection'] = model_data['avg_date_of_infection'].fillna(model_data['date'])
-    model_data = (model_data.loc[:, ['location_id', 'avg_date_of_infection', 'idr']].reset_index(drop=True))
-    model_data = model_data.rename(columns={'avg_date_of_infection':'date'})
+    model_data['mean_infection_date'] = model_data['mean_infection_date'].fillna(model_data['date'])
+    model_data = (model_data.loc[:, ['location_id', 'date', 'mean_infection_date', 'idr']].reset_index(drop=True))
 
     results = RESULTS(
         seroprevalence=input_data['seroprevalence'],

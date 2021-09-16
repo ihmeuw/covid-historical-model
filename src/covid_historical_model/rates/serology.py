@@ -95,9 +95,8 @@ def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
         for sample in samples.T:
             _sample = seroprevalence.copy()
             _sample['seroprevalence'] = sample
-                
             sample_list.append(_sample.reset_index(drop=True))
-            
+
     elif n_samples > 1:
         raise ValueError(f'If sampling, need at least {min_samples}.')
     else:

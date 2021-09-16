@@ -20,6 +20,11 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
 ##     - for waning, do something to Perez-Saez to crosswalk for baseline sensitivity?
 ##     - smarter posterior IFR forecast
 ##     - problem in vax proccess (i.e., timing seems important)
+##     - variant prevalence IN model (starting to overlap)
+##     - additional sources of uncertainty:
+##           * cross-variant immunity
+##           * waning distribution
+##           * sensitivity decay
 
 ## RATIO FUTURE TODO:
 ##     - try trimming in certain levels (probably just global)?
@@ -55,9 +60,9 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
          excess_mortality: bool,
          n_samples: int,):
     ## run models
-    pipeline_results, shared, reported_seroprevalence, sensitivity_data, \
-    escape_variant_prevalence, severity_variant_prevalence, vaccine_coverage, em_data, \
-    covariate_options = pipeline_wrapper(
+    pipeline_results, reported_seroprevalence, \
+    escape_variant_prevalence, severity_variant_prevalence, \
+    vaccine_coverage, em_data = pipeline_wrapper(
         out_dir,
         model_inputs_root, excess_mortality,
         vaccine_coverage_root, variant_scaleup_root,
@@ -103,6 +108,12 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
         ifr_level_lambdas['draw'] = n
         ifr_level_lambdas_draws.append(ifr_level_lambdas)
     ifr_level_lambdas_draws = pd.concat(ifr_level_lambdas_draws).reset_index(drop=True)
+    
+    reinfection_inflation_factor_draws = []
+    for n, reinfection_inflation_factor in [(n, pipeline_results[n]['daily_reinfection_inflation_factor']) for n in range(n_samples)]:
+        reinfection_inflation_factor['draw'] = n
+        reinfection_inflation_factor_draws.append(reinfection_inflation_factor)
+    reinfection_inflation_factor_draws = pd.concat(reinfection_inflation_factor_draws).reset_index(drop=True)
 
     ## save IHR
     ihr_draws = pd.concat([pipeline_results[n]['ihr_results'].pred.rename(f'draw_{n}') for n in range(n_samples)],
@@ -146,11 +157,11 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     idr_model_data_draws = []
     for n, idr_model_data in [(n, pipeline_results[n]['idr_results'].model_data.copy()) for n in range(n_samples)]:
         del idr_model_data['date']
-        idr_model_data = idr_model_data.rename(columns={'avg_date_of_infection':'date'})
+        idr_model_data = idr_model_data.rename(columns={'mean_infection_date':'date'})
         idr_model_data['draw'] = n
         idr_model_data['is_outlier'] = 0
         idr_model_data_draws.append(idr_model_data.loc[:, ['location_id', 'date', 'draw', 'idr', 'is_outlier']])
-    idr_model_data_draws = pd.concat(idr_model_data_draws).reset_ndex(drop=True)
+    idr_model_data_draws = pd.concat(idr_model_data_draws).reset_index(drop=True)
     
     idr_level_lambdas_draws = []
     for n, idr_level_lambdas in [(n, pipeline_results[n]['idr_results'].level_lambdas) for n in range(n_samples)]:
@@ -169,8 +180,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     seroprevalence_samples = pd.concat([ss.groupby('data_id')['seroprevalence'].mean().rename(f'draw_{n}')
                                         for n, ss in enumerate(seroprevalence_samples)], axis=1)
     seroprevalence_samples = pd.concat([seroprevalence_samples.mean(axis=1).rename('sero_mean'),
-                                        seroprevalence_samples.percentile(2.5, axis=1).rename('sero_lower'),
-                                        seroprevalence_samples.percentile(97.5, axis=1).rename('sero_upper'),],
+                                        seroprevalence_samples.std(axis=1).rename('sero_std'),],
                                        axis=1).reset_index()
     seroprevalence = seroprevalence.merge(seroprevalence_samples, how='left')
     seroprevalence['infection_date'] = seroprevalence['date'] - pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
@@ -179,44 +189,42 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
 
     ## save testing
     testing = pipeline_results[0]['idr_results'].testing_capacity.reset_index()
-    
+
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     ## write outputs
-    hierarchy.to_csv(out_dir / 'hierarchy.csv', index=False)
-    population.reset_index().to_csv(out_dir / 'population.csv', index=False)
+    # hierarchy.to_parquet(out_dir / 'hierarchy.parquet')
+    # population.reset_index().to_parquet(out_dir / 'population.parquet')
     
-    em_data.to_csv(out_dir / 'excess_mortality.csv', index=False)
+    em_data.to_parquet(out_dir / 'excess_mortality.parquet')
 
-    ifr_draws.to_parquet(out_dir / 'ifr_draws.parquet', index=False)
-    ifr_lr_rr_draws.to_parquet(out_dir / 'ifr_lr_rr_draws.parquet', index=False)
-    ifr_hr_rr_draws.to_parquet(out_dir / 'ifr_hr_rr_draws.parquet', index=False)
-    ifr_global_draws.to_parquet(out_dir / 'ifr_global_draws.parquet', index=False)
-    ifr_model_data_draws.to_parquet(out_dir / 'ifr_model_data_draws.parquet', index=False)
-    ifr_age_stand.to_parquet(out_dir / 'ifr_age_stand_data.parquet', index=False)
-    ifr_level_lambdas_draws.to_parquet(out_dir / 'ifr_level_lambdas_draws.parquet', index=False)
+    ifr_draws.to_parquet(out_dir / 'ifr_draws.parquet')
+    ifr_lr_rr_draws.to_parquet(out_dir / 'ifr_lr_rr_draws.parquet')
+    ifr_hr_rr_draws.to_parquet(out_dir / 'ifr_hr_rr_draws.parquet')
+    ifr_global_draws.to_parquet(out_dir / 'ifr_global_draws.parquet')
+    ifr_model_data_draws.to_parquet(out_dir / 'ifr_model_data_draws.parquet')
+    ifr_age_stand.to_parquet(out_dir / 'ifr_age_stand_data.parquet')
+    ifr_level_lambdas_draws.to_parquet(out_dir / 'ifr_level_lambdas_draws.parquet')
     # ifr_nrmse.to_csv(out_dir / 'ifr_nrmse.csv', index=False)
     # best_ifr_models.to_csv(out_dir / 'best_ifr_models.csv', index=False)
 
-    ihr_draws.to_parquet(out_dir / 'allage_ihr_by_loctime.parquet', index=False)
-    ihr_model_data_draws.to_parquet(out_dir / 'ihr_model_data_draws.parquet', index=False)
-    ihr_age_stand.to_parquet(out_dir / 'ihr_age_stand_data.parquet', index=False)
-    ihr_level_lambdas_draws.to_parquet(out_dir / 'ihr_level_lambdas_draws.parquet', index=False)
+    ihr_draws.to_parquet(out_dir / 'allage_ihr_by_loctime.parquet')
+    ihr_model_data_draws.to_parquet(out_dir / 'ihr_model_data_draws.parquet')
+    ihr_age_stand.to_parquet(out_dir / 'ihr_age_stand_data.parquet')
+    ihr_level_lambdas_draws.to_parquet(out_dir / 'ihr_level_lambdas_draws.parquet')
 
-    idr_draws.to_parquet(out_dir / 'idr_draws.parquet', index=False)
-    idr_model_data_draws.to_parquet(out_dir / 'idr_model_data_draws.parquet', index=False)
-    idr_level_lambdas_draws.to_parquet(out_dir / 'idr_level_lambdas_draws.parquet', index=False)
+    idr_draws.to_parquet(out_dir / 'idr_draws.parquet')
+    idr_model_data_draws.to_parquet(out_dir / 'idr_model_data_draws.parquet')
+    idr_level_lambdas_draws.to_parquet(out_dir / 'idr_level_lambdas_draws.parquet')
 
-    seroprevalence.to_parquet(out_dir / 'seroprevalence_data.parquet', index=False)
+    seroprevalence.to_parquet(out_dir / 'seroprevalence_data.parquet')
     
-    raise ValueError('Remaining: \n    -reinfection, etc\n    -take this time to improve storage structure')
-
-    reinfection_inflation_factor.to_csv(out_dir / 'reinfection_data.csv', index=False)
-
-    testing.to_csv(out_dir / 'test_data.csv', index=False)
+    reinfection_inflation_factor_draws.to_parquet(out_dir / 'reinfection_inflation_factor_draws.parquet')
     
-    vaccine_coverage.reset_index().to_csv(out_dir / 'vaccine_coverage.csv', index=False)
+    testing.to_parquet(out_dir / 'testing.parquet')
+    
+    vaccine_coverage.reset_index().to_parquet(out_dir / 'vaccine_coverage.parquet')
     
     (pd.concat([escape_variant_prevalence, severity_variant_prevalence], axis=1)
-     .reset_index()).to_csv(out_dir / 'variants.csv', index=False)
+     .reset_index()).to_parquet(out_dir / 'variants.parquet')
 
     logger.info(f'Model output directory: {str(out_dir)}')

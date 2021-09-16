@@ -11,12 +11,12 @@ from loguru import logger
 
 
 PROJECT = 'proj_covid_prod'
-QUEUE = 'long.q'
+QUEUE = 'all.q'
 RESOURCES = {
     'all':{'fmem': '10.0G', 'fthread': '3'},
 }
 OMP_NUM_THREADS = '3'
-H_RUNTIME = '01:00:00'
+H_RUNTIME = '02:00:00'
 SLEEP_TIME = 10
 
 

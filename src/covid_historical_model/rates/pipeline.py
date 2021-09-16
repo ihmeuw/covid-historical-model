@@ -4,6 +4,7 @@ from pathlib import Path
 import itertools
 from loguru import logger
 import dill as pickle
+import shutil
 
 import pandas as pd
 import numpy as np
@@ -13,13 +14,14 @@ from covid_shared.cli_tools.logging import configure_logging_to_terminal
 
 from covid_historical_model.etl import model_inputs, estimates, db
 from covid_historical_model.rates import serology
+from covid_historical_model.rates import covariate_selection
 from covid_historical_model.rates import age_standardization
 from covid_historical_model.rates import ifr
 from covid_historical_model.rates import idr
 from covid_historical_model.rates import ihr
 from covid_historical_model import cluster
 from covid_historical_model.rates import location_plots
-from covid_historical_model.utils.pdf_merger import pdf_merger
+from covid_historical_model.utils import pdf_merger
 
 
 def pipeline_wrapper(out_dir: Path,
@@ -74,17 +76,24 @@ def pipeline_wrapper(out_dir: Path,
                   db.haq(adj_gbd_hierarchy) / 100,]
     
     if verbose:
-        logger.info('Getting covariate combinations and creating input data.')
+        logger.info('Identifying best covariate combinations and creating input data object.')
     # for now, just make up covariates
     test_combinations = []
     for i in range(len(covariate_options)):
         test_combinations += [list(set(cc)) for cc in itertools.combinations(covariate_options, i + 1)]
-    # test_combinations = [','.join(set(cc)) for cc in itertools.product(from itertools import combinations,
-    #                                                                    repeat=len(covariate_options))]
-    test_combinations = [cc for cc in test_combinations if 
-                         len([c for c in cc if c in ['diabetes', 'cancer', 'copd', 'cvd', 'ckd']]) <= 2]
     test_combinations = [cc for cc in test_combinations if 
                         len([c for c in cc if c in ['uhc', 'haq']]) <= 1]
+    selected_combinations = covariate_selection.covariate_selection(
+        n_samples=n_samples, test_combinations=test_combinations,
+        model_inputs_root=model_inputs_root, excess_mortality=excess_mortality,
+        age_pattern_root=age_pattern_root, shared=shared,
+        reported_seroprevalence=reported_seroprevalence, sensitivity_data=sensitivity_data,
+        vaccine_coverage=vaccine_coverage,
+        escape_variant_prevalence=escape_variant_prevalence,
+        severity_variant_prevalence=severity_variant_prevalence,
+        covariates=covariates,
+    )
+    
     inputs = {
         n: {
             'orig_seroprevalence': seroprevalence,
@@ -99,10 +108,10 @@ def pipeline_wrapper(out_dir: Path,
             'testing_root': testing_root,
             'day_inflection_list': day_inflection_list,
             'covariates': covariates,
-            'covariate_list': np.random.choice(test_combinations),
+            'covariate_list': covariate_list,
             'verbose': verbose,
         }
-        for n, seroprevalence in enumerate(seroprevalence_samples)
+        for n, (covariate_list, seroprevalence) in enumerate(zip(selected_combinations, seroprevalence_samples))
     }
     
     if verbose:
@@ -123,9 +132,9 @@ def pipeline_wrapper(out_dir: Path,
     
     em_data = estimates.excess_mortailty_scalars(model_inputs_root, excess_mortality)
     
-    return pipeline_results, shared, reported_seroprevalence, sensitivity_data, \
-           escape_variant_prevalence, severity_variant_prevalence, vaccine_coverage, em_data, \
-           covariate_options
+    return pipeline_results, reported_seroprevalence, \
+           escape_variant_prevalence, severity_variant_prevalence, \
+           vaccine_coverage, em_data
 
 
 def pipeline(orig_seroprevalence: pd.DataFrame,
@@ -139,7 +148,7 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
              day_inflection_list: List[str],
              covariates: List[pd.Series],
              covariate_list: List[str],
-             storage_dir: Path,
+             storage_dir: Path, root_dir: Path,
              verbose: bool,) -> Tuple:
     if verbose:
         logger.info('\n*************************************\n'
@@ -151,26 +160,23 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                                               severity_variant_prevalence,
                                               covariates,
                                               verbose=verbose)
+    ifr_input_data_path = storage_dir / f'ifr_input_data.pkl'
+    with ifr_input_data_path.open('wb') as file:
+        pickle.dump(ifr_input_data, file, -1)
+    covariate_list_path = storage_dir / f'covariate_list.pkl'
+    with covariate_list_path.open('wb') as file:
+        pickle.dump(covariate_list, file, -1)
+
     job_args_map = {}
     outputs_paths = []
     for day_inflection in day_inflection_list:
-        inputs = {
-            'input_data': ifr_input_data, 'day_inflection': day_inflection,
-            'covariate_list': covariate_list,
-        }
-        # ifr.runner.runner(**inputs)
-        # raise ValueError('STOP')
-        
-        inputs_path = storage_dir / f'{day_inflection}_inputs.pkl'
-        with inputs_path.open('wb') as file:
-            pickle.dump(inputs, file, -1)
-        
         outputs_path = storage_dir / f'{day_inflection}_outputs.pkl'
         outputs_paths.append(outputs_path)
         
-        job_args_map.update({day_inflection: [ifr.runner.__file__, inputs_path, outputs_path]})
+        job_args_map.update({day_inflection: [ifr.runner.__file__, day_inflection,
+                                              ifr_input_data_path, covariate_list_path, outputs_path]})
     
-    cluster.run_cluster_jobs('covid_ifr_model', storage_dir, job_args_map)
+    cluster.run_cluster_jobs('covid_ifr_model', root_dir, job_args_map)
 
     full_ifr_results = {}
     for outputs_path in outputs_paths:
@@ -388,7 +394,7 @@ def compile_pdfs(plots_dir: Path, out_dir: Path, hierarchy: pd.DataFrame,
                   for location_id in pdf_location_ids]
     pdf_paths = [str(plots_dir / pdf_path) for pdf_path in pdf_paths]
     pdf_out_path = out_dir / f'{outfile_prefix}_{str(out_dir).split("/")[-1]}.pdf'
-    pdf_merger(pdf_paths, pdf_location_names, pdf_parent_names, pdf_levels, str(pdf_out_path))
+    pdf_merger.pdf_merger(pdf_paths, pdf_location_names, pdf_parent_names, pdf_levels, str(pdf_out_path))
 
     
 def submit_plots():
@@ -433,11 +439,14 @@ def main(n: int, inputs_path: str, pipeline_dir: str):
     shell_tools.mkdir(storage_dir)
     
     np.random.seed(123 * (n + 1))
-    pipeline_outputs = pipeline(storage_dir=storage_dir,
+    pipeline_outputs = pipeline(storage_dir=storage_dir, root_dir=root_dir,
                                 **inputs)
     
     with (root_dir / 'outputs.pkl').open('wb') as file:
         pickle.dump({n: pipeline_outputs}, file)
+        
+    ## wipe intermediate datasets
+    shutil.rmtree(storage_dir)
     
 
 if __name__ == '__main__':

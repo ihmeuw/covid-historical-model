@@ -178,7 +178,7 @@ def runner(input_data: Dict,
         pct_inf_hr=pct_inf_hr,
         age_stand_scaling_factor=refit_age_stand_scaling_factor,
     )
-    
+
     ## NRMSE
     logger.info('performance metrics')
     nrmse, residuals = ifr.model.get_nrmse(refit_input_data['seroprevalence'].copy(),
@@ -195,16 +195,23 @@ def runner(input_data: Dict,
             'sensitivity': sensitivity, 'nrmse': nrmse, 'residuals': residuals,}
 
 
-def main(inputs_path: str, outputs_path: str):
+def main(day_inflection: str,
+         input_data_path: str,
+         covariate_list_path: str,
+         outputs_path: str):
     logger.info('reading inputs')
-    with Path(inputs_path).open('rb') as file:
-        inputs = pickle.load(file)
+    with Path(input_data_path).open('rb') as file:
+        input_data = pickle.load(file)
+    with Path(covariate_list_path).open('rb') as file:
+        covariate_list = pickle.load(file)
         
-    outputs = runner(**inputs)
+    outputs = runner(input_data=input_data,
+                     day_inflection=day_inflection,
+                     covariate_list=covariate_list,)
     
     logger.info('writing')
     with Path(outputs_path).open('wb') as file:
-        pickle.dump({inputs['day_inflection']: outputs}, file)
+        pickle.dump({day_inflection: outputs}, file)
     
     logger.info('done')
 
@@ -213,4 +220,4 @@ if __name__ == '__main__':
     os.environ['OMP_NUM_THREADS'] = '6'
     configure_logging_to_terminal(verbose=2)
     
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
