@@ -156,6 +156,7 @@ def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.
         remove_vaccinated,
         vaccinated=vaccinated
     )
+    seroprevalence = remove_vaccinated(seroprevalence=seroprevalence, vaccinated=vaccinated)
     with multiprocessing.Pool(int(OMP_NUM_THREADS)) as p:
         seroprevalence_samples = list(tqdm(p.imap(_rv, seroprevalence_samples), total=n_samples, file=sys.stdout))
     
