@@ -51,6 +51,15 @@ PLOT_START_DATE = pd.Timestamp('2020-03-01')
 PLOT_END_DATE = pd.Timestamp(str(datetime.today().date()))
 
 
+def bootstrap(sample: pd.DataFrame,):
+    rows = np.random.choice(sample.index, size=len(sample), replace=True)
+    _bootstrap = []
+    for row in rows:
+        _bootstrap.append(sample.loc[[row]])
+        
+    return pd.concat(_bootstrap).reset_index(drop=True)
+
+
 def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
                           correlate_samples: bool, bootstrap_samples: bool,
                           min_samples: int = 10,
@@ -110,13 +119,8 @@ def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
         sample_list = [seroprevalence.reset_index(drop=True)]
 
     if bootstrap_samples:
-        bootstrap_list = []
-        for sample in sample_list:
-            rows = np.random.choice(sample.index, size=len(sample), replace=True)
-            bootstrap = []
-            for row in rows:
-                bootstrap.append(sample.loc[[row]])
-            bootstrap_list.append(pd.concat(bootstrap).reset_index(drop=True))
+        with multiprocessing.Pool(int(OMP_NUM_THREADS)) as p:
+            bootstrap_list = list(tqdm(p.imap(bootstrap, sample_list), total=n_samples, file=sys.stdout))
     else:
         bootstrap_list = sample_list
     
