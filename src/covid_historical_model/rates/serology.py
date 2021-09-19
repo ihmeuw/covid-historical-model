@@ -20,7 +20,7 @@ from covid_historical_model.durations.durations import SERO_TO_DEATH, EXPOSURE_T
 from covid_historical_model.etl import model_inputs
 from covid_historical_model.utils.misc import text_wrap
 from covid_historical_model.utils.math import logit, expit, scale_to_bounds
-from covid_historical_model.cluster import OMP_NUM_THREADS
+from covid_historical_model.cluster import CONTROLLER_MP_THREADS, OMP_NUM_THREADS
 
 VAX_SERO_PROB = 0.9
 SEROREV_LB = 0.
@@ -68,6 +68,10 @@ def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
     logit_se_from_ci = lambda x: (logit(x['seroprevalence_upper']) - logit(x['seroprevalence_lower'])) / 3.92
     logit_se_from_ss = lambda x: np.sqrt((x['seroprevalence'] * (1 - x['seroprevalence'])) / x['sample_size']) / \
                                  (x['seroprevalence'] * (1.0 - x['seroprevalence']))
+    
+    series_vars = ['location_id', 'is_outlier', 'survey_series', 'date']
+    seroprevalence = seroprevalence.sort_values(series_vars).reset_index(drop=True)
+    
     if n_samples >= min_samples:
         if verbose:
             logger.info(f'Producing {n_samples} seroprevalence samples.')
@@ -80,7 +84,7 @@ def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
             
         summary_vars = ['seroprevalence', 'seroprevalence_lower', 'seroprevalence_upper']
         seroprevalence[summary_vars] = seroprevalence[summary_vars].clip(floor, 1 - floor)
-            
+
         logit_mean = logit(seroprevalence['seroprevalence'].copy())
         logit_se = logit_se_from_ci(seroprevalence.copy())
         logit_se = logit_se.fillna(logit_se_from_ss(seroprevalence.copy()))
@@ -95,9 +99,18 @@ def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
         # # re-center around original mean
         # samples *= seroprevalence[['seroprevalence']].values / samples.mean(axis=1, keepdims=True)
         if correlate_samples:
-            raise ValueError("Should do this to induce correlation w/in series, not across locations.")
             logger.info('Correlating seroprevalence samples.')
-            samples = np.sort(samples, axis=1)
+            series_data = seroprevalence[series_vars].drop_duplicates().reset_index(drop=True)
+            series_data['series'] = series_data.index
+            series_data = seroprevalence.merge(series_data)
+            series_data = seroprevalence.merge(series_data).reset_index(drop=True)
+            series_idx_list = [series_data.loc[series_data['series'] == series].index.to_list()
+                               for series in range(series_data['series'].max())]
+            for series_idx in series_idx_list:
+                series_draw_idx = samples[series_idx, :][0].argsort().argsort()
+                samples[series_idx, :] = np.sort(samples[series_idx, :], axis=1)[:, series_draw_idx]
+            ## THIS SORTS THE WHOLE SET
+            # samples = np.sort(samples, axis=1)
         
         seroprevalence = seroprevalence.drop(['seroprevalence', 'seroprevalence_lower', 'seroprevalence_upper', 'sample_size'],
                                              axis=1)
@@ -120,7 +133,7 @@ def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
         sample_list = [seroprevalence.reset_index(drop=True)]
 
     if bootstrap_samples:
-        with multiprocessing.Pool(int(OMP_NUM_THREADS)) as p:
+        with multiprocessing.Pool(CONTROLLER_MP_THREADS) as p:
             bootstrap_list = list(tqdm(p.imap(bootstrap, sample_list), total=n_samples, file=sys.stdout))
     else:
         bootstrap_list = sample_list

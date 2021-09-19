@@ -279,7 +279,7 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     #     logger.info(f'{rgds_outlier.sum()} rows from sero data dropped due to implausible in Rio Grande do Sul.')
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
-    keep_columns = ['data_id', 'nid', 'location_id', 'start_date', 'date',
+    keep_columns = ['data_id', 'nid', 'survey_series', 'location_id', 'start_date', 'date',
                     'seroprevalence',  'seroprevalence_lower', 'seroprevalence_upper', 'sample_size',
                     'study_start_age', 'study_end_age',
                     'test_name', 'test_target', 'isotype',
@@ -288,7 +288,7 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
                     'is_outlier', 'manual_outlier']
     data['is_outlier'] = pd.concat(outliers, axis=1).max(axis=1).astype(int)
     data = (data
-            .sort_values(['location_id', 'date'])
+            .sort_values(['location_id', 'is_outlier', 'survey_series', 'date'])
             .reset_index(drop=True))
     data['data_id'] = data.index
     data = data.loc[:, keep_columns]

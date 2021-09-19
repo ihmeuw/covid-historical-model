@@ -73,6 +73,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     #     pickle.dump(pipeline_results, file, -1)
     
     ## save IFR
+    logger.info('Compiling IFR draws and other data.')
     ifr_draws = []
     for n, ifr_draw in [(n, pipeline_results[n]['ifr_results'].pred.rename('ifr').reset_index()) for n in range(n_samples)]:
         ifr_draw['draw'] = n
@@ -134,6 +135,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     reinfection_inflation_factor_draws = pd.concat(reinfection_inflation_factor_draws).reset_index(drop=True)
 
     ## save IHR -- we have LR/HR draws as well, could save them if they were to be of use
+    logger.info('Compiling IHR draws and other data.')
     ihr_draws = []
     for n, ihr_draw in [(n, pipeline_results[n]['ihr_results'].pred.rename('ihr').reset_index()) for n in range(n_samples)]:
         ihr_draw['draw'] = n
@@ -170,6 +172,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ihr_level_lambdas_draws = pd.concat(ihr_level_lambdas_draws).reset_index(drop=True)
     
     ## save IDR
+    logger.info('Compiling IDR draws and other data.')
     idr_draws = []
     for n, idr_draw in [(n, pipeline_results[n]['idr_results'].pred.rename('idr').reset_index()) for n in range(n_samples)]:
         idr_draw['draw'] = n
@@ -204,6 +207,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     idr_level_lambdas_draws = pd.concat(idr_level_lambdas_draws).reset_index(drop=True)
     
     ## save serology
+    logger.info('Compiling serology data.')
     seroprevalence = reported_seroprevalence.copy()
     seroprevalence = seroprevalence.rename(columns={'seroprevalence': 'seroprevalence_no_vacc',
                                                     'reported_seroprevalence': 'seroprevalence'})
@@ -221,15 +225,16 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     
     ## save sensitivity
     sensitivity_draws = []
-    for n, sensitivity in [(n, pipeline_results[n]['sensitivity']) for n in range(n_samples)]:
+    for n, sensitivity in [(n, pipeline_results[n]['sensitivity'].copy()) for n in range(n_samples)]:
         sensitivity['draw'] = n
-        sensitivity.append(sensitivity)
+        sensitivity_draws.append(sensitivity)
     sensitivity_draws = pd.concat(sensitivity_draws).reset_index(drop=True)
 
     ## save testing
     testing = pipeline_results[0]['idr_results'].testing_capacity.reset_index()
 
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+    logger.info('Writing output files.')
     ## write outputs
     # hierarchy.to_parquet(out_dir / 'hierarchy.parquet')
     # population.reset_index().to_parquet(out_dir / 'population.parquet')
@@ -255,7 +260,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
 
     seroprevalence.to_parquet(out_dir / 'seroprevalence_data.parquet')
     
-    reported_sensitivity.to_parquet(out_dir / 'raw_sensitivity_data.parquet')
+    reported_sensitivity_data.to_parquet(out_dir / 'raw_sensitivity_data.parquet')
     sensitivity_draws.to_parquet(out_dir / 'sensitivity.parquet')
     
     reinfection_inflation_factor_draws.to_parquet(out_dir / 'reinfection_inflation_factor_draws.parquet')

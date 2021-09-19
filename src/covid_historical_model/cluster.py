@@ -16,6 +16,7 @@ RESOURCES = {
     'all':{'fmem': '10.0G', 'fthread': '3'},
 }
 OMP_NUM_THREADS = '3'
+CONTROLLER_MP_THREADS = 25
 H_RUNTIME = '02:00:00'
 SLEEP_TIME = 10
 
