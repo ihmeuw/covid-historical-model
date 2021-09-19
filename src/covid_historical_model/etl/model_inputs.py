@@ -408,10 +408,11 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     ## PELUSO
     peluso = pd.read_excel(peluso_path)
     peluso['t'] = peluso['Time'].apply(lambda x: int(x.split(' ')[0]) * 30)
-    peluso = peluso.rename(columns={'mean': 'sensitivity',
+    peluso['sensitivity_std'] = (peluso['97.5%'] - peluso['2.5%']) / 3.92
+    peluso = peluso.rename(columns={'mean': 'sensitivity_mean',
                                     'AntigenAndAssay': 'assay',
                                     'Hospitalization_status': 'hospitalization_status',})
-    peluso = peluso.loc[:, ['assay', 'hospitalization_status', 't', 'sensitivity']]
+    peluso = peluso.loc[:, ['assay', 'hospitalization_status', 't', 'sensitivity_mean', 'sensitivity_std']]
     # only need to keep commercial assays
     peluso = peluso.loc[~peluso['assay'].isin(['Neut-Monogram', 'RBD-LIPS', 'RBD-Split Luc',
                                                'RBD-Lum', 'S-Lum', 'N(full)-Lum', 'N-LIPS',
@@ -420,8 +421,11 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     
     ## PEREZ-SAEZ - start at 21 days out
     perez_saez = pd.concat([pd.read_excel(perez_saez_path) for perez_saez_path in perez_saez_paths])
-    perez_saez = perez_saez.loc[perez_saez['t'] >= 21]
-    perez_saez['t'] -= 21
+    logger.warning('Need to get UIs for Perez-Saez.')
+    perez_saez = perez_saez.rename(columns={'sensitivity': 'sensitivity_mean'})
+    perez_saez['sensitivity_std'] = ((1 - perez_saez['sensitivity_mean']) * 0.5) / 3.92
+    perez_saez = perez_saez.loc[perez_saez['t'] >= 28]
+    perez_saez['t'] -= 28
     perez_saez = pd.concat([
         pd.concat([perez_saez, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=perez_saez.index)], axis=1),
         pd.concat([perez_saez, pd.DataFrame({'hospitalization_status':'Hospitalized'}, index=perez_saez.index)], axis=1)
@@ -435,9 +439,17 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     bond['t_end'] = bond['days since symptom onset'].str.split('–').apply(lambda x: int(x[1]))
     bond['t'] = bond[['t_start', 't_end']].mean(axis=1)
     for assay in ['N-Abbott', 'S-DiaSorin', 'N-Roche']:
-        bond[assay] = bond[assay].str.split('%').apply(lambda x: float(x[0])) / 100
-    bond = pd.melt(bond, id_vars='t', value_vars=['N-Abbott', 'S-DiaSorin', 'N-Roche'],
-                   var_name='assay', value_name='sensitivity')
+        bond[f'{assay} mean'] = bond[assay].str.split('%').apply(lambda x: float(x[0])) / 100
+        bond[f'{assay} lower'] = bond[assay].str.split('% \[').apply(lambda x: float(x[1].split(', ')[0])) / 100
+        bond[f'{assay} upper'] = bond[assay].str.split('% \[').apply(lambda x: float(x[1].split(', ')[1].replace(']', ''))) / 100
+        bond[f'{assay} std'] = (bond[f'{assay} upper'] - bond[f'{assay} lower']) / 3.92
+    bond_mean = pd.melt(bond, id_vars='t', value_vars=['N-Abbott mean', 'S-DiaSorin mean', 'N-Roche mean'],
+                        var_name='assay', value_name='sensitivity_mean')
+    bond_mean['assay'] = bond_mean['assay'].str.replace(' mean', '')
+    bond_std = pd.melt(bond, id_vars='t', value_vars=['N-Abbott std', 'S-DiaSorin std', 'N-Roche std'],
+                       var_name='assay', value_name='sensitivity_std')
+    bond_std['assay'] = bond_std['assay'].str.replace(' std', '')
+    bond = bond_mean.merge(bond_std)
     bond = bond.loc[bond['t'] >= 21]
     bond['t'] -= 21
     bond = pd.concat([
@@ -454,9 +466,17 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     muecksch['t_end'] = muecksch['Time, d'].str.split('-').apply(lambda x: int(x[1]))
     muecksch['t'] = muecksch[['t_start', 't_end']].mean(axis=1)
     for assay in ['N-Abbott', 'S-DiaSorin', 'RBD-Siemens']:
-        muecksch[assay] = muecksch[assay].str.split(' ').apply(lambda x: float(x[0])) / 100
-    muecksch = pd.melt(muecksch, id_vars='t', value_vars=['N-Abbott', 'S-DiaSorin', 'RBD-Siemens'],
-                       var_name='assay', value_name='sensitivity')
+        muecksch[f'{assay} mean'] = muecksch[assay].str.split(' ').apply(lambda x: float(x[0])) / 100
+        muecksch[f'{assay} lower'] = muecksch[assay].str.split(' \[').apply(lambda x: float(x[1].split('-')[0])) / 100
+        muecksch[f'{assay} upper'] = muecksch[assay].str.split(' \[').apply(lambda x: float(x[1].split('-')[1].replace(']', ''))) / 100
+        muecksch[f'{assay} std'] = (muecksch[f'{assay} upper'] - muecksch[f'{assay} lower']) / 3.92
+    muecksch_mean = pd.melt(muecksch, id_vars='t', value_vars=['N-Abbott mean', 'S-DiaSorin mean', 'RBD-Siemens mean'],
+                            var_name='assay', value_name='sensitivity_mean')
+    muecksch_mean['assay'] = muecksch_mean['assay'].str.replace(' mean', '')
+    muecksch_std = pd.melt(muecksch, id_vars='t', value_vars=['N-Abbott std', 'S-DiaSorin std', 'RBD-Siemens std'],
+                            var_name='assay', value_name='sensitivity_std')
+    muecksch_std['assay'] = muecksch_std['assay'].str.replace(' std', '')
+    muecksch = muecksch_mean.merge(muecksch_std)
     muecksch['t'] -= 24
     muecksch = pd.concat([
         pd.concat([muecksch, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=muecksch.index)], axis=1),
@@ -467,8 +487,10 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     
     ## LUMLEY
     lumley = pd.read_excel(lumley_path)
-    lumley = lumley.loc[lumley['keep'] == 1]
-    lumley['sensitivity'] *= (lumley['num_60'] / lumley['denom_60']) / lumley['avg_60']
+    logger.warning('Need to get UIs for Lumley.')
+    lumley = lumley.rename(columns={'sensitivity': 'sensitivity_mean'})
+    lumley['sensitivity_std'] = ((1 - lumley['sensitivity_mean']) * 0.5) / 3.92
+    lumley['sensitivity_mean'] *= (lumley['num_60'] / lumley['denom_60']) / lumley['avg_60']
     lumley = pd.concat([
         pd.concat([lumley, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=lumley.index)], axis=1),
         pd.concat([lumley, pd.DataFrame({'hospitalization_status':'Hospitalized'}, index=lumley.index)], axis=1)
@@ -476,7 +498,7 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     lumley['source'] = 'Lumley'
     
     # combine them all
-    keep_cols = ['source', 'assay', 'hospitalization_status', 't', 'sensitivity',]
+    keep_cols = ['source', 'assay', 'hospitalization_status', 't', 'sensitivity_mean', 'sensitivity_std',]
     sensitivity = pd.concat([peluso.loc[:, keep_cols],
                              perez_saez.loc[:, keep_cols],
                              bond.loc[:, keep_cols],

@@ -19,6 +19,7 @@ from covid_historical_model.rates import age_standardization
 from covid_historical_model.rates import ifr
 from covid_historical_model.rates import idr
 from covid_historical_model.rates import ihr
+from covid_historical_model.rates import cvi
 from covid_historical_model import cluster
 from covid_historical_model.rates import location_plots
 from covid_historical_model.utils import pdf_merger
@@ -61,7 +62,8 @@ def pipeline_wrapper(out_dir: Path,
         correlate_samples=correlate_samples, bootstrap=bootstrap,
         verbose=verbose,
     )
-    sensitivity_data = model_inputs.assay_sensitivity(model_inputs_root)
+    reported_sensitivity_data, sensitivity_data_samples = serology.load_sensitivity(model_inputs_root, n_samples,)
+    cross_variant_immunity_samples = cvi.get_cvi_dist(n_samples)
     
     covariate_options = ['obesity', 'smoking', 'diabetes', 'ckd',
                          'cancer', 'copd', 'cvd', 'uhc', 'haq',]
@@ -87,10 +89,7 @@ def pipeline_wrapper(out_dir: Path,
         n_samples=n_samples, test_combinations=test_combinations,
         model_inputs_root=model_inputs_root, excess_mortality=excess_mortality,
         age_pattern_root=age_pattern_root, shared=shared,
-        reported_seroprevalence=reported_seroprevalence, sensitivity_data=sensitivity_data,
-        vaccine_coverage=vaccine_coverage,
-        escape_variant_prevalence=escape_variant_prevalence,
-        severity_variant_prevalence=severity_variant_prevalence,
+        reported_seroprevalence=reported_seroprevalence,
         covariates=covariates,
     )
     
@@ -109,9 +108,11 @@ def pipeline_wrapper(out_dir: Path,
             'day_inflection_list': day_inflection_list,
             'covariates': covariates,
             'covariate_list': covariate_list,
+            'cross_variant_immunity': cross_variant_immunity,
             'verbose': verbose,
         }
-        for n, (covariate_list, seroprevalence) in enumerate(zip(selected_combinations, seroprevalence_samples))
+        for n, (covariate_list, seroprevalence, sensitivity_data, cross_variant_immunity)
+        in enumerate(zip(selected_combinations, seroprevalence_samples, sensitivity_data_samples, cross_variant_immunity_samples))
     }
     
     if verbose:
@@ -132,7 +133,7 @@ def pipeline_wrapper(out_dir: Path,
     
     em_data = estimates.excess_mortailty_scalars(model_inputs_root, excess_mortality)
     
-    return pipeline_results, reported_seroprevalence, \
+    return pipeline_results, reported_seroprevalence, reported_sensitivity_data, \
            escape_variant_prevalence, severity_variant_prevalence, \
            vaccine_coverage, em_data
 
@@ -148,6 +149,7 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
              day_inflection_list: List[str],
              covariates: List[pd.Series],
              covariate_list: List[str],
+             cross_variant_immunity: float,
              storage_dir: Path, root_dir: Path,
              verbose: bool,) -> Tuple:
     if verbose:
@@ -159,6 +161,7 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                                               escape_variant_prevalence,
                                               severity_variant_prevalence,
                                               covariates,
+                                              cross_variant_immunity,
                                               verbose=verbose)
     ifr_input_data_path = storage_dir / f'ifr_input_data.pkl'
     with ifr_input_data_path.open('wb') as file:

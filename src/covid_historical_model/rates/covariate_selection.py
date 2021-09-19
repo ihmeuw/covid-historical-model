@@ -54,19 +54,20 @@ def get_coefficients(covariate_list: List[str],
 
 def covariate_selection(n_samples: int, test_combinations: List[List[str]],
                         model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Path,
-                        shared: Dict, reported_seroprevalence: pd.DataFrame, sensitivity_data: pd.DataFrame,
-                        vaccine_coverage: pd.DataFrame,
-                        escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
+                        shared: Dict, reported_seroprevalence: pd.DataFrame,
                         covariates: List[pd.Series],
                         exclude_US: bool = True,
                         day_0: pd.Timestamp = pd.Timestamp('2020-03-15'),
                         day_inflection: pd.Timestamp = pd.Timestamp('2020-12-01'),
                         verbose: bool = True,):
-    input_data = ifr.data.load_input_data(model_inputs_root, excess_mortality, age_pattern_root,
-                                          shared, reported_seroprevalence, sensitivity_data, vaccine_coverage,
-                                          escape_variant_prevalence,
-                                          severity_variant_prevalence,
-                                          covariates,
+    input_data = ifr.data.load_input_data(model_inputs_root=model_inputs_root,
+                                          excess_mortality=excess_mortality, age_pattern_root=age_pattern_root,
+                                          shared=shared, seroprevalence=reported_seroprevalence,
+                                          covariates=covariates,
+                                          sensitivity_data=None, vaccine_coverage=None,
+                                          escape_variant_prevalence=None,
+                                          severity_variant_prevalence=None,
+                                          cross_variant_immunity=None,
                                           verbose=False)
     model_data = ifr.data.create_model_data(day_0=day_0, **input_data)
     

@@ -61,14 +61,9 @@ def runner(input_data: Dict,
     # account for escape variant re-infection
     logger.info('reinfection')
     cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor, seroprevalence = reinfection.add_repeat_infections(
-        input_data['escape_variant_prevalence'].copy(),
-        input_data['daily_deaths'].copy(),
-        pred.copy(),
-        input_data['seroprevalence'].copy(),
-        input_data['hierarchy'],
-        input_data['gbd_hierarchy'],
-        input_data['population'],
+        pred_ifr=pred.copy(),
         verbose=False,
+        **input_data,
     )
 
     ## WANING SENSITIVITY ADJUSTMENT

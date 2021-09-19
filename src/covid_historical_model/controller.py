@@ -10,7 +10,8 @@ from covid_historical_model.rates.pipeline import pipeline_wrapper
 from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
 
 ## IMPORTANT TODO:
-##     - use date midpoint
+##     - OneNote stuff
+##     - use date midpoint?
 ##     - make comparison routine; plot all fits in cascade
 ##     - multiple locations after July 1 for date selection (currently just 1)? unless only one child?
 ##     - reinfection NAs (probably 0 deaths) -> add checks for location/date matching
@@ -22,16 +23,11 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
 ##     - problem in vax proccess (i.e., timing seems important)
 ##     - variant prevalence IN model (starting to overlap)
 ##     - additional sources of uncertainty:
-##           * cross-variant immunity
-##           * waning distribution
-##           * sensitivity decay
+##           * waning immunity
 
 ## RATIO FUTURE TODO:
 ##     - try trimming in certain levels (probably just global)?
-##     - slope in IHR?
-##     - log cluster jobs
 ##     - make sure we don't have NAs on dates that matter for ratios
-##     - make text matching in serology data more robust (e.g. to spelling mistakes)
 ##     - formalize test matching in `serology.apply_waning_adjustment`
 ##     - stuff written down in IHME notebook
 ##     - think through ...
@@ -45,7 +41,7 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
 ## JEFFREY FUTURE TODO:
 ##     - add smarter logic around dropping leading 0s
 ##     - plot dropped data
-##     - remove offset at the end
+##     - remove offset at the end of process (like we do for counties/GBD)
 ##     - splines
 ##          (a) try higher degree, fewer knot-days?
 ##          (b) would it work to fix them e.g. every month?
@@ -60,7 +56,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
          excess_mortality: bool,
          n_samples: int,):
     ## run models
-    pipeline_results, reported_seroprevalence, \
+    pipeline_results, reported_seroprevalence, reported_sensitivity_data, \
     escape_variant_prevalence, severity_variant_prevalence, \
     vaccine_coverage, em_data = pipeline_wrapper(
         out_dir,
@@ -111,12 +107,13 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     del ifr_rr_draws['ifr'], ifr_rr_draws['ifr_lr'], ifr_rr_draws['ifr_hr']
     
     ifr_model_data = [pipeline_results[n]['ifr_results'].model_data for n in range(n_samples)]
-    ifr_model_data = pd.concat([md.groupby(['location_id', 'date'])['ifr'].mean().rename(f'draw_{n}')
+    ifr_model_data = pd.concat([md.groupby(['location_id', 'mean_death_date'])['ifr'].mean().rename(f'draw_{n}')
                                 for n, md in enumerate(ifr_model_data)], axis=1)
     ifr_model_data = pd.concat([ifr_model_data.mean(axis=1).rename('ifr_mean'),
                                 ifr_model_data.std(axis=1).rename('ifr_std'),],
                                 axis=1).reset_index()
     ifr_model_data['is_outlier'] = 0
+    ifr_model_data = ifr_model_data.rename(columns={'mean_death_date': 'date'})
     ifr_model_data = ifr_model_data.loc[:, ['location_id', 'date', 'ifr_mean', 'ifr_std', 'is_outlier']]
     
     ifr_age_stand = pipeline_results[0]['ifr_results'].age_stand_scaling_factor.reset_index()
@@ -152,12 +149,13 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     del ihr_fe_draws
 
     ihr_model_data = [pipeline_results[n]['ihr_results'].model_data for n in range(n_samples)]
-    ihr_model_data = pd.concat([md.groupby(['location_id', 'date'])['ihr'].mean().rename(f'draw_{n}')
+    ihr_model_data = pd.concat([md.groupby(['location_id', 'mean_hospitalization_date'])['ihr'].mean().rename(f'draw_{n}')
                                 for n, md in enumerate(ihr_model_data)], axis=1)
     ihr_model_data = pd.concat([ihr_model_data.mean(axis=1).rename('ihr_mean'),
                                 ihr_model_data.std(axis=1).rename('ihr_std'),],
                                 axis=1).reset_index()
     ihr_model_data['is_outlier'] = 0
+    ihr_model_data = ihr_model_data.rename(columns={'mean_hospitalization_date': 'date'})
     ihr_model_data = ihr_model_data.loc[:, ['location_id', 'date', 'ihr_mean', 'ihr_std', 'is_outlier']]
     
     ihr_age_stand = pipeline_results[0]['ihr_results'].age_stand_scaling_factor.reset_index()
@@ -187,12 +185,13 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     del idr_fe_draws
     
     idr_model_data = [pipeline_results[n]['idr_results'].model_data for n in range(n_samples)]
-    idr_model_data = pd.concat([md.groupby(['location_id', 'date'])['idr'].mean().rename(f'draw_{n}')
+    idr_model_data = pd.concat([md.groupby(['location_id', 'mean_infection_date'])['idr'].mean().rename(f'draw_{n}')
                                 for n, md in enumerate(idr_model_data)], axis=1)
     idr_model_data = pd.concat([idr_model_data.mean(axis=1).rename('idr_mean'),
                                 idr_model_data.std(axis=1).rename('idr_std'),],
                                 axis=1).reset_index()
     idr_model_data['is_outlier'] = 0
+    idr_model_data = idr_model_data.rename(columns={'mean_infection_date': 'date'})
     idr_model_data = idr_model_data.loc[:, ['location_id', 'date', 'idr_mean', 'idr_std', 'is_outlier']]
     
     idr_level_lambdas_draws = []
@@ -218,6 +217,14 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     seroprevalence['infection_date'] = seroprevalence['date'] - pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
     seroprevalence = seroprevalence.rename(columns={'start_date': 'sero_start_date',
                                                     'date': 'sero_end_date'})
+    
+    
+    ## save sensitivity
+    sensitivity_draws = []
+    for n, sensitivity in [(n, pipeline_results[n]['sensitivity']) for n in range(n_samples)]:
+        sensitivity['draw'] = n
+        sensitivity.append(sensitivity)
+    sensitivity_draws = pd.concat(sensitivity_draws).reset_index(drop=True)
 
     ## save testing
     testing = pipeline_results[0]['idr_results'].testing_capacity.reset_index()
@@ -247,6 +254,9 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     idr_level_lambdas_draws.to_parquet(out_dir / 'idr_level_lambdas_draws.parquet')
 
     seroprevalence.to_parquet(out_dir / 'seroprevalence_data.parquet')
+    
+    reported_sensitivity.to_parquet(out_dir / 'raw_sensitivity_data.parquet')
+    sensitivity_draws.to_parquet(out_dir / 'sensitivity.parquet')
     
     reinfection_inflation_factor_draws.to_parquet(out_dir / 'reinfection_inflation_factor_draws.parquet')
     

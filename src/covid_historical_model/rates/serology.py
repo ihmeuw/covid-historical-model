@@ -91,8 +91,9 @@ def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
                                          size=(len(seroprevalence), n_samples),)
         samples = expit(logit_samples)
         
-        # re-center around original mean
-        samples *= seroprevalence[['seroprevalence']].values / samples.mean(axis=1, keepdims=True)
+        ## CANNOT DO THIS, MOVES SOME ABOVE 1
+        # # re-center around original mean
+        # samples *= seroprevalence[['seroprevalence']].values / samples.mean(axis=1, keepdims=True)
         if correlate_samples:
             raise ValueError("Should do this to induce correlation w/in series, not across locations.")
             logger.info('Correlating seroprevalence samples.')
@@ -240,6 +241,36 @@ def remove_vaccinated(seroprevalence: pd.DataFrame,
     del seroprevalence['vaccinated']
     
     return seroprevalence
+
+
+def load_sensitivity(model_inputs_root: Path, n_samples: int,
+                     floor: float = 1e-5, logit_se_cap: float = 1.,):
+    sensitivity_data = model_inputs.assay_sensitivity(model_inputs_root)
+    logit_mean = logit(sensitivity_data['sensitivity_mean'].clip(floor, 1 - floor))
+    logit_sd = sensitivity_data['sensitivity_std'] / \
+               (sensitivity_data['sensitivity_mean'].clip(floor, 1 - floor) * \
+                (1.0 - sensitivity_data['sensitivity_mean'].clip(floor, 1 - floor)))
+    logit_sd = logit_sd.clip(0, logit_se_cap)
+
+    logit_samples = np.random.normal(loc=logit_mean.to_frame().values,
+                                     scale=logit_sd.to_frame().values,
+                                     size=(len(sensitivity_data), n_samples),)
+    samples = expit(logit_samples)
+
+    ## CANNOT DO THIS, MOVES SOME ABOVE 1
+    # # re-center around original mean
+    # samples *= sensitivity_data[['sensitivity_mean']].values / samples.mean(axis=1, keepdims=True)
+    
+    # sort
+    samples = np.sort(samples, axis=1)
+
+    sample_list = []
+    for sample in samples.T:
+        _sample = sensitivity_data.drop(['sensitivity_mean', 'sensitivity_std',], axis=1).copy()
+        _sample['sensitivity'] = sample
+        sample_list.append(_sample.reset_index(drop=True))
+    
+    return sensitivity_data, sample_list
 
 
 def apply_waning_adjustment(sensitivity_data: pd.DataFrame,

@@ -7,7 +7,7 @@ from loguru import logger
 import warnings
 warnings.simplefilter('ignore')
 
-from covid_historical_model import untitled_unmastered
+from covid_historical_model import controller
 
 
 @click.command()
@@ -90,7 +90,7 @@ def rates_pipeline(run_metadata,
     run_metadata['output_path'] = str(run_directory)
     cli_tools.configure_logging_to_files(run_directory)
 
-    main = cli_tools.monitor_application(untitled_unmastered.main, logger, with_debugger)
+    main = cli_tools.monitor_application(controller.main, logger, with_debugger)
     app_metadata, _ = main(out_dir=run_directory,
                            model_inputs_root=model_inputs_root,
                            vaccine_coverage_root=vaccine_coverage_root,

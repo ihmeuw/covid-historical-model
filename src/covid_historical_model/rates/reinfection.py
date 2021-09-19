@@ -6,9 +6,6 @@ import numpy as np
 from covid_historical_model.etl.helpers import aggregate_data_from_md
 from covid_historical_model.durations.durations import EXPOSURE_TO_DEATH, EXPOSURE_TO_SEROPOSITIVE
 
-CROSS_VARIANT_IMMUNITY = 0.5
-
-
 # def fill_non_covid_locs(escape_variant_prevalence: pd.Series,
 #                         hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame,):
 #     location_ids = gbd_hierarchy['location_id'].to_list()
@@ -29,14 +26,15 @@ CROSS_VARIANT_IMMUNITY = 0.5
 #     return escape_variant_prevalence, location_ids
 
 
-def add_repeat_infections(escape_variant_prevalence: pd.Series,
+def add_repeat_infections(cross_variant_immunity: float,
+                          escape_variant_prevalence: pd.Series,
                           daily_deaths: pd.Series, pred_ifr: pd.Series,
                           seroprevalence: pd.DataFrame,
                           hierarchy: pd.DataFrame,
                           gbd_hierarchy: pd.DataFrame,
                           population: pd.Series,
-                          cross_variant_immunity: float = CROSS_VARIANT_IMMUNITY,
-                          verbose: bool = True) -> pd.DataFrame:
+                          verbose: bool = True,
+                          **kwargs) -> pd.DataFrame:
     infections = ((daily_deaths / pred_ifr)
                   .clip(1e-4, np.inf)
                   .dropna()
@@ -86,27 +84,6 @@ def add_repeat_infections(escape_variant_prevalence: pd.Series,
     daily_inflation_factor = (obs_infections.groupby(level=0).diff().replace(obs_infections) / \
                               first_infections.groupby(level=0).diff().replace(first_infections)
                              ).rename('inflation_factor').dropna()
-    
-    '''
-    fig, ax = plt.subplots(4, figsize=(8, 8), sharex=True)
-    ax[0].plot(escape_variant_prevalence.loc[196], color='red')
-    ax[0].set_ylabel('P1 + B.1.351\nprevalence')
-
-    ax[1].plot(infections.loc[196].rolling(window=7, min_periods=7, center=True).mean())
-    ax[1].plot((infections - repeat_infections).loc[196].rolling(window=7, min_periods=7, center=True).mean())
-    ax[1].plot(repeat_infections.loc[196].rolling(window=7, min_periods=7, center=True).mean())
-    ax[1].set_ylabel('Daily infections')
-
-    ax[2].plot(obs_infections.loc[196] / 58.56e6)
-    ax[2].plot(first_infections.loc[196] / 58.56e6)
-    ax[2].set_ylabel('Cumulative infections (%)')
-
-    ax[3].plot(inflation_factor.loc[196], color='purple')
-    ax[3].set_ylabel('Inflation factor')
-
-    ax[3].set_xlim(pd.Timestamp('2020-03-01'), pd.Timestamp('2021-03-01'))
-    fig.show()
-    '''
     
     cumul_inflation_factor = cumul_inflation_factor.reset_index()
     cumul_inflation_factor['date'] += pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
