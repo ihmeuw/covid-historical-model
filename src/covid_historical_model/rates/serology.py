@@ -100,18 +100,21 @@ def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
         # samples *= seroprevalence[['seroprevalence']].values / samples.mean(axis=1, keepdims=True)
         if correlate_samples:
             logger.info('Correlating seroprevalence samples.')
-            series_data = seroprevalence[series_vars].drop_duplicates().reset_index(drop=True)
+            series_data = seroprevalence[[sv for sv in series_vars if sv != 'date']].drop_duplicates().reset_index(drop=True)
             series_data['series'] = series_data.index
-            series_data = seroprevalence.merge(series_data)
             series_data = seroprevalence.merge(series_data).reset_index(drop=True)
             series_idx_list = [series_data.loc[series_data['series'] == series].index.to_list()
-                               for series in range(series_data['series'].max())]
+                               for series in range(series_data['series'].max() + 1)]
+            sorted_samples = []
             for series_idx in series_idx_list:
-                series_draw_idx = samples[series_idx, :][0].argsort().argsort()
-                samples[series_idx, :] = np.sort(samples[series_idx, :], axis=1)[:, series_draw_idx]
+                series_samples = samples[series_idx, :].copy()
+                series_draw_idx = series_samples[0].argsort().argsort()
+                series_samples = np.sort(series_samples, axis=1)[:, series_draw_idx]
+                sorted_samples.append(series_samples)
+            samples = np.vstack(sorted_samples)
             ## THIS SORTS THE WHOLE SET
             # samples = np.sort(samples, axis=1)
-        
+
         seroprevalence = seroprevalence.drop(['seroprevalence', 'seroprevalence_lower', 'seroprevalence_upper', 'sample_size'],
                                              axis=1)
         sample_list = []

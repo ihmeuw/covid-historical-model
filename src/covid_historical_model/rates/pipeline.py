@@ -32,7 +32,7 @@ def pipeline_wrapper(out_dir: Path,
                      n_samples: int,
                      day_inflection_list: List[str] = ['2020-05-01', '2020-06-01', '2020-07-01', '2020-08-01',
                                                        '2020-09-01', '2020-10-01', '2020-11-01', '2020-12-01',],
-                     correlate_samples: bool = False,
+                     correlate_samples: bool = True,
                      bootstrap: bool = True,
                      verbose: bool = True,) -> Tuple:
     np.random.seed(15243)
