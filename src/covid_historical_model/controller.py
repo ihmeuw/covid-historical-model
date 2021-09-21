@@ -24,6 +24,7 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
 ##     - variant prevalence IN model (starting to overlap)
 ##     - additional sources of uncertainty:
 ##           * waning immunity
+##     - how do coefficients change down cascade
 
 ## RATIO FUTURE TODO:
 ##     - try trimming in certain levels (probably just global)?
@@ -56,7 +57,8 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
          excess_mortality: bool,
          n_samples: int,):
     ## run models
-    pipeline_results, reported_seroprevalence, reported_sensitivity_data, \
+    pipeline_results, selected_combinations, \
+    reported_seroprevalence, reported_sensitivity_data, \
     escape_variant_prevalence, severity_variant_prevalence, \
     vaccine_coverage, em_data = pipeline_wrapper(
         out_dir,
@@ -232,12 +234,19 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
 
     ## save testing
     testing = pipeline_results[0]['idr_results'].testing_capacity.reset_index()
+    
+    ## save variants
+    variants = (pd.concat([escape_variant_prevalence, severity_variant_prevalence], axis=1)
+                .reset_index())
 
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     logger.info('Writing output files.')
     ## write outputs
-    # hierarchy.to_parquet(out_dir / 'hierarchy.parquet')
-    # population.reset_index().to_parquet(out_dir / 'population.parquet')
+    # hierarchy.to_csv(out_dir / 'hierarchy.csv', index=False)
+    # population.reset_index().to_csv(out_dir / 'population.csv', index=False)
+    
+    with (out_dir / 'covariate_combinations.pkl').open('wb') as file:
+        pickle.dump(selected_combinations, file, -1)
     
     em_data.to_parquet(out_dir / 'excess_mortality.parquet')
 
@@ -269,7 +278,6 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     
     vaccine_coverage.reset_index().to_parquet(out_dir / 'vaccine_coverage.parquet')
     
-    (pd.concat([escape_variant_prevalence, severity_variant_prevalence], axis=1)
-     .reset_index()).to_parquet(out_dir / 'variants.parquet')
+    variants.to_parquet(out_dir / 'variants.parquet')
 
     logger.info(f'Model output directory: {str(out_dir)}')

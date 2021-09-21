@@ -55,10 +55,12 @@ def get_coefficients(covariate_list: List[str],
 def covariate_selection(n_samples: int, test_combinations: List[List[str]],
                         model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Path,
                         shared: Dict, reported_seroprevalence: pd.DataFrame,
+                        covariate_options: List[str],
                         covariates: List[pd.Series],
+                        cutoff_pct: float = 0.33,
                         exclude_US: bool = True,
                         day_0: pd.Timestamp = pd.Timestamp('2020-03-15'),
-                        day_inflection: pd.Timestamp = pd.Timestamp('2020-12-01'),
+                        day_inflection: pd.Timestamp = pd.Timestamp('2020-10-01'),
                         verbose: bool = True,):
     input_data = ifr.data.load_input_data(model_inputs_root=model_inputs_root,
                                           excess_mortality=excess_mortality, age_pattern_root=age_pattern_root,
@@ -86,6 +88,21 @@ def covariate_selection(n_samples: int, test_combinations: List[List[str]],
     with multiprocessing.Pool(int(OMP_NUM_THREADS)) as p:
         performance_data = list(tqdm(p.imap(_gc, test_combinations), total=len(test_combinations), file=sys.stdout))
     performance_data = pd.concat(performance_data).sort_values('r2', ascending=False).reset_index(drop=True)
+    
+    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+    # LIMIT REDUNDANCY IN COVARIATE POOL
+    cutoff_n = int(n_samples * cutoff_pct)
+    sorted_covariate_options = performance_data.loc[performance_data['covariates'].isin(covariate_options),
+                                                    'covariates'].to_list()
+    lim_covariate_combinations = []
+    for n, covariate in enumerate(sorted_covariate_options):
+        lim_covariate_combinations += \
+            performance_data.loc[(performance_data['covariates'].apply(lambda x: covariate in x.split('//'))) &
+                                 (performance_data['covariates'].apply(lambda x: all([x_c not in sorted_covariate_options[: n] 
+                                                                                      for x_c in x.split('//')]))),
+                                 'covariates'].tolist()[:cutoff_n]
+    performance_data = performance_data.loc[performance_data['covariates'].isin(lim_covariate_combinations)]
+    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     performance_data = performance_data[:n_samples]
     if verbose:
         logger.info(f"Global model performance: {performance_data['r2'].describe()}")

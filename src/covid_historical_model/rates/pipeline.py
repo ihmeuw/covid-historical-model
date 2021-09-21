@@ -90,6 +90,7 @@ def pipeline_wrapper(out_dir: Path,
         model_inputs_root=model_inputs_root, excess_mortality=excess_mortality,
         age_pattern_root=age_pattern_root, shared=shared,
         reported_seroprevalence=reported_seroprevalence,
+        covariate_options=covariate_options,
         covariates=covariates,
     )
     
@@ -133,7 +134,8 @@ def pipeline_wrapper(out_dir: Path,
     
     em_data = estimates.excess_mortailty_scalars(model_inputs_root, excess_mortality)
     
-    return pipeline_results, reported_seroprevalence, reported_sensitivity_data, \
+    return pipeline_results, selected_combinations, \
+           reported_seroprevalence, reported_sensitivity_data, \
            escape_variant_prevalence, severity_variant_prevalence, \
            vaccine_coverage, em_data
 

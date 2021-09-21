@@ -100,7 +100,9 @@ def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
         # samples *= seroprevalence[['seroprevalence']].values / samples.mean(axis=1, keepdims=True)
         if correlate_samples:
             logger.info('Correlating seroprevalence samples.')
-            series_data = seroprevalence[[sv for sv in series_vars if sv != 'date']].drop_duplicates().reset_index(drop=True)
+            series_data = (seroprevalence[[sv for sv in series_vars if sv not in ['survey_series', 'date']]]
+                           .drop_duplicates()
+                           .reset_index(drop=True))
             series_data['series'] = series_data.index
             series_data = seroprevalence.merge(series_data).reset_index(drop=True)
             series_idx_list = [series_data.loc[series_data['series'] == series].index.to_list()

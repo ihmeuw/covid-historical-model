@@ -81,9 +81,9 @@ def add_repeat_infections(cross_variant_immunity: float,
                         .loc[:, 'infections'])
     
     cumul_inflation_factor = (obs_infections / first_infections).rename('inflation_factor').dropna()
-    daily_inflation_factor = (obs_infections.groupby(level=0).diff().replace(obs_infections) / \
-                              first_infections.groupby(level=0).diff().replace(first_infections)
-                             ).rename('inflation_factor').dropna()
+    daily_inflation_factor = (obs_infections.groupby(level=0).diff().replace(obs_infections).clip(1., np.inf) / \
+                              first_infections.groupby(level=0).diff().replace(first_infections).clip(1., np.inf)
+                             ).rename('inflation_factor').dropna().clip(1., np.inf)
     
     cumul_inflation_factor = cumul_inflation_factor.reset_index()
     cumul_inflation_factor['date'] += pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
