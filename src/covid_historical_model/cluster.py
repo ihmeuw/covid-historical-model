@@ -11,7 +11,7 @@ from loguru import logger
 
 
 PROJECT = 'proj_covid_prod'
-QUEUE = 'all.q'
+QUEUE = 'd.q'
 RESOURCES = {
     'all':{'fmem': '10.0G', 'fthread': '3'},
 }

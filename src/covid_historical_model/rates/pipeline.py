@@ -30,8 +30,10 @@ def pipeline_wrapper(out_dir: Path,
                      vaccine_coverage_root: Path, variant_scaleup_root: Path,
                      age_pattern_root: Path, testing_root: Path,
                      n_samples: int,
-                     day_inflection_list: List[str] = ['2020-05-01', '2020-06-01', '2020-07-01', '2020-08-01',
-                                                       '2020-09-01', '2020-10-01', '2020-11-01', '2020-12-01',],
+                     day_inflection_options: List[str] = ['2020-05-01', '2020-06-01', '2020-07-01',
+                                                          '2020-08-01', '2020-09-01', '2020-10-01',
+                                                          '2020-11-01', '2020-12-01', '2021-01-01',
+                                                          '2021-02-01', '2021-03-01',],
                      correlate_samples: bool = True,
                      bootstrap: bool = True,
                      verbose: bool = True,) -> Tuple:
@@ -92,7 +94,10 @@ def pipeline_wrapper(out_dir: Path,
         reported_seroprevalence=reported_seroprevalence,
         covariate_options=covariate_options,
         covariates=covariates,
+        cutoff_pct=0.33
     )
+    day_inflection_pool = np.random.choice(day_inflection_options, n_samples)
+    day_inflection_pool = [str(d) for d in day_inflection_pool]  # can't be np.str_
     
     inputs = {
         n: {
@@ -106,14 +111,15 @@ def pipeline_wrapper(out_dir: Path,
             'severity_variant_prevalence': severity_variant_prevalence,
             'age_pattern_root': age_pattern_root,
             'testing_root': testing_root,
-            'day_inflection_list': day_inflection_list,
+            'day_inflection': day_inflection,
             'covariates': covariates,
             'covariate_list': covariate_list,
             'cross_variant_immunity': cross_variant_immunity,
             'verbose': verbose,
         }
-        for n, (covariate_list, seroprevalence, sensitivity_data, cross_variant_immunity)
-        in enumerate(zip(selected_combinations, seroprevalence_samples, sensitivity_data_samples, cross_variant_immunity_samples))
+        for n, (covariate_list, seroprevalence, sensitivity_data, cross_variant_immunity, day_inflection)
+        in enumerate(zip(selected_combinations, seroprevalence_samples, sensitivity_data_samples,
+                         cross_variant_immunity_samples, day_inflection_pool))
     }
     
     if verbose:
@@ -124,11 +130,11 @@ def pipeline_wrapper(out_dir: Path,
     pipeline_dir = out_dir / 'pipeline_outputs'
     shell_tools.mkdir(pipeline_dir)
     job_args_map = {n: [__file__, n, inputs_path, pipeline_dir] for n in range(n_samples)}
-    cluster.run_cluster_jobs('covid_rates_pipeline', pipeline_dir, job_args_map)
+    cluster.run_cluster_jobs('covid_rates_pipeline', out_dir, job_args_map)
     
     pipeline_results = {}
     for n in range(n_samples):
-        with (pipeline_dir / str(n) / 'outputs.pkl').open('rb') as file:
+        with (pipeline_dir / f'{n}_outputs.pkl').open('rb') as file:
             outputs = pickle.load(file)
         pipeline_results.update(outputs)
     
@@ -148,15 +154,14 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
              escape_variant_prevalence: pd.Series,
              severity_variant_prevalence: pd.Series,
              age_pattern_root: Path, testing_root: Path,
-             day_inflection_list: List[str],
+             day_inflection: str,
              covariates: List[pd.Series],
              covariate_list: List[str],
              cross_variant_immunity: float,
-             storage_dir: Path, root_dir: Path,
              verbose: bool,) -> Tuple:
     if verbose:
         logger.info('\n*************************************\n'
-                    f"IFR ESTIMATION -- testing inflection points: {', '.join(day_inflection_list)}\n"
+                    f"IFR ESTIMATION -- inflection point at {day_inflection}\n"
                     '*************************************')
     ifr_input_data = ifr.data.load_input_data(model_inputs_root, excess_mortality, age_pattern_root,
                                               shared, orig_seroprevalence, sensitivity_data, vaccine_coverage,
@@ -165,36 +170,13 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                                               covariates,
                                               cross_variant_immunity,
                                               verbose=verbose)
-    ifr_input_data_path = storage_dir / f'ifr_input_data.pkl'
-    with ifr_input_data_path.open('wb') as file:
-        pickle.dump(ifr_input_data, file, -1)
-    covariate_list_path = storage_dir / f'covariate_list.pkl'
-    with covariate_list_path.open('wb') as file:
-        pickle.dump(covariate_list, file, -1)
-
-    job_args_map = {}
-    outputs_paths = []
-    for day_inflection in day_inflection_list:
-        outputs_path = storage_dir / f'{day_inflection}_outputs.pkl'
-        outputs_paths.append(outputs_path)
-        
-        job_args_map.update({day_inflection: [ifr.runner.__file__, day_inflection,
-                                              ifr_input_data_path, covariate_list_path, outputs_path]})
-    
-    cluster.run_cluster_jobs('covid_ifr_model', root_dir, job_args_map)
-
-    full_ifr_results = {}
-    for outputs_path in outputs_paths:
-        with outputs_path.open('rb') as file:
-            outputs = pickle.load(file)
-        full_ifr_results.update(outputs)
-    
-    if verbose:
-        logger.info('\n*************************************\n'
-                    'IFR ESTIMATION -- determining best models and compiling adjusted seroprevalence\n'
-                    '*************************************')
-    ifr_nrmse, best_ifr_models, ifr_results, adj_seroprevalence, sensitivity, \
-    cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor = extract_ifr_results(full_ifr_results)
+    ifr_results, adj_seroprevalence, sensitivity, \
+    cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor = ifr.runner.runner(
+        input_data=ifr_input_data,
+        day_inflection=day_inflection,
+        covariate_list=covariate_list,
+        verbose=verbose,
+    )
 
     if verbose:
         logger.info('\n*************************************\n'
@@ -223,163 +205,23 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                                     covariate_list,
                                     verbose=verbose)
     
+    if verbose:
+        logger.info('\n*************************************\n'
+                    'PIPELINE COMPLETE -- preparing storage and saving results \n'
+                    '*************************************')
     pipeline_results = {
         'covariate_list': covariate_list,
         'seroprevalence': adj_seroprevalence,
         'sensitivity': sensitivity,
         'cumul_reinfection_inflation_factor': cumul_reinfection_inflation_factor,
         'daily_reinfection_inflation_factor': daily_reinfection_inflation_factor,
-        'day_inflection_list': day_inflection_list,
-        'ifr_nrmse': ifr_nrmse,
-        'best_ifr_models': best_ifr_models,
+        'day_inflection': day_inflection,
         'ifr_results': ifr_results,
         'idr_results': idr_results,
         'ihr_results': ihr_results,
     }
     
     return pipeline_results
-
-
-def extract_ifr_results(full_ifr_results: Dict) -> Tuple:
-    nrmse = []
-    for day_inflection, di_results in full_ifr_results.items():
-        nrmse.append(pd.concat([di_results['nrmse'],
-                                pd.DataFrame({'day_inflection':day_inflection},
-                                             index=di_results['nrmse'].index)],
-                               axis=1))
-    nrmse = pd.concat(nrmse).reset_index()
-    best_models = (nrmse
-                   .groupby('location_id')
-                   .apply(lambda x: x.sort_values('nrmse')['day_inflection'].values[0])
-                   .rename('day_inflection')
-                   .reset_index())
-
-    sensitivity = pd.DataFrame({'location_id':[]})
-    cumul_reinfection_inflation_factor =[]
-    daily_reinfection_inflation_factor =[]
-    seroprevalence = []
-    model_data = []
-    mr_model_dict = {}
-    pred_location_map = {}
-    daily_numerator = []
-    pred = []
-    pred_unadj = []
-    pred_fe = []
-    pred_lr = []
-    pred_hr = []
-    pct_inf_lr = []
-    pct_inf_hr = []
-    age_stand_scaling_factor = []
-    for location_id, day_inflection in zip(best_models['location_id'], best_models['day_inflection']):
-        if location_id == 1:
-            level_lambdas = full_ifr_results[day_inflection]['refit_results'].level_lambdas
-        loc_seroprevalence = full_ifr_results[day_inflection]['refit_results'].seroprevalence
-        loc_seroprevalence = loc_seroprevalence.loc[loc_seroprevalence['location_id'] == location_id]
-        seroprevalence.append(loc_seroprevalence)
-        
-        loc_crif = full_ifr_results[day_inflection]['cumul_reinfection_inflation_factor']
-        loc_crif = loc_crif.loc[loc_crif['location_id'] == location_id]
-        cumul_reinfection_inflation_factor.append(loc_crif)
-        
-        loc_drif = full_ifr_results[day_inflection]['daily_reinfection_inflation_factor']
-        loc_drif = loc_drif.loc[loc_drif['location_id'] == location_id]
-        daily_reinfection_inflation_factor.append(loc_drif)
-
-        loc_model_data = full_ifr_results[day_inflection]['refit_results'].model_data
-        loc_model_data = loc_model_data.loc[loc_model_data['location_id'] == location_id]
-        model_data.append(loc_model_data)
-        
-        try:  # extract pred map and model object in this chunk
-            loc_model_location = full_ifr_results[day_inflection]['refit_results'].pred_location_map[location_id]
-            pred_location_map.update({location_id: loc_model_location})
-            if loc_model_location not in list(mr_model_dict.keys()):
-                loc_mr_model = full_ifr_results[day_inflection]['refit_results'].mr_model_dict
-                loc_mr_model = loc_mr_model[loc_model_location]
-                mr_model_dict.update({loc_model_location: loc_mr_model})
-            if loc_model_location not in sensitivity['location_id'].to_list():
-                loc_sensitivity = full_ifr_results[day_inflection]['sensitivity']
-                loc_sensitivity = loc_sensitivity.loc[loc_sensitivity['location_id'] == loc_model_location]
-                sensitivity = pd.concat([sensitivity, loc_sensitivity])
-        except KeyError:
-            pass
-        
-        try:
-            loc_daily_numerator = full_ifr_results[day_inflection]['refit_results'].daily_numerator.loc[[location_id]]
-            daily_numerator.append(loc_daily_numerator)
-        except KeyError:
-            pass
-        
-        try:
-            loc_pred = full_ifr_results[day_inflection]['refit_results'].pred.loc[[location_id]]
-            pred.append(loc_pred)
-        except KeyError:
-            pass
-
-        try:
-            loc_pred_unadj = full_ifr_results[day_inflection]['refit_results'].pred_unadj.loc[[location_id]]
-            pred_unadj.append(loc_pred_unadj)
-        except KeyError:
-            pass
-        
-        try:
-            loc_pred_fe = full_ifr_results[day_inflection]['refit_results'].pred_fe.loc[[location_id]]
-            pred_fe.append(loc_pred_fe)
-        except KeyError:
-            pass
-
-        try:
-            loc_pred_lr = full_ifr_results[day_inflection]['refit_results'].pred_lr.loc[[location_id]]
-            pred_lr.append(loc_pred_lr)
-        except KeyError:
-            pass
-
-        try:
-            loc_pred_hr = full_ifr_results[day_inflection]['refit_results'].pred_hr.loc[[location_id]]
-            pred_hr.append(loc_pred_hr)
-        except KeyError:
-            pass
-        
-        try:
-            loc_pct_inf_lr = full_ifr_results[day_inflection]['refit_results'].pct_inf_lr.loc[[location_id]]
-            pct_inf_lr.append(loc_pct_inf_lr)
-        except KeyError:
-            pass
-        
-        try:
-            loc_pct_inf_hr = full_ifr_results[day_inflection]['refit_results'].pct_inf_hr.loc[[location_id]]
-            pct_inf_hr.append(loc_pct_inf_hr)
-        except KeyError:
-            pass
-        
-        try:
-            loc_age_stand_scaling_factor = full_ifr_results[day_inflection]['refit_results'].age_stand_scaling_factor.loc[[location_id]]
-            age_stand_scaling_factor.append(loc_age_stand_scaling_factor)
-        except KeyError:
-            pass
-        
-    sensitivity = sensitivity.reset_index(drop=True)
-    cumul_reinfection_inflation_factor = pd.concat(cumul_reinfection_inflation_factor).reset_index(drop=True)
-    daily_reinfection_inflation_factor = pd.concat(daily_reinfection_inflation_factor).reset_index(drop=True)
-    ifr_results = ifr.runner.RESULTS(
-        seroprevalence=pd.concat(seroprevalence).reset_index(drop=True),
-        model_data=pd.concat(model_data).reset_index(drop=True),
-        mr_model_dict=mr_model_dict,
-        pred_location_map=pred_location_map,
-        level_lambdas=level_lambdas,
-        daily_numerator=pd.concat(daily_numerator),
-        pred=pd.concat(pred),
-        pred_unadj=pd.concat(pred_unadj),
-        pred_fe=pd.concat(pred_fe),
-        pred_lr=pd.concat(pred_lr),
-        pred_hr=pd.concat(pred_hr),
-        pct_inf_lr=pd.concat(pct_inf_lr),
-        pct_inf_hr=pd.concat(pct_inf_hr),
-        age_stand_scaling_factor=pd.concat(age_stand_scaling_factor),
-    )
-    seroprevalence = ifr_results.seroprevalence.copy()
-
-    return nrmse, best_models, ifr_results, seroprevalence, sensitivity, \
-           cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor
 
 
 def compile_pdfs(plots_dir: Path, out_dir: Path, hierarchy: pd.DataFrame,
@@ -403,6 +245,7 @@ def compile_pdfs(plots_dir: Path, out_dir: Path, hierarchy: pd.DataFrame,
 
     
 def submit_plots():
+    raise ValueError('PLOTTING NOT SET UP')
     plot_inputs = {
         'best_ifr_models': best_ifr_models.set_index('location_id'),
         'seroprevalence': seroprevalence,
@@ -437,21 +280,11 @@ def main(n: int, inputs_path: str, pipeline_dir: str):
     with Path(inputs_path).open('rb') as file:
         inputs = pickle.load(file)[n]
     
-    ## working dir
-    root_dir = Path(pipeline_dir) / str(n)
-    storage_dir = root_dir / 'intermediate'
-    shell_tools.mkdir(root_dir)
-    shell_tools.mkdir(storage_dir)
-    
     np.random.seed(123 * (n + 1))
-    pipeline_outputs = pipeline(storage_dir=storage_dir, root_dir=root_dir,
-                                **inputs)
+    pipeline_outputs = pipeline(**inputs)
     
-    with (root_dir / 'outputs.pkl').open('wb') as file:
+    with (Path(pipeline_dir) / f'{n}_outputs.pkl').open('wb') as file:
         pickle.dump({n: pipeline_outputs}, file)
-        
-    ## wipe intermediate datasets
-    shutil.rmtree(storage_dir)
     
 
 if __name__ == '__main__':

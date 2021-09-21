@@ -173,21 +173,9 @@ def runner(input_data: Dict,
         pct_inf_hr=pct_inf_hr,
         age_stand_scaling_factor=refit_age_stand_scaling_factor,
     )
-
-    ## NRMSE
-    logger.info('performance metrics')
-    nrmse, residuals = ifr.model.get_nrmse(refit_input_data['seroprevalence'].copy(),
-                                           refit_input_data['daily_deaths'].copy(),
-                                           refit_pred.copy(),
-                                           refit_input_data['hierarchy'].copy(),
-                                           refit_input_data['population'].copy(),
-                                           refit_pred_location_map.copy(),
-                                           refit_mr_model_dict.copy(),)
-
-    return {'raw_results': results, 'refit_results': refit_results,
-            'cumul_reinfection_inflation_factor': cumul_reinfection_inflation_factor,
-            'daily_reinfection_inflation_factor': daily_reinfection_inflation_factor,
-            'sensitivity': sensitivity, 'nrmse': nrmse, 'residuals': residuals,}
+    
+    return refit_results, refit_input_data['seroprevalence'], sensitivity, \
+           cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor
 
 
 def main(day_inflection: str,

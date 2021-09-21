@@ -57,7 +57,7 @@ def covariate_selection(n_samples: int, test_combinations: List[List[str]],
                         shared: Dict, reported_seroprevalence: pd.DataFrame,
                         covariate_options: List[str],
                         covariates: List[pd.Series],
-                        cutoff_pct: float = 0.33,
+                        cutoff_pct: float,
                         exclude_US: bool = True,
                         day_0: pd.Timestamp = pd.Timestamp('2020-03-15'),
                         day_inflection: pd.Timestamp = pd.Timestamp('2020-10-01'),
@@ -91,17 +91,18 @@ def covariate_selection(n_samples: int, test_combinations: List[List[str]],
     
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     # LIMIT REDUNDANCY IN COVARIATE POOL
-    cutoff_n = int(n_samples * cutoff_pct)
-    sorted_covariate_options = performance_data.loc[performance_data['covariates'].isin(covariate_options),
-                                                    'covariates'].to_list()
-    lim_covariate_combinations = []
-    for n, covariate in enumerate(sorted_covariate_options):
-        lim_covariate_combinations += \
-            performance_data.loc[(performance_data['covariates'].apply(lambda x: covariate in x.split('//'))) &
-                                 (performance_data['covariates'].apply(lambda x: all([x_c not in sorted_covariate_options[: n] 
-                                                                                      for x_c in x.split('//')]))),
-                                 'covariates'].tolist()[:cutoff_n]
-    performance_data = performance_data.loc[performance_data['covariates'].isin(lim_covariate_combinations)]
+    if cutoff_pct < 1:
+        cutoff_n = int(n_samples * cutoff_pct)
+        sorted_covariate_options = performance_data.loc[performance_data['covariates'].isin(covariate_options),
+                                                        'covariates'].to_list()
+        lim_covariate_combinations = []
+        for n, covariate in enumerate(sorted_covariate_options):
+            lim_covariate_combinations += \
+                performance_data.loc[(performance_data['covariates'].apply(lambda x: covariate in x.split('//'))) &
+                                     (performance_data['covariates'].apply(lambda x: all([x_c not in sorted_covariate_options[: n] 
+                                                                                          for x_c in x.split('//')]))),
+                                     'covariates'].tolist()[:cutoff_n]
+        performance_data = performance_data.loc[performance_data['covariates'].isin(lim_covariate_combinations)]
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     performance_data = performance_data[:n_samples]
     if verbose:
