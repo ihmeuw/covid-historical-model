@@ -10,6 +10,7 @@ from covid_historical_model.etl import model_inputs
 
 def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
               hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame,
+              covariate_list: List[str],
               verbose: bool = True,
               **kwargs) -> Tuple[Dict, Dict, pd.Series, pd.Series, pd.Series]:
     model_data['logit_idr'] = logit(model_data['idr'])
@@ -20,26 +21,34 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     
     # lose 0s and 1s
     model_data = model_data.loc[model_data['logit_idr'].notnull()]
+    
+    covariate_priors = {
+        'uhc':         {'prior_beta_uniform': np.array([-np.inf, 0])},
+        'haq':         {'prior_beta_uniform': np.array([-np.inf, 0])},
+        'prop_65plus': {'prior_beta_uniform': np.array([-np.inf, 0])},
+    }
+    covariate_priors = {covariate: covariate_priors[covariate] for covariate in covariate_list}
+    covariate_lambdas = {covariate: 1. for covariate in covariate_list}
 
     var_args = {'dep_var': 'logit_idr',
                 'dep_var_se': 'logit_idr_se',
                 'fe_vars': ['intercept',
-                            'log_infwavg_testing_rate_capacity',],
+                            'log_infwavg_testing_rate_capacity',] + covariate_list,
                 'prior_dict': {'log_infwavg_testing_rate_capacity':
                                {'prior_beta_uniform':np.array([1e-6, np.inf])},
                               },
                 're_vars': [],
                 'group_var': 'location_id',}
-    global_prior_dict = {}
+    global_prior_dict = covariate_priors
     pred_replace_dict = {'log_testing_rate_capacity': 'log_infwavg_testing_rate_capacity',}
     pred_exclude_vars = []
     level_lambdas = {
-        0: {'intercept': 1. , 'log_infwavg_testing_rate_capacity': 2.  ,},  # G->SR
-        1: {'intercept': 1. , 'log_infwavg_testing_rate_capacity': 2.  ,},  # SR->R
-        2: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},  # R->A0
-        3: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},  # A0->A1
-        4: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},  # A1->A2
-        5: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},  # A2->A3
+        0: {'intercept': 1. , 'log_infwavg_testing_rate_capacity': 2.  , **covariate_lambdas,},  # G->SR
+        1: {'intercept': 1. , 'log_infwavg_testing_rate_capacity': 2.  , **covariate_lambdas,},  # SR->R
+        2: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100., **covariate_lambdas,},  # R->A0
+        3: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100., **covariate_lambdas,},  # A0->A1
+        4: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100., **covariate_lambdas,},  # A1->A2
+        5: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100., **covariate_lambdas,},  # A2->A3
     }
     
     if var_args['group_var'] != 'location_id':

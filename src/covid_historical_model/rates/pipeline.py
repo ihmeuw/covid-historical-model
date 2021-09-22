@@ -182,13 +182,16 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
         logger.info('\n*************************************\n'
                     'IDR ESTIMATION\n'
                     '*************************************')
+    idr_covariate_list = np.random.choice([['haq'], ['uhc'], ['prop_65plus'], []])
     idr_input_data = idr.data.load_input_data(model_inputs_root, excess_mortality, testing_root,
                                               shared, adj_seroprevalence.copy(), vaccine_coverage.copy(),
+                                              covariates,
                                               verbose=verbose)
     idr_results = idr.runner.runner(idr_input_data,
                                     shared,
                                     ifr_results.pred.copy(),
                                     daily_reinfection_inflation_factor.copy(),
+                                    idr_covariate_list,
                                     verbose=verbose)
     
     if verbose:

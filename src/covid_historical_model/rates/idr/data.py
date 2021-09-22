@@ -14,6 +14,7 @@ from covid_historical_model.durations.durations import (
 
 def load_input_data(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
                     shared: Dict, seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
+                    covariates: List[pd.Series],
                     verbose: bool = True) -> Dict:
     # load data
     cumulative_cases, daily_cases = model_inputs.reported_epi(
@@ -23,8 +24,13 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool, testing_roo
         model_inputs_root, 'deaths', shared['hierarchy'], shared['gbd_hierarchy'], excess_mortality
     )
     testing_capacity = estimates.testing(testing_root)['testing_capacity']
+    
+    # over 65 covariate
+    prop_65plus = shared['age_spec_population'].copy().reset_index()
+    prop_65plus = prop_65plus.loc[prop_65plus['age_group_years_start'] >= 65].groupby('location_id')['population'].sum() /\
+                  prop_65plus.groupby('location_id')['population'].sum()
+    prop_65plus = prop_65plus.rename('prop_65plus')
 
-    covariates = []
     input_data = {
         'cumulative_cases': cumulative_cases,
         'daily_cases': daily_cases,
@@ -32,7 +38,7 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool, testing_roo
         'seroprevalence': seroprevalence,
         'vaccine_coverage': vaccine_coverage,
         'testing_capacity': testing_capacity,
-        'covariates': covariates,
+        'covariates': covariates + [prop_65plus],
     }
     input_data.update(shared)
     

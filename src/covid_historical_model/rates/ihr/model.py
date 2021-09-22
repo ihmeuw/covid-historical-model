@@ -39,7 +39,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     var_args = {'dep_var': 'logit_ihr',
                 'dep_var_se': 'logit_ihr_se',
                 'fe_vars': ['intercept'] + covariate_list,
-                'prior_dict': covariate_priors,
+                'prior_dict': {},
                 're_vars': [],
                 'group_var': 'location_id',}
     global_prior_dict = covariate_priors

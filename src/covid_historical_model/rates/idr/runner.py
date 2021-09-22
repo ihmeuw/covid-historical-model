@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 from pathlib import Path
 from collections import namedtuple
 from loguru import logger
@@ -18,6 +18,7 @@ RESULTS = namedtuple('Results',
 
 def runner(input_data: Dict, shared: Dict,
            pred_ifr: pd.Series, daily_reinfection_inflation_factor: pd.Series,
+           covariate_list: List[str],
            pred_start_date: str = '2019-11-01',
            pred_end_date: str = '2021-12-31',
            verbose: bool = True,) -> namedtuple:
@@ -34,6 +35,7 @@ def runner(input_data: Dict, shared: Dict,
     mr_model_dict, prior_dicts, pred, pred_fe, pred_location_map, level_lambdas = idr.model.run_model(
         model_data=model_data.copy(),
         pred_data=pred_data.copy(),
+        covariate_list=covariate_list,
         verbose=verbose,
         **input_data
     )
