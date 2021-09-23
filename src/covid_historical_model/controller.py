@@ -267,7 +267,9 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     idr_model_data.to_parquet(out_dir / 'idr_model_data.parquet')
     idr_level_lambdas_draws.to_parquet(out_dir / 'idr_level_lambdas_draws.parquet')
 
-    seroprevalence.to_parquet(out_dir / 'seroprevalence_data.parquet')
+    ## write this as a csv, for data intake purposes
+    # seroprevalence.to_parquet(out_dir / 'seroprevalence_data.parquet')
+    seroprevalence.to_csv(out_dir / 'sero_data.csv', index=False)
     
     reported_sensitivity_data.to_parquet(out_dir / 'raw_sensitivity_data.parquet')
     sensitivity_draws.to_parquet(out_dir / 'sensitivity.parquet')

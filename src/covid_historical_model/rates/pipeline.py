@@ -94,7 +94,7 @@ def pipeline_wrapper(out_dir: Path,
         reported_seroprevalence=reported_seroprevalence,
         covariate_options=covariate_options,
         covariates=covariates,
-        cutoff_pct=0.33
+        cutoff_pct=1.
     )
     day_inflection_pool = np.random.choice(day_inflection_options, n_samples)
     day_inflection_pool = [str(d) for d in day_inflection_pool]  # can't be np.str_

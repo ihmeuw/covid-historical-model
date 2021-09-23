@@ -55,8 +55,8 @@ def add_repeat_infections(cross_variant_immunity: float,
     escape_variant_prevalence = escape_variant_prevalence['escape_variant_prevalence'].fillna(0)
     
     ancestral_infections = (infections * (1 - escape_variant_prevalence)).groupby(level=0).cumsum().dropna()
-    repeat_infections = ((ancestral_infections / population) * (1 - cross_variant_immunity) * infections * escape_variant_prevalence).rename('infections')
-    repeat_infections = repeat_infections.fillna(infections).dropna()
+    repeat_infections = ((ancestral_infections / population).clip(0, 1) * (1 - cross_variant_immunity) * infections * escape_variant_prevalence).rename('infections').loc[infections.index]
+    repeat_infections = repeat_infections.fillna(0).dropna()
     
     obs_infections = infections.groupby(level=0).cumsum().dropna()
     first_infections = (infections - repeat_infections).groupby(level=0).cumsum().dropna()
