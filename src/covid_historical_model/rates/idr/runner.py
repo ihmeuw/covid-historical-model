@@ -7,7 +7,6 @@ import pandas as pd
 
 from covid_historical_model.rates import idr
 from covid_historical_model.rates import squeeze
-from covid_historical_model.durations.durations import EXPOSURE_TO_CASE
 from covid_historical_model.etl import model_inputs
 from covid_historical_model.utils.math import scale_to_bounds
 
@@ -19,13 +18,14 @@ RESULTS = namedtuple('Results',
 def runner(input_data: Dict, shared: Dict,
            pred_ifr: pd.Series, daily_reinfection_inflation_factor: pd.Series,
            covariate_list: List[str],
+           durations: Dict,
            pred_start_date: str = '2019-11-01',
            pred_end_date: str = '2021-12-31',
            verbose: bool = True,) -> namedtuple:
     pred_start_date = pd.Timestamp(pred_start_date)
     pred_end_date = pd.Timestamp(pred_end_date)
 
-    model_data = idr.data.create_model_data(pred_ifr=pred_ifr, verbose=verbose, **input_data)
+    model_data = idr.data.create_model_data(pred_ifr=pred_ifr, durations=durations, verbose=verbose, **input_data)
     pred_data = idr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,
         **input_data
@@ -65,7 +65,7 @@ def runner(input_data: Dict, shared: Dict,
     pred = squeeze.squeeze(
         daily=input_data['daily_cases'].copy(),
         rate=pred.copy(),
-        day_shift=EXPOSURE_TO_CASE,
+        day_shift=durations['exposure_to_case'],
         population=input_data['population'].copy(),
         daily_reinfection_inflation_factor=(daily_reinfection_inflation_factor
                                             .set_index(['location_id', 'date'])

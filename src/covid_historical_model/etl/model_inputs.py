@@ -395,6 +395,7 @@ def population(model_inputs_root: Path, by_age: bool = False) -> pd.Series:
 
 def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     # TODO: bootstrapping or something to incorporate uncertainty (would need to digitize this portion from Perez-Saez plots)?
+    model_inputs_root = Path('/ihme/covid-19-2/data_intake')
     peluso_path = model_inputs_root / 'serology' / 'waning_immunity' / 'peluso_assay_sensitivity.xlsx'
     perez_saez_paths = [
         model_inputs_root / 'serology' / 'waning_immunity' / 'perez-saez_n-roche.xlsx',
@@ -403,7 +404,10 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     ]
     bond_path = model_inputs_root / 'serology' / 'waning_immunity' / 'bond.xlsx'
     muecksch_path = model_inputs_root / 'serology' / 'waning_immunity' / 'muecksch.xlsx'
-    lumley_path = model_inputs_root / 'serology' / 'waning_immunity' / 'lumley.xlsx'
+    lumley_paths = [
+        model_inputs_root / 'serology' / 'waning_immunity' / 'lumley_n-abbott.xlsx',
+        model_inputs_root / 'serology' / 'waning_immunity' / 'lumley_s-oxford.xlsx',
+    ]
     
     ## PELUSO
     peluso = pd.read_excel(peluso_path)
@@ -421,11 +425,12 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     
     ## PEREZ-SAEZ - start at 21 days out
     perez_saez = pd.concat([pd.read_excel(perez_saez_path) for perez_saez_path in perez_saez_paths])
-    logger.warning('Need to get UIs for Perez-Saez.')
-    perez_saez = perez_saez.rename(columns={'sensitivity': 'sensitivity_mean'})
-    perez_saez['sensitivity_std'] = ((1 - perez_saez['sensitivity_mean']) * 0.5) / 3.92
-    perez_saez = perez_saez.loc[perez_saez['t'] >= 28]
-    perez_saez['t'] -= 28
+    perez_saez['metric'] = perez_saez['metric'].str.strip()
+    perez_saez = pd.pivot_table(perez_saez, index=['t', 'assay'], columns='metric', values='sensitivity').reset_index()
+    perez_saez = perez_saez.rename(columns={'mean': 'sensitivity_mean'})
+    perez_saez['sensitivity_std'] = (perez_saez['upper'] - perez_saez['lower']) / 3.92
+    perez_saez = perez_saez.loc[perez_saez['t'] >= 21]
+    perez_saez['t'] -= 21
     perez_saez = pd.concat([
         pd.concat([perez_saez, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=perez_saez.index)], axis=1),
         pd.concat([perez_saez, pd.DataFrame({'hospitalization_status':'Hospitalized'}, index=perez_saez.index)], axis=1)
@@ -486,10 +491,12 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     muecksch['source'] = 'Muecksch'
     
     ## LUMLEY
-    lumley = pd.read_excel(lumley_path)
-    logger.warning('Need to get UIs for Lumley.')
-    lumley = lumley.rename(columns={'sensitivity': 'sensitivity_mean'})
-    lumley['sensitivity_std'] = ((1 - lumley['sensitivity_mean']) * 0.5) / 3.92
+    lumley = pd.concat([pd.read_excel(lumley_path) for lumley_path in lumley_paths])
+    lumley['metric'] = lumley['metric'].str.strip()
+    lumley = pd.pivot_table(lumley, index=['t', 'assay', 'num_60', 'denom_60', 'avg_60'],
+                            columns='metric', values='sensitivity').reset_index()
+    lumley = lumley.rename(columns={'mean': 'sensitivity_mean'})
+    lumley['sensitivity_std'] = (lumley['upper'] - lumley['lower']) / 3.92
     lumley['sensitivity_mean'] *= (lumley['num_60'] / lumley['denom_60']) / lumley['avg_60']
     lumley = pd.concat([
         pd.concat([lumley, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=lumley.index)], axis=1),

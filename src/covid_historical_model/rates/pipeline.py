@@ -29,7 +29,8 @@ from covid_historical_model.utils import pdf_merger
 def pipeline_wrapper(out_dir: Path,
                      model_inputs_root: Path, excess_mortality: bool,
                      vaccine_coverage_root: Path, variant_scaleup_root: Path,
-                     age_pattern_root: Path, testing_root: Path,
+                     age_rates_root: Path, mr_age_root: Path,
+                     testing_root: Path,
                      n_samples: int,
                      day_inflection_options: List[str] = ['2020-05-01', '2020-06-01', '2020-07-01',
                                                           '2020-08-01', '2020-09-01', '2020-10-01',
@@ -92,11 +93,15 @@ def pipeline_wrapper(out_dir: Path,
     selected_combinations = covariate_selection.covariate_selection(
         n_samples=n_samples, test_combinations=test_combinations,
         model_inputs_root=model_inputs_root, excess_mortality=excess_mortality,
-        age_pattern_root=age_pattern_root, shared=shared,
+        age_rates_root=age_rates_root, mr_age_root=mr_age_root, shared=shared,
         reported_seroprevalence=reported_seroprevalence,
         covariate_options=covariate_options,
         covariates=covariates,
-        cutoff_pct=1.
+        cutoff_pct=1.,
+        durations={'sero_to_death': int(round(np.mean(durations.EXPOSURE_TO_ADMISSION) + \
+                                              np.mean(durations.ADMISSION_TO_DEATH) - \
+                                              np.mean(durations.EXPOSURE_TO_SEROCONVERSION)))
+                  },
     )
     day_inflection_pool = np.random.choice(day_inflection_options, n_samples)
     day_inflection_pool = [str(d) for d in day_inflection_pool]  # can't be np.str_
@@ -111,14 +116,15 @@ def pipeline_wrapper(out_dir: Path,
             'vaccine_coverage': vaccine_coverage,
             'escape_variant_prevalence': escape_variant_prevalence,
             'severity_variant_prevalence': severity_variant_prevalence,
-            'age_pattern_root': age_pattern_root,
+            'age_rates_root': age_rates_root,
+            'mr_age_root': mr_age_root,
             'testing_root': testing_root,
             'day_inflection': day_inflection,
             'covariates': covariates,
             'covariate_list': covariate_list,
             'cross_variant_immunity': cross_variant_immunity,
-            'verbose': verbose,
             'durations': durations,
+            'verbose': verbose,
         }
         for n, (covariate_list, seroprevalence, sensitivity_data, cross_variant_immunity, day_inflection, durations,)
         in enumerate(zip(selected_combinations, seroprevalence_samples, sensitivity_data_samples,
@@ -156,17 +162,21 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
              vaccine_coverage: pd.DataFrame,
              escape_variant_prevalence: pd.Series,
              severity_variant_prevalence: pd.Series,
-             age_pattern_root: Path, testing_root: Path,
+             age_rates_root: Path,
+             mr_age_root: Path,
+             testing_root: Path,
              day_inflection: str,
              covariates: List[pd.Series],
              covariate_list: List[str],
              cross_variant_immunity: float,
+             durations: Dict,
              verbose: bool,) -> Tuple:
     if verbose:
         logger.info('\n*************************************\n'
                     f"IFR ESTIMATION -- inflection point at {day_inflection}\n"
                     '*************************************')
-    ifr_input_data = ifr.data.load_input_data(model_inputs_root, excess_mortality, age_pattern_root,
+    ifr_input_data = ifr.data.load_input_data(model_inputs_root, excess_mortality,
+                                              age_rates_root, mr_age_root,
                                               shared, orig_seroprevalence, sensitivity_data, vaccine_coverage,
                                               escape_variant_prevalence,
                                               severity_variant_prevalence,
@@ -178,6 +188,7 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
         input_data=ifr_input_data,
         day_inflection=day_inflection,
         covariate_list=covariate_list,
+        durations=durations,
         verbose=verbose,
     )
 
@@ -195,20 +206,22 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                                     ifr_results.pred.copy(),
                                     daily_reinfection_inflation_factor.copy(),
                                     idr_covariate_list,
+                                    durations,
                                     verbose=verbose)
     
     if verbose:
         logger.info('\n*************************************\n'
                     'IHR ESTIMATION\n'
                     '*************************************')
-    ihr_input_data = ihr.data.load_input_data(model_inputs_root, age_pattern_root,
+    ihr_input_data = ihr.data.load_input_data(model_inputs_root,
+                                              age_rates_root, mr_age_root,
                                               shared, adj_seroprevalence.copy(), vaccine_coverage.copy(),
                                               escape_variant_prevalence.copy(),
                                               severity_variant_prevalence.copy(),
                                               covariates,
                                               verbose=verbose)
     ihr_results = ihr.runner.runner(ihr_input_data, daily_reinfection_inflation_factor.copy(),
-                                    covariate_list,
+                                    covariate_list, durations,
                                     verbose=verbose)
     
     if verbose:
@@ -217,6 +230,7 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                     '*************************************')
     pipeline_results = {
         'covariate_list': covariate_list,
+        'durations': durations,
         'seroprevalence': adj_seroprevalence,
         'sensitivity': sensitivity,
         'cumul_reinfection_inflation_factor': cumul_reinfection_inflation_factor,

@@ -3,11 +3,12 @@ import dill as pickle
 from loguru import logger
 
 import pandas as pd
+import numpy as np
 
 from covid_shared import cli_tools
 
 from covid_historical_model.rates.pipeline import pipeline_wrapper
-from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
+from covid_historical_model.durations.durations import EXPOSURE_TO_SEROCONVERSION
 
 ## IMPORTANT TODO:
 ##     - OneNote stuff
@@ -46,7 +47,8 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
 def main(app_metadata: cli_tools.Metadata, out_dir: Path,
          model_inputs_root: Path,
          vaccine_coverage_root: Path, variant_scaleup_root: Path,
-         age_pattern_root: Path, testing_root: Path,
+         age_rates_root: Path, mr_age_root: Path,
+         testing_root: Path,
          excess_mortality: bool,
          n_samples: int,):
     ## run models
@@ -57,15 +59,10 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
         out_dir,
         model_inputs_root, excess_mortality,
         vaccine_coverage_root, variant_scaleup_root,
-        age_pattern_root,
+        age_rates_root, mr_age_root,
         testing_root,
         n_samples,
     )
-    
-    # ## THIS SEEMS LIKE A WASTE OF SPACE
-    # ## save models
-    # with (out_dir / 'pipeline_results.pkl').open('wb') as file:
-    #     pickle.dump(pipeline_results, file, -1)
     
     ## save IFR
     logger.info('Compiling IFR draws and other data.')
@@ -213,10 +210,12 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
                                         seroprevalence_samples.std(axis=1).rename('sero_sample_std'),],
                                        axis=1).reset_index()
     seroprevalence = seroprevalence.merge(seroprevalence_samples, how='left')
-    seroprevalence['infection_date'] = seroprevalence['date'] - pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
+    seroprevalence['infection_date'] = seroprevalence['date'] - pd.Timedelta(days=int(np.round(np.mean(EXPOSURE_TO_SEROCONVERSION))))
     seroprevalence = seroprevalence.rename(columns={'start_date': 'sero_start_date',
                                                     'date': 'sero_end_date'})
     
+    ## save durations
+    durations = [pipeline_results[n]['durations'] for n in range(n_samples)]
     
     ## save sensitivity
     sensitivity_draws = []
@@ -240,6 +239,9 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     
     with (out_dir / 'covariate_combinations.pkl').open('wb') as file:
         pickle.dump(selected_combinations, file, -1)
+        
+    with (out_dir / 'durations.pkl').open('wb') as file:
+        pickle.dump(durations, file, -1)
     
     em_data.to_parquet(out_dir / 'excess_mortality.parquet')
 

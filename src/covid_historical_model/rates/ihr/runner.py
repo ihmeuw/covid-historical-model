@@ -8,7 +8,6 @@ import pandas as pd
 from covid_historical_model.rates import ihr
 from covid_historical_model.rates import post
 from covid_historical_model.rates import squeeze
-from covid_historical_model.durations.durations import EXPOSURE_TO_ADMISSION
 
 RESULTS = namedtuple('Results',
                      'seroprevalence model_data mr_model_dict pred_location_map level_lambdas ' \
@@ -18,6 +17,7 @@ RESULTS = namedtuple('Results',
 def runner(input_data: Dict,
            daily_reinfection_inflation_factor: pd.Series,
            covariate_list: List[str],
+           durations: Dict,
            day_0: str = '2020-03-15',
            pred_start_date: str = '2019-11-01',
            pred_end_date: str = '2021-12-31',
@@ -26,7 +26,7 @@ def runner(input_data: Dict,
     pred_start_date = pd.Timestamp(pred_start_date)
     pred_end_date = pd.Timestamp(pred_end_date)
 
-    model_data = ihr.data.create_model_data(day_0=day_0, **input_data)
+    model_data = ihr.data.create_model_data(day_0=day_0, durations=durations, **input_data)
     pred_data = ihr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,
         day_0=day_0, **input_data
@@ -47,7 +47,7 @@ def runner(input_data: Dict,
         denom_age_pattern=input_data['sero_age_pattern'].copy(),
         age_spec_population=input_data['age_spec_population'].copy(),
         rate=pred.copy(),
-        day_shift=EXPOSURE_TO_ADMISSION,
+        day_shift=durations['exposure_to_admission'],
         escape_variant_prevalence=input_data['escape_variant_prevalence'].copy(),
         severity_variant_prevalence=input_data['severity_variant_prevalence'].copy(),
         vaccine_coverage=input_data['vaccine_coverage'].copy(),
@@ -59,7 +59,7 @@ def runner(input_data: Dict,
     pred = squeeze.squeeze(
         daily=input_data['daily_hospitalizations'].copy(),
         rate=pred.copy(),
-        day_shift=EXPOSURE_TO_ADMISSION,
+        day_shift=durations['exposure_to_admission'],
         population=input_data['population'].copy(),
         daily_reinfection_inflation_factor=(daily_reinfection_inflation_factor
                                             .set_index(['location_id', 'date'])

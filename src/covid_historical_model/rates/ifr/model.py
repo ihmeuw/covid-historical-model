@@ -6,7 +6,6 @@ import numpy as np
 from covid_historical_model.utils.math import logit, expit
 from covid_historical_model.mrbrt import cascade
 from covid_historical_model.rates import age_standardization
-from covid_historical_model.durations.durations import SERO_TO_DEATH
 from covid_historical_model.etl import model_inputs
 from covid_historical_model.rates.covariate_priors import get_covariate_priors
 
@@ -126,99 +125,3 @@ def prepare_model(model_data: pd.DataFrame,
     
     return model_data, age_stand_scaling_factor, level_lambdas, var_args, global_prior_dict,\
            pred_replace_dict, pred_exclude_vars
-
-
-def match_model_data(mr_model_dict: Dict, data: pd.Series,
-                     pred_location_map: Dict, model_location_id: int,
-                     is_nat_subnat: bool,
-                     date_req: pd.Timestamp = pd.Timestamp('2020-07-01'),) -> Tuple[List, bool]:
-    '''
-    Must have `obs_req` observations after `date_req`.
-    '''
-    # think about whether we want to use a more complicated rule here for region/country
-    if is_nat_subnat:
-        obs_req: int = 1
-    else:
-        # IF WE CHANGE THIS, NEED TO REVISIT LOGIC OF WHAT TO SAY FOR GBD LOCATIONS
-        obs_req: int = 1
-    model_data_location_ids = mr_model_dict[model_location_id].data.to_df()['study_id'].unique().tolist()
-    data = data.loc[model_data_location_ids].reset_index()
-    
-    satisfies = (data['date'] >= date_req).sum() >= obs_req
-    
-    return model_data_location_ids, satisfies
-
-
-def map_pred_and_model_locations(pred_location_map: Dict, mr_model_dict: Dict,
-                                 data: pd.Series, hierarchy: pd.DataFrame) -> pd.DataFrame:
-    nrmse_data = []
-    admin0_level = hierarchy.loc[hierarchy['location_type'] == 'admin0', 'level'].unique().item()
-    for pred_location_id in pred_location_map.keys():
-        if pred_location_id in hierarchy['location_id'].to_list():
-            is_nat_subnat = hierarchy.loc[hierarchy['location_id'] == pred_location_id, 'level'].item() >= admin0_level
-        else:
-            is_nat_subnat = False
-        model_location_id = pred_location_id
-        searching = True
-        i = 0
-        while searching:
-            i += 1
-            if i == 10:
-                raise ValueError('Trapped in loop.')
-            model_location_id = pred_location_map[model_location_id]
-            model_data_location_ids, satisfies = match_model_data(
-                mr_model_dict, data.copy(), pred_location_map, model_location_id,
-                is_nat_subnat,
-            )
-            searching = not satisfies
-            if searching:
-                model_location_id = hierarchy.loc[hierarchy['location_id'] == model_location_id, 'parent_id'].item()
-        nrmse_data.append(
-            pd.concat([data.loc[model_data_location_ids].reset_index(),
-                       pd.DataFrame({'pred_location_id':pred_location_id},
-                                    index=np.arange(len(data.loc[model_data_location_ids])))],
-                      axis=1)
-        )
-    nrmse_data = pd.concat(nrmse_data).reset_index(drop=True)
-    nrmse_data = (nrmse_data
-                  .set_index(['pred_location_id', 'location_id', 'date'])
-                  .sort_index())
-    
-    return nrmse_data
-
-
-def get_nrmse(seroprevalence: pd.DataFrame, deaths: pd.Series,
-              pred: pd.Series, hierarchy: pd.DataFrame, population: pd.Series,
-              pred_location_map: pd.Series, mr_model_dict: Dict) -> Tuple[pd.Series, pd.Series]:
-    seroprevalence = (seroprevalence
-                      .set_index(['location_id', 'date'])
-                      .sort_index()
-                      .loc[:, 'seroprevalence'])
-    
-    infections = (deaths / pred).dropna().rename('infections')
-    infections = infections.reset_index()
-    infections['date'] -= pd.Timedelta(days=SERO_TO_DEATH)  # matching date to serosurveys
-    infections = infections.set_index(['location_id', 'date'])
-    infections = infections.groupby(level=0)['infections'].cumsum()
-    infections /= population
-    
-    residuals = seroprevalence.to_frame().join(infections)
-    residuals = (residuals['seroprevalence'] - residuals['infections']).dropna().rename('residuals')
-    residuals = map_pred_and_model_locations(pred_location_map, mr_model_dict, residuals, hierarchy)
-    residuals = residuals.loc[:, 'residuals']
-    seroprevalence = map_pred_and_model_locations(pred_location_map, mr_model_dict, seroprevalence, hierarchy)
-    seroprevalence = seroprevalence.loc[:, 'seroprevalence']
-    seroprevalence = seroprevalence[residuals.index]
-    rmse = np.sqrt((residuals ** 2).groupby(level=0).mean())
-    
-    s_min = seroprevalence.groupby(level=0).min()
-    s_max = seroprevalence.groupby(level=0).max()
-    s_ptp = s_max - s_min
-    s_ptp = s_ptp.replace(0, np.nan)
-    s_ptp = s_ptp.fillna((s_max + s_min) / 2)
-    
-    nrmse = (rmse / s_ptp).dropna().rename('nrmse')
-    
-    nrmse.index = nrmse.index.rename('location_id')
-    
-    return nrmse, residuals

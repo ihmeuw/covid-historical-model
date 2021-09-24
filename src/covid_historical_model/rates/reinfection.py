@@ -1,29 +1,10 @@
 from pathlib import Path
+from typing import Dict
 
 import pandas as pd
 import numpy as np
 
 from covid_historical_model.etl.helpers import aggregate_data_from_md
-from covid_historical_model.durations.durations import EXPOSURE_TO_DEATH, EXPOSURE_TO_SEROPOSITIVE
-
-# def fill_non_covid_locs(escape_variant_prevalence: pd.Series,
-#                         hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame,):
-#     location_ids = gbd_hierarchy['location_id'].to_list()
-#     covid_location_ids = hierarchy['location_id'].to_list()
-#     location_ids = [l for l in location_ids if l not in covid_location_ids]
-#     data_location_ids = escape_variant_prevalence.index.get_level_values(0).unique().to_list()
-#     location_ids = [l for l in location_ids if l not in data_location_ids]
-#     for location_id in location_ids:
-#         parent_ids = gbd_hierarchy.loc[gbd_hierarchy['location_id'] == location_id, 'path_to_top_parent'].item()
-#         parent_ids = [int(l) for l in reversed(parent_ids.split(','))][1:]
-#         parent_ids = [l for l in parent_ids if l in data_location_ids]
-#         if parent_ids:
-#             escape_variant_prevalence = escape_variant_prevalence.append(
-#                         pd.concat({location_id: escape_variant_prevalence.loc[parent_ids[0]]},
-#                                   names=['location_id'])
-#             )
-    
-#     return escape_variant_prevalence, location_ids
 
 
 def add_repeat_infections(cross_variant_immunity: float,
@@ -33,6 +14,7 @@ def add_repeat_infections(cross_variant_immunity: float,
                           hierarchy: pd.DataFrame,
                           gbd_hierarchy: pd.DataFrame,
                           population: pd.Series,
+                          durations: Dict,
                           verbose: bool = True,
                           **kwargs) -> pd.DataFrame:
     infections = ((daily_deaths / pred_ifr)
@@ -40,7 +22,7 @@ def add_repeat_infections(cross_variant_immunity: float,
                   .dropna()
                   .rename('infections')
                   .reset_index())
-    infections['date'] -= pd.Timedelta(days=EXPOSURE_TO_DEATH)
+    infections['date'] -= pd.Timedelta(days=durations['exposure_to_death'])
     infections = (infections
                   .set_index(['location_id', 'date'])
                   .loc[:, 'infections'])
@@ -86,13 +68,13 @@ def add_repeat_infections(cross_variant_immunity: float,
                              ).rename('inflation_factor').dropna().clip(1., np.inf)
     
     cumul_inflation_factor = cumul_inflation_factor.reset_index()
-    cumul_inflation_factor['date'] += pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
+    cumul_inflation_factor['date'] += pd.Timedelta(days=durations['exposure_to_seroconversion'])
     daily_inflation_factor = daily_inflation_factor.reset_index()
     
     seroprevalence = seroprevalence.merge(cumul_inflation_factor, how='left')
     seroprevalence['inflation_factor'] = seroprevalence['inflation_factor'].fillna(1)
     
-    cumul_inflation_factor['date'] -= pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)
+    cumul_inflation_factor['date'] -= pd.Timedelta(days=durations['exposure_to_seroconversion'])
     
     seroprevalence['seroprevalence'] *= seroprevalence['inflation_factor']
     

@@ -53,17 +53,20 @@ def get_coefficients(covariate_list: List[str],
 
 
 def covariate_selection(n_samples: int, test_combinations: List[List[str]],
-                        model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Path,
+                        model_inputs_root: Path, excess_mortality: bool,
+                        age_rates_root: Path, mr_age_root: Path,
                         shared: Dict, reported_seroprevalence: pd.DataFrame,
                         covariate_options: List[str],
                         covariates: List[pd.Series],
                         cutoff_pct: float,
+                        durations: Dict,
                         exclude_US: bool = True,
                         day_0: pd.Timestamp = pd.Timestamp('2020-03-15'),
                         day_inflection: pd.Timestamp = pd.Timestamp('2020-10-01'),
                         verbose: bool = True,):
     input_data = ifr.data.load_input_data(model_inputs_root=model_inputs_root,
-                                          excess_mortality=excess_mortality, age_pattern_root=age_pattern_root,
+                                          excess_mortality=excess_mortality,
+                                          age_rates_root=age_rates_root, mr_age_root=mr_age_root,
                                           shared=shared, seroprevalence=reported_seroprevalence,
                                           covariates=covariates,
                                           sensitivity_data=None, vaccine_coverage=None,
@@ -71,7 +74,8 @@ def covariate_selection(n_samples: int, test_combinations: List[List[str]],
                                           severity_variant_prevalence=None,
                                           cross_variant_immunity=None,
                                           verbose=False)
-    model_data = ifr.data.create_model_data(day_0=day_0, **input_data)
+    model_data = ifr.data.create_model_data(day_0=day_0, durations=durations,
+                                            **input_data)
     
     if exclude_US:
         logger.info('Excluding US data from covariate selection, is over-representative.')
@@ -79,7 +83,7 @@ def covariate_selection(n_samples: int, test_combinations: List[List[str]],
         usa = hierarchy.loc[hierarchy['path_to_top_parent'].apply(lambda x: '102' in x.split(',')), 'location_id'].to_list()
         model_data = model_data.loc[~model_data['location_id'].isin(usa)]
         del hierarchy, usa
-    
+
     _gc = functools.partial(
         get_coefficients,
         model_data=model_data.copy(), input_data=input_data,

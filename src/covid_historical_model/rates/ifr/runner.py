@@ -18,7 +18,6 @@ from covid_historical_model.rates import serology
 from covid_historical_model.rates import age_standardization
 from covid_historical_model.rates import post
 from covid_historical_model.rates import squeeze
-from covid_historical_model.durations.durations import EXPOSURE_TO_DEATH
 
 RESULTS = namedtuple('Results',
                      'seroprevalence model_data mr_model_dict pred_location_map daily_numerator level_lambdas ' \
@@ -28,6 +27,7 @@ RESULTS = namedtuple('Results',
 def runner(input_data: Dict,
            day_inflection: str,
            covariate_list: List[str],
+           durations: Dict,
            day_0: str = '2020-03-15',
            pred_start_date: str = '2019-11-01',
            pred_end_date: str = '2021-12-31',
@@ -39,7 +39,7 @@ def runner(input_data: Dict,
     pred_start_date = pd.Timestamp(pred_start_date)
     pred_end_date = pd.Timestamp(pred_end_date)
 
-    model_data = ifr.data.create_model_data(day_0=day_0, **input_data)
+    model_data = ifr.data.create_model_data(day_0=day_0, durations=durations, **input_data)
     pred_data = ifr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,
         day_0=day_0, **input_data
@@ -62,6 +62,7 @@ def runner(input_data: Dict,
     logger.info('reinfection')
     cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor, seroprevalence = reinfection.add_repeat_infections(
         pred_ifr=pred.copy(),
+        durations=durations,
         verbose=False,
         **input_data,
     )
@@ -80,6 +81,7 @@ def runner(input_data: Dict,
         input_data['seroprevalence'].copy(),
         input_data['daily_deaths'].copy(),
         pred.copy(),
+        durations,
     )
     
     ## SET UP REFIT
@@ -87,7 +89,7 @@ def runner(input_data: Dict,
     refit_input_data = input_data.copy()
     refit_input_data['seroprevalence'] = seroprevalence
     del seroprevalence
-    refit_model_data = ifr.data.create_model_data(day_0=day_0, **refit_input_data)
+    refit_model_data = ifr.data.create_model_data(day_0=day_0, durations=durations, **refit_input_data)
     refit_pred_data = ifr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,
         day_0=day_0, **refit_input_data
@@ -114,7 +116,7 @@ def runner(input_data: Dict,
         denom_age_pattern=refit_input_data['sero_age_pattern'].copy(),
         age_spec_population=refit_input_data['age_spec_population'].copy(),
         rate=refit_pred.copy(),
-        day_shift=EXPOSURE_TO_DEATH,
+        day_shift=durations['exposure_to_death'],
         escape_variant_prevalence=refit_input_data['escape_variant_prevalence'].copy(),
         severity_variant_prevalence=refit_input_data['severity_variant_prevalence'].copy(),
         vaccine_coverage=refit_input_data['vaccine_coverage'].copy(),
@@ -128,7 +130,7 @@ def runner(input_data: Dict,
     refit_pred = squeeze.squeeze(
         daily=refit_input_data['daily_deaths'].copy(),
         rate=refit_pred.copy(),
-        day_shift=EXPOSURE_TO_DEATH,
+        day_shift=durations['exposure_to_death'],
         population=refit_input_data['population'].copy(),
         daily_reinfection_inflation_factor=(daily_reinfection_inflation_factor
                                             .set_index(['location_id', 'date'])

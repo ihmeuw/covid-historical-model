@@ -6,10 +6,9 @@ import pandas as pd
 import numpy as np
 
 from covid_historical_model.etl import model_inputs, estimates
-from covid_historical_model.durations.durations import ADMISSION_TO_SERO
 
 
-def load_input_data(model_inputs_root: Path, age_pattern_root: Path,
+def load_input_data(model_inputs_root: Path, age_rates_root: Path, mr_age_root: Path,
                     shared: Dict, seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
                     escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
                     covariates: List[pd.Series],
@@ -18,8 +17,8 @@ def load_input_data(model_inputs_root: Path, age_pattern_root: Path,
     cumulative_hospitalizations, daily_hospitalizations = model_inputs.reported_epi(
         model_inputs_root, 'hospitalizations', shared['hierarchy'], shared['gbd_hierarchy'],
     )
-    sero_age_pattern = estimates.seroprevalence_age_pattern(age_pattern_root)
-    ihr_age_pattern = estimates.ihr_age_pattern(age_pattern_root)
+    sero_age_pattern = estimates.seroprevalence_age_pattern(age_rates_root, mr_age_root)
+    ihr_age_pattern = estimates.ihr_age_pattern(age_rates_root, shared['hierarchy'].copy())
     
     input_data = {
         'cumulative_hospitalizations': cumulative_hospitalizations,
@@ -43,9 +42,10 @@ def create_model_data(cumulative_hospitalizations: pd.Series,
                       covariates: List[pd.Series],
                       hierarchy: pd.DataFrame, population: pd.Series,
                       day_0: pd.Timestamp,
+                      durations: Dict,
                       **kwargs) -> pd.DataFrame:
     ihr_data = seroprevalence.loc[seroprevalence['is_outlier'] == 0].copy()
-    ihr_data['date'] -= pd.Timedelta(days=ADMISSION_TO_SERO)
+    ihr_data['date'] -= pd.Timedelta(days=durations['admission_to_sero'])
     ihr_data = (ihr_data
                 .set_index(['location_id', 'date'])
                 .loc[:, 'seroprevalence'])

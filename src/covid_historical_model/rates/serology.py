@@ -1,4 +1,5 @@
 import sys
+from typing import Dict
 from pathlib import Path
 from loguru import logger
 from collections import namedtuple
@@ -16,7 +17,6 @@ import matplotlib.gridspec as gridspec
 import matplotlib.dates as mdates
 import seaborn as sns
 
-from covid_historical_model.durations.durations import SERO_TO_DEATH, EXPOSURE_TO_SEROPOSITIVE, EXPOSURE_TO_DEATH
 from covid_historical_model.etl import model_inputs
 from covid_historical_model.utils.misc import text_wrap
 from covid_historical_model.utils.math import logit, expit, scale_to_bounds
@@ -297,6 +297,7 @@ def apply_waning_adjustment(sensitivity_data: pd.DataFrame,
                             seroprevalence: pd.DataFrame,
                             daily_deaths: pd.Series,
                             pred_ifr: pd.Series,
+                            durations: Dict,
                             verbose: bool = True,) -> pd.DataFrame:
     data_assays = sensitivity_data['assay'].unique().tolist()
     excluded_data_assays = [da for da in data_assays if da not in ASSAYS]
@@ -342,7 +343,7 @@ def apply_waning_adjustment(sensitivity_data: pd.DataFrame,
                   .rename('infections')
                   .reset_index()
                   .set_index('location_id'))
-    infections['date'] -= pd.Timedelta(days=SERO_TO_DEATH)
+    infections['date'] -= pd.Timedelta(days=durations['sero_to_death'])
     
     sensitivity_list = []
     seroprevalence_list = []

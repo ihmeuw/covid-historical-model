@@ -9,11 +9,11 @@ def get_all_age_rate(rate_age_pattern: pd.Series,
                      age_spec_population: pd.Series,) -> pd.Series:
     age_weights = age_spec_population.to_frame().join(weight_age_pattern.rename('weight_measure'))
     age_weights = age_weights['population'] * age_weights['weight_measure']
-    age_weights = age_weights / age_weights.groupby(level=2).sum()
+    age_weights = age_weights / age_weights.groupby(level=0).sum()
     age_weights = age_weights.rename('age_weight')
     
-    all_age_rate = age_weights.to_frame().join(rate_age_pattern.rename('rate'))
-    all_age_rate = (all_age_rate['rate'] * all_age_rate['age_weight']).groupby(level=2).sum()
+    all_age_rate = age_weights.to_frame().join(rate_age_pattern.rename('rate'), how='right')
+    all_age_rate = (all_age_rate['rate'] * all_age_rate['age_weight']).groupby(level=0).sum()
     all_age_rate = all_age_rate.rename('rate')
     
     return all_age_rate
@@ -22,9 +22,9 @@ def get_all_age_rate(rate_age_pattern: pd.Series,
 def get_scaling_factor(rate_age_pattern: pd.Series, infection_age_pattern: pd.Series,
                        global_age_spec_population: pd.Series,
                        local_age_spec_population: pd.Series,) -> pd.Series:
-    if rate_age_pattern.index.names != ['age_group_years_start', 'age_group_years_end']:
+    if rate_age_pattern.index.names != ['location_id', 'age_group_years_start', 'age_group_years_end']:
         raise ValueError('Wrong rate_age_pattern indexes in age-stadardization.')
-    if infection_age_pattern.index.names != ['age_group_years_start', 'age_group_years_end']:
+    if infection_age_pattern.index.names != ['location_id', 'age_group_years_start', 'age_group_years_end']:
         raise ValueError('Wrong infection_age_pattern indexes in age-stadardization.')
     if global_age_spec_population.index.names != ['location_id', 'age_group_years_start', 'age_group_years_end']:
         raise ValueError('Wrong global_age_spec_population indexes in age-stadardization.')
@@ -57,9 +57,9 @@ def split_age_specific_data(data: pd.Series, age_start_filter: Callable) -> pd.S
 def get_risk_group_rr(rate_age_pattern: pd.Series, infection_age_pattern: pd.Series,
                       age_spec_population: pd.Series,
                       high_risk_age_group_years_start: int = AGE_CUTOFF,) -> Tuple[pd.Series, pd.Series]:
-    if rate_age_pattern.index.names != ['age_group_years_start', 'age_group_years_end']:
+    if rate_age_pattern.index.names != ['location_id', 'age_group_years_start', 'age_group_years_end']:
         raise ValueError('Wrong rate_age_pattern indexes in risk group RR.')
-    if infection_age_pattern.index.names != ['age_group_years_start', 'age_group_years_end']:
+    if infection_age_pattern.index.names != ['location_id', 'age_group_years_start', 'age_group_years_end']:
         raise ValueError('Wrong infection_age_pattern indexes in risk group RR.')
     if age_spec_population.index.names != ['location_id', 'age_group_years_start', 'age_group_years_end']:
         raise ValueError('Wrong age_spec_population indexes in risk group RR.')

@@ -38,8 +38,9 @@ def testing(testing_root: Path) -> pd.DataFrame:
     return data
 
 
-def ihr_age_pattern(age_pattern_root: Path) -> pd.Series:
-    data_path = age_pattern_root / 'hir_preds_5yr.csv'
+def ihr_age_pattern(age_rates_root: Path, hierarchy: pd.DataFrame,) -> pd.Series:
+    # can lose hierarchy if IHR becomes location-specific
+    data_path = age_rates_root / 'hir_preds_5yr.csv'
     data = pd.read_csv(data_path)
     
     data = data.rename(columns={'age_group_start': 'age_group_years_start',
@@ -47,41 +48,64 @@ def ihr_age_pattern(age_pattern_root: Path) -> pd.Series:
                                 'hir': 'ihr',})
     data['age_group_years_end'].iloc[-1] = 125
 
+    data = (data.loc[:, ['age_group_years_start', 'age_group_years_end', 'ihr']])
+    data['key'] = 1
+    
+    hierarchy = hierarchy.copy()
+    hierarchy['key'] = 1
+    
+    data = hierarchy.loc[:, ['location_id', 'key']].merge(data)
+        
     data = (data
-            .set_index(['age_group_years_start', 'age_group_years_end'])
+            .set_index(['location_id', 'age_group_years_start', 'age_group_years_end'])
             .sort_index()
             .loc[:, 'ihr'])
-    
+
     return data
 
 
-def ifr_age_pattern(age_pattern_root: Path) -> pd.Series:
-    data_path = age_pattern_root / 'ifr_preds_5yr.csv'
+def ifr_age_pattern(age_rates_root: Path) -> pd.Series:
+    data_path = age_rates_root / 'ifr_preds_5yr_byloc.csv'
     data = pd.read_csv(data_path)
     
     data = data.rename(columns={'age_group_start': 'age_group_years_start',
                                 'age_group_end': 'age_group_years_end',})
-    data['age_group_years_end'].iloc[-1] = 125
+    if data['age_group_years_start'].max() != 95:
+        raise ValueError('Last age group expected to be 95+; is not.')
+    data.loc[data['age_group_years_start'] == 95, 'age_group_years_end'] = 125
 
     data = (data
-            .set_index(['age_group_years_start', 'age_group_years_end'])
+            .set_index(['location_id', 'age_group_years_start', 'age_group_years_end'])
             .sort_index()
             .loc[:, 'ifr'])
     
     return data
 
 
-def seroprevalence_age_pattern(age_pattern_root: Path) -> pd.Series:
-    data_path = age_pattern_root / 'seroprev_preds_5yr.csv'
-    data = pd.read_csv(data_path)
+def seroprevalence_age_pattern(age_rates_root: Path, mr_age_root: Path,) -> pd.Series:
+    ifr_data_path = age_rates_root / 'ifr_preds_5yr_byloc.csv'
+    mr_data_path = mr_age_root / 'mortality_agepattern_preds_byloc_5yr.csv'
+    ifr_data = pd.read_csv(ifr_data_path)
+    mr_data = pd.read_csv(mr_data_path)
+    mr_data = mr_data.rename(columns={'age_start': 'age_group_start',
+                                      'age_end': 'age_group_end',})
+    data = ifr_data.loc[:, ['location_id', 'age_group_start', 'age_group_end', 'ifr']].merge(
+        mr_data.loc[:, ['location_id', 'age_group_start', 'age_group_end', 'MR']]
+    )
+    
+    # these seroprevalence units are nonsense (MR is normalized), but that's OK for getting the age pattern
+    # make seroprevalence numbers non-enormous by multiplying by 1e-6
+    data['seroprevalence'] = data['MR'] / data['ifr']
+    data['seroprevalence'] *= 1e-6
     
     data = data.rename(columns={'age_group_start': 'age_group_years_start',
-                                'age_group_end': 'age_group_years_end',
-                                'seroprev': 'seroprevalence',})
-    data['age_group_years_end'].iloc[-1] = 125
+                                'age_group_end': 'age_group_years_end',})
+    if data['age_group_years_start'].max() != 95:
+        raise ValueError('Last age group expected to be 95+; is not.')
+    data.loc[data['age_group_years_start'] == 95, 'age_group_years_end'] = 125
 
     data = (data
-            .set_index(['age_group_years_start', 'age_group_years_end'])
+            .set_index(['location_id', 'age_group_years_start', 'age_group_years_end'])
             .sort_index()
             .loc[:, 'seroprevalence'])
     

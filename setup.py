@@ -16,7 +16,7 @@ if __name__ == "__main__":
 
     install_requirements = [
         'click',
-        'covid_shared>=1.6.0',
+        'covid_shared>=1.15.0',
         'drmaa',
         'dill',
         'loguru',
