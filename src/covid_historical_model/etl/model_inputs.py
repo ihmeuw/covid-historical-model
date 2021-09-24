@@ -94,12 +94,12 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     # if no start date provided, assume 2 weeks before end date?
     data['start_date'] = data['start_date'].fillna(data['date'] - pd.Timedelta(days=14))
     
-    # use mid-point instead of end date
-    data = data.rename(columns={'date':'end_date'})
-    data['n_midpoint_days'] = (data['end_date'] - data['start_date']).dt.days / 2
-    data['n_midpoint_days'] = data['n_midpoint_days'].astype(int)
-    data['date'] = data.apply(lambda x: x['end_date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
-    del data['n_midpoint_days']
+    # # use mid-point instead of end date
+    # data = data.rename(columns={'date':'end_date'})
+    # data['n_midpoint_days'] = (data['end_date'] - data['start_date']).dt.days / 2
+    # data['n_midpoint_days'] = data['n_midpoint_days'].astype(int)
+    # data['date'] = data.apply(lambda x: x['end_date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
+    # del data['n_midpoint_days']
 
     # convert to m/l/u to 0-1, sample size to numeric
     if not (helpers.str_fmt(data['units']).unique() == 'percentage').all():

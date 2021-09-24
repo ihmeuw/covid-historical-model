@@ -11,9 +11,7 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
 
 ## IMPORTANT TODO:
 ##     - OneNote stuff
-##     - use date midpoint?
 ##     - make comparison routine; plot all fits in cascade
-##     - multiple locations after July 1 for date selection (currently just 1)? unless only one child?
 ##     - reinfection NAs (probably 0 deaths) -> add checks for location/date matching
 ##     - other NAs in IES inputs?
 ##     - best way to fill where we have no assay information
@@ -43,11 +41,6 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_SEROPOSITIVE
 ##     - add smarter logic around dropping leading 0s
 ##     - plot dropped data
 ##     - remove offset at the end of process (like we do for counties/GBD)
-##     - splines
-##          (a) try higher degree, fewer knot-days?
-##          (b) would it work to fix them e.g. every month?
-##          (c) "fix" uncertainty (maybe the measure cascade)
-##     - issue w/ low days pulling down composite (e.g. Connecticut)
 
 
 def main(app_metadata: cli_tools.Metadata, out_dir: Path,

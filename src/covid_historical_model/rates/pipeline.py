@@ -15,6 +15,7 @@ from covid_shared.cli_tools.logging import configure_logging_to_terminal
 from covid_historical_model.etl import model_inputs, estimates, db
 from covid_historical_model.rates import serology
 from covid_historical_model.rates import covariate_selection
+from covid_historical_model.durations import durations
 from covid_historical_model.rates import age_standardization
 from covid_historical_model.rates import ifr
 from covid_historical_model.rates import idr
@@ -66,6 +67,7 @@ def pipeline_wrapper(out_dir: Path,
     )
     reported_sensitivity_data, sensitivity_data_samples = serology.load_sensitivity(model_inputs_root, n_samples,)
     cross_variant_immunity_samples = cvi.get_cvi_dist(n_samples)
+    durations_samples = durations.get_duration_dist(n_samples)
     
     covariate_options = ['obesity', 'smoking', 'diabetes', 'ckd',
                          'cancer', 'copd', 'cvd', 'uhc', 'haq',]
@@ -116,10 +118,11 @@ def pipeline_wrapper(out_dir: Path,
             'covariate_list': covariate_list,
             'cross_variant_immunity': cross_variant_immunity,
             'verbose': verbose,
+            'durations': durations,
         }
-        for n, (covariate_list, seroprevalence, sensitivity_data, cross_variant_immunity, day_inflection)
+        for n, (covariate_list, seroprevalence, sensitivity_data, cross_variant_immunity, day_inflection, durations,)
         in enumerate(zip(selected_combinations, seroprevalence_samples, sensitivity_data_samples,
-                         cross_variant_immunity_samples, day_inflection_pool))
+                         cross_variant_immunity_samples, day_inflection_pool, durations_samples,))
     }
     
     if verbose:

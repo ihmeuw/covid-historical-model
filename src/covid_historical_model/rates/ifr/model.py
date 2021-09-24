@@ -8,7 +8,7 @@ from covid_historical_model.mrbrt import cascade
 from covid_historical_model.rates import age_standardization
 from covid_historical_model.durations.durations import SERO_TO_DEATH
 from covid_historical_model.etl import model_inputs
-from covid_historical_model.rates.covariate_priors import COVARIATE_PRIORS
+from covid_historical_model.rates.covariate_priors import get_covariate_priors
 
 
 def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
@@ -82,7 +82,8 @@ def prepare_model(model_data: pd.DataFrame,
     inflection_point = (day_inflection - day_0).days
     inflection_point = (inflection_point - model_data['t'].min()) / model_data['t'].values.ptp()
     
-    covariate_priors = {covariate: COVARIATE_PRIORS[covariate] for covariate in covariate_list}
+    covariate_priors = get_covariate_priors()
+    covariate_priors = {covariate: covariate_priors[covariate] for covariate in covariate_list}
     covariate_lambdas = {covariate: 1. for covariate in covariate_list}
 
     var_args = {'dep_var': 'logit_ifr',
