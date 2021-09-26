@@ -149,7 +149,7 @@ def pipeline_wrapper(out_dir: Path,
     
     em_data = estimates.excess_mortailty_scalars(model_inputs_root, excess_mortality)
     
-    return pipeline_results, selected_combinations, \
+    return pipeline_results, selected_combinations, cross_variant_immunity_samples, \
            reported_seroprevalence, reported_sensitivity_data, \
            escape_variant_prevalence, severity_variant_prevalence, \
            vaccine_coverage, em_data

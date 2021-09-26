@@ -52,7 +52,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
          excess_mortality: bool,
          n_samples: int,):
     ## run models
-    pipeline_results, selected_combinations, \
+    pipeline_results, selected_combinations, cross_variant_immunity_samples, \
     reported_seroprevalence, reported_sensitivity_data, \
     escape_variant_prevalence, severity_variant_prevalence, \
     vaccine_coverage, em_data = pipeline_wrapper(
@@ -242,6 +242,9 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
         
     with (out_dir / 'durations.pkl').open('wb') as file:
         pickle.dump(durations, file, -1)
+        
+    with (out_dir / 'cross_variant_immunity.pkl').open('wb') as file:
+        pickle.dump(cross_variant_immunity_samples, file, -1)
     
     em_data.to_parquet(out_dir / 'excess_mortality.parquet')
 
@@ -250,8 +253,6 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ifr_model_data.to_parquet(out_dir / 'ifr_model_data.parquet')
     ifr_age_stand.to_parquet(out_dir / 'ifr_age_stand_data.parquet')
     ifr_level_lambdas_draws.to_parquet(out_dir / 'ifr_level_lambdas_draws.parquet')
-    # ifr_nrmse.to_csv(out_dir / 'ifr_nrmse.csv', index=False)
-    # best_ifr_models.to_csv(out_dir / 'best_ifr_models.csv', index=False)
 
     ihr_draws.to_parquet(out_dir / 'ihr_draws.parquet')
     ihr_model_data.to_parquet(out_dir / 'ihr_model_data.parquet')
@@ -263,7 +264,6 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     idr_level_lambdas_draws.to_parquet(out_dir / 'idr_level_lambdas_draws.parquet')
 
     ## write this as a csv, for data intake purposes
-    # seroprevalence.to_parquet(out_dir / 'seroprevalence_data.parquet')
     seroprevalence.to_csv(out_dir / 'sero_data.csv', index=False)
     
     reported_sensitivity_data.to_parquet(out_dir / 'raw_sensitivity_data.parquet')
