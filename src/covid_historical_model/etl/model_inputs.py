@@ -376,7 +376,6 @@ def population(model_inputs_root: Path, by_age: bool = False) -> pd.Series:
 
 
 def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
-    # TODO: bootstrapping or something to incorporate uncertainty (would need to digitize this portion from Perez-Saez plots)?
     peluso_path = model_inputs_root / 'serology' / 'waning_immunity' / 'peluso_assay_sensitivity.xlsx'
     perez_saez_paths = [
         model_inputs_root / 'serology' / 'waning_immunity' / 'perez-saez_n-roche.xlsx',
@@ -385,7 +384,10 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     ]
     bond_path = model_inputs_root / 'serology' / 'waning_immunity' / 'bond.xlsx'
     muecksch_path = model_inputs_root / 'serology' / 'waning_immunity' / 'muecksch.xlsx'
-    lumley_path = model_inputs_root / 'serology' / 'waning_immunity' / 'lumley.xlsx'
+    lumley_paths = [
+        model_inputs_root / 'serology' / 'waning_immunity' / 'lumley_n-abbott.xlsx',
+        model_inputs_root / 'serology' / 'waning_immunity' / 'lumley_s-oxford.xlsx',
+    ]
     
     ## PELUSO
     peluso = pd.read_excel(peluso_path)
@@ -402,6 +404,8 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     
     ## PEREZ-SAEZ - start at 21 days out
     perez_saez = pd.concat([pd.read_excel(perez_saez_path) for perez_saez_path in perez_saez_paths])
+    perez_saez['metric'] = perez_saez['metric'].str.strip()
+    perez_saez = perez_saez.loc[perez_saez['metric'] == 'mean']
     perez_saez = perez_saez.loc[perez_saez['t'] >= 21]
     perez_saez['t'] -= 21
     perez_saez = pd.concat([
@@ -448,8 +452,9 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     muecksch['source'] = 'Muecksch'
     
     ## LUMLEY
-    lumley = pd.read_excel(lumley_path)
-    lumley = lumley.loc[lumley['keep'] == 1]
+    lumley = pd.concat([pd.read_excel(lumley_path) for lumley_path in lumley_paths])
+    lumley['metric'] = lumley['metric'].str.strip()
+    lumley = lumley.loc[lumley['metric'] == 'mean']
     lumley['sensitivity'] *= (lumley['num_60'] / lumley['denom_60']) / lumley['avg_60']
     lumley = pd.concat([
         pd.concat([lumley, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=lumley.index)], axis=1),
