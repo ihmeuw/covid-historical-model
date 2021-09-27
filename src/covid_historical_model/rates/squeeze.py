@@ -6,21 +6,26 @@ CEILING = 0.9
 def squeeze(daily: pd.Series, rate: pd.Series,
             day_shift: int,
             population: pd.Series,
-            daily_reinfection_inflation_factor: pd.Series,
+            cross_variant_immunity: float,
+            escape_variant_prevalence: pd.Series,
             vaccine_coverage: pd.DataFrame,
             ceiling: float = CEILING,) -> pd.Series:
-    daily += 1e-4
     daily_infections = (daily / rate).dropna().rename('infections')
+    daily_infections += 1
     daily_infections = daily_infections.reset_index()
     daily_infections['date'] -= pd.Timedelta(days=day_shift)
     daily_infections = daily_infections.set_index(['location_id', 'date']).loc[:, 'infections']
-    daily_infections = pd.concat([daily_infections,
-                                  daily_reinfection_inflation_factor], axis=1)
-    daily_infections = daily_infections.sort_index()
-    daily_infections['inflation_factor'] = (daily_infections['inflation_factor']
-                                            .groupby(level=0).apply(lambda x: x.fillna(method='ffill')))
-    daily_infections['inflation_factor'] = daily_infections['inflation_factor'].fillna(1)
-    daily_infections['seroprevalence'] = daily_infections['infections'] / daily_infections['inflation_factor']
+    
+    escape_variant_prevalence = (pd.concat([daily_infections,
+                                            escape_variant_prevalence], axis=1))
+    escape_variant_prevalence = escape_variant_prevalence.fillna(0)
+    escape_variant_prevalence = (escape_variant_prevalence
+                                 .loc[daily_infections.index, 'escape_variant_prevalence'])
+    
+    non_ev_infections = (daily_infections * (1 - escape_variant_prevalence))
+    ev_infections = (daily_infections * escape_variant_prevalence)
+    repeat_infections = (1 - cross_variant_immunity) * (non_ev_infections.cumsum() / population).clip(0, 1) * ev_infections
+    first_infections = (daily_infections - repeat_infections)
     
     cumul_infections = (daily_infections['infections'].dropna()
                         .groupby(level=0).cumsum())
@@ -34,12 +39,12 @@ def squeeze(daily: pd.Series, rate: pd.Series,
     
     immune = seroprevalence + eff_vaccinations
     max_immune = immune.groupby(level=0).max()
+    max_infec = seroprevalence.groupby(level=0).max()
 
     limits = population * ceiling
     
-    excess = (max_immune - limits).dropna().clip(0, np.inf)
-    excess_scaling_factor = ((max_immune - excess) / max_immune).rename('scalar')
-    excess_scaling_factor = excess_scaling_factor.fillna(1)
+    excess_immune = (max_immune - limits).clip(0, np.inf)
+    excess_scaling_factor = (max_infec - excess_immune).clip(0, np.inf) / max_infec
     
     rate = (rate / excess_scaling_factor).fillna(rate)
         

@@ -179,12 +179,12 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                                               age_rates_root, mr_age_root,
                                               shared, orig_seroprevalence, sensitivity_data, vaccine_coverage,
                                               escape_variant_prevalence,
-                                              severity_variant_prevalence,
                                               covariates,
                                               cross_variant_immunity,
                                               verbose=verbose)
     ifr_results, adj_seroprevalence, sensitivity, \
-    cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor = ifr.runner.runner(
+    # , daily_reinfection_inflation_factor
+    cumul_reinfection_inflation_factor, _ = ifr.runner.runner(
         input_data=ifr_input_data,
         day_inflection=day_inflection,
         covariate_list=covariate_list,
@@ -199,12 +199,13 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
     idr_covariate_list = np.random.choice([['haq'], ['uhc'], ['prop_65plus'], []])
     idr_input_data = idr.data.load_input_data(model_inputs_root, excess_mortality, testing_root,
                                               shared, adj_seroprevalence.copy(), vaccine_coverage.copy(),
+                                              escape_variant_prevalence,
+                                              severity_variant_prevalence,
                                               covariates,
+                                              cross_variant_immunity,
                                               verbose=verbose)
     idr_results = idr.runner.runner(idr_input_data,
-                                    shared,
                                     ifr_results.pred.copy(),
-                                    daily_reinfection_inflation_factor.copy(),
                                     idr_covariate_list,
                                     durations,
                                     verbose=verbose)
@@ -219,9 +220,9 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                                               escape_variant_prevalence.copy(),
                                               severity_variant_prevalence.copy(),
                                               covariates,
+                                              cross_variant_immunity,
                                               verbose=verbose)
-    ihr_results = ihr.runner.runner(ihr_input_data, daily_reinfection_inflation_factor.copy(),
-                                    covariate_list, durations,
+    ihr_results = ihr.runner.runner(ihr_input_data, covariate_list, durations,
                                     verbose=verbose)
     
     if verbose:
@@ -234,7 +235,7 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
         'seroprevalence': adj_seroprevalence,
         'sensitivity': sensitivity,
         'cumul_reinfection_inflation_factor': cumul_reinfection_inflation_factor,
-        'daily_reinfection_inflation_factor': daily_reinfection_inflation_factor,
+        # 'daily_reinfection_inflation_factor': daily_reinfection_inflation_factor,
         'day_inflection': day_inflection,
         'ifr_results': ifr_results,
         'idr_results': idr_results,

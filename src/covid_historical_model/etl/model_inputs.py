@@ -394,7 +394,6 @@ def population(model_inputs_root: Path, by_age: bool = False) -> pd.Series:
 
 
 def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
-    # TODO: bootstrapping or something to incorporate uncertainty (would need to digitize this portion from Perez-Saez plots)?
     model_inputs_root = Path('/ihme/covid-19-2/data_intake')
     peluso_path = model_inputs_root / 'serology' / 'waning_immunity' / 'peluso_assay_sensitivity.xlsx'
     perez_saez_paths = [

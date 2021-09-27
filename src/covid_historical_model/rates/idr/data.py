@@ -11,7 +11,9 @@ from covid_historical_model.etl import model_inputs, estimates
 
 def load_input_data(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
                     shared: Dict, seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
+                    escape_variant_prevalence: pd.Series,
                     covariates: List[pd.Series],
+                    cross_variant_immunity: float,
                     verbose: bool = True) -> Dict:
     # load data
     cumulative_cases, daily_cases = model_inputs.reported_epi(
@@ -36,6 +38,8 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool, testing_roo
         'vaccine_coverage': vaccine_coverage,
         'testing_capacity': testing_capacity,
         'covariates': covariates + [prop_65plus],
+        'escape_variant_prevalence': escape_variant_prevalence,
+        'cross_variant_immunity': cross_variant_immunity,
     }
     input_data.update(shared)
     

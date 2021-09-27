@@ -132,10 +132,8 @@ def runner(input_data: Dict,
         rate=refit_pred.copy(),
         day_shift=durations['exposure_to_death'],
         population=refit_input_data['population'].copy(),
-        daily_reinfection_inflation_factor=(daily_reinfection_inflation_factor
-                                            .set_index(['location_id', 'date'])
-                                            .loc[:, 'inflation_factor']
-                                            .copy()),
+        cross_variant_immunity=refit_input_data['cross_variant_immunity'],
+        escape_variant_prevalence=refit_input_data['escape_variant_prevalence'].copy(),
         vaccine_coverage=refit_input_data['vaccine_coverage'].copy(),
     )
     refit_pred_lr = lr_rr * refit_pred

@@ -15,8 +15,8 @@ RESULTS = namedtuple('Results',
                      'floor_data floor_rmse daily_numerator pred pred_fe')
 
 
-def runner(input_data: Dict, shared: Dict,
-           pred_ifr: pd.Series, daily_reinfection_inflation_factor: pd.Series,
+def runner(input_data: Dict,
+           pred_ifr: pd.Series,
            covariate_list: List[str],
            durations: Dict,
            pred_start_date: str = '2019-11-01',
@@ -67,10 +67,8 @@ def runner(input_data: Dict, shared: Dict,
         rate=pred.copy(),
         day_shift=durations['exposure_to_case'],
         population=input_data['population'].copy(),
-        daily_reinfection_inflation_factor=(daily_reinfection_inflation_factor
-                                            .set_index(['location_id', 'date'])
-                                            .loc[:, 'inflation_factor']
-                                            .copy()),
+        cross_variant_immunity=input_data['cross_variant_immunity'],
+        escape_variant_prevalence=input_data['escape_variant_prevalence'].copy(),
         vaccine_coverage=input_data['vaccine_coverage'].copy(),
     )
 

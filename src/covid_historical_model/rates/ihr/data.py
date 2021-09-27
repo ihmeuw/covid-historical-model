@@ -12,6 +12,7 @@ def load_input_data(model_inputs_root: Path, age_rates_root: Path, mr_age_root: 
                     shared: Dict, seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
                     escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
                     covariates: List[pd.Series],
+                    cross_variant_immunity: float,
                     verbose: bool = True) -> Dict:
     # load data
     cumulative_hospitalizations, daily_hospitalizations = model_inputs.reported_epi(
@@ -30,6 +31,7 @@ def load_input_data(model_inputs_root: Path, age_rates_root: Path, mr_age_root: 
         'ihr_age_pattern': ihr_age_pattern,
         'escape_variant_prevalence': escape_variant_prevalence,
         'severity_variant_prevalence': severity_variant_prevalence,
+        'cross_variant_immunity': cross_variant_immunity,
     }
     input_data.update(shared)
     

@@ -13,13 +13,12 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_SEROCONVERSIO
 ## IMPORTANT TODO:
 ##     - OneNote stuff
 ##     - make comparison routine; plot all fits in cascade
-##     - reinfection NAs (probably 0 deaths) -> add checks for location/date matching
 ##     - other NAs in IES inputs?
 ##     - best way to fill where we have no assay information
 ##     - bias covariates?
 ##     - for waning, do something to Perez-Saez to crosswalk for baseline sensitivity?
 ##     - smarter posterior IFR forecast
-##     - problem in vax proccess (i.e., timing seems important)
+##     - problem in vax proccess? (i.e., timing seems important)
 ##     - variant prevalence IN model (starting to overlap)
 ##     - additional sources of uncertainty:
 ##           * waning immunity
@@ -30,9 +29,7 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_SEROCONVERSIO
 ##     - make sure we don't have NAs on dates that matter for ratios
 ##     - formalize test matching in `serology.apply_waning_adjustment`
 ##     - stuff written down in IHME notebook
-##     - think through ...
-##          (a) how final models are selected for IFR (namely, anything undesirable wrt parent models)
-##          (b) is sero data inconsistent between IFR and IHR/IDR?
+##     - why is sero data inconsistent between IFR and IHR/IDR?
 ##     - existing to-do's in IDR model
 ##     - use fit to find tests where we have multiple? would be a little harder...
 ##     - mark model data NAs as outliers, drop that way (in general, make it clear what data is and is not included)
@@ -119,12 +116,6 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
         ifr_level_lambdas['draw'] = n
         ifr_level_lambdas_draws.append(ifr_level_lambdas)
     ifr_level_lambdas_draws = pd.concat(ifr_level_lambdas_draws).reset_index(drop=True)
-    
-    reinfection_inflation_factor_draws = []
-    for n, reinfection_inflation_factor in [(n, pipeline_results[n]['daily_reinfection_inflation_factor']) for n in range(n_samples)]:
-        reinfection_inflation_factor['draw'] = n
-        reinfection_inflation_factor_draws.append(reinfection_inflation_factor)
-    reinfection_inflation_factor_draws = pd.concat(reinfection_inflation_factor_draws).reset_index(drop=True)
 
     ## save IHR -- we have LR/HR draws as well, could save them if they were to be of use
     logger.info('Compiling IHR draws and other data.')
@@ -268,8 +259,6 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     
     reported_sensitivity_data.to_parquet(out_dir / 'raw_sensitivity_data.parquet')
     sensitivity_draws.to_parquet(out_dir / 'sensitivity.parquet')
-    
-    reinfection_inflation_factor_draws.to_parquet(out_dir / 'reinfection_inflation_factor_draws.parquet')
     
     testing.to_parquet(out_dir / 'testing.parquet')
     
