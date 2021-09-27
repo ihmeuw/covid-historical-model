@@ -503,12 +503,12 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     ])
     lumley['source'] = 'Lumley'
     
-    # combine them all
+    # combine them all -- EXCEPT MUECKSCH
     keep_cols = ['source', 'assay', 'hospitalization_status', 't', 'sensitivity_mean', 'sensitivity_std',]
     sensitivity = pd.concat([peluso.loc[:, keep_cols],
                              perez_saez.loc[:, keep_cols],
                              bond.loc[:, keep_cols],
-                             muecksch.loc[:, keep_cols],
+                             # muecksch.loc[:, keep_cols],
                              lumley.loc[:, keep_cols],]).reset_index(drop=True)
     
     return sensitivity

@@ -30,21 +30,21 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_SEROCONVERSIO
 ##     - formalize test matching in `serology.apply_waning_adjustment`
 ##     - stuff written down in IHME notebook
 ##     - why is sero data inconsistent between IFR and IHR/IDR?
-##     - existing to-do's in IDR model
 ##     - use fit to find tests where we have multiple? would be a little harder...
 ##     - mark model data NAs as outliers, drop that way (in general, make it clear what data is and is not included)
 ##     - remove unused model data in runner after modeling
+##     - PLOTTING (draws updates)
 
 ## JEFFREY FUTURE TODO:
-##     - add smarter logic around dropping leading 0s
+##     - add smarter logic around dropping leading 0s?
 ##     - plot dropped data
-##     - remove offset at the end of process (like we do for counties/GBD)
+##     - PLOTTING (draws updates; infections + infected)
 
 
 def main(app_metadata: cli_tools.Metadata, out_dir: Path,
          model_inputs_root: Path,
          vaccine_coverage_root: Path, variant_scaleup_root: Path,
-         age_rates_root: Path, mr_age_root: Path,
+         age_rates_root: Path,
          testing_root: Path,
          excess_mortality: bool,
          n_samples: int,):
@@ -56,7 +56,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
         out_dir,
         model_inputs_root, excess_mortality,
         vaccine_coverage_root, variant_scaleup_root,
-        age_rates_root, mr_age_root,
+        age_rates_root,
         testing_root,
         n_samples,
     )

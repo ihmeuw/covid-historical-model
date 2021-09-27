@@ -32,11 +32,6 @@ from covid_historical_model import controller
               default=paths.BEST_LINK,
               help=('Which version of the age-specific rates estimates to use. '
                     'May be a full path or relative to the standard age-specific rates root.'))
-@click.option('-r', '--mr-age-version',
-              type=click.Path(file_okay=False),
-              default=paths.BEST_LINK,
-              help=('Which version of the mortality rate age-pattern estimates to use. '
-                    'May be a full path or relative to the standard mortality rate age-pattern root.'))
 @click.option('-t', '--testing-version',
               type=click.Path(file_okay=False),
               default=paths.BEST_LINK,
@@ -65,7 +60,7 @@ from covid_historical_model import controller
 def rates_pipeline(run_metadata,
                    model_inputs_version,
                    vaccine_coverage_version, variant_scaleup_version,
-                   age_rates_version, mr_age_version,
+                   age_rates_version,
                    testing_version,
                    use_unscaled,
                    output_root,
@@ -82,15 +77,12 @@ def rates_pipeline(run_metadata,
                                                               last_stage_root=paths.VARIANT_OUTPUT_ROOT)
     age_rates_root = cli_tools.get_last_stage_directory(age_rates_version,
                                                         last_stage_root=paths.AGE_SPECIFIC_RATES_ROOT)
-    mr_age_root = cli_tools.get_last_stage_directory(mr_age_version,
-                                                     last_stage_root=paths.MORTALITY_AGE_PATTERN_ROOT)
     testing_root = cli_tools.get_last_stage_directory(testing_version,
                                                       last_stage_root=paths.TESTING_OUTPUT_ROOT)
     run_metadata.update_from_path('model_inputs_metadata', model_inputs_root / paths.METADATA_FILE_NAME)
     run_metadata.update_from_path('vaccines_metadata', vaccine_coverage_root / paths.METADATA_FILE_NAME)
     run_metadata.update_from_path('variants_metadata', variant_scaleup_root / paths.METADATA_FILE_NAME)
     # run_metadata.update_from_path('age_rates_metadata', age_rates_root / paths.METADATA_FILE_NAME)
-    # run_metadata.update_from_path('mr_age_metadata', mr_age_root / paths.METADATA_FILE_NAME)
     run_metadata.update_from_path('testing_metadata', testing_root / paths.METADATA_FILE_NAME)
 
     output_root = Path(output_root).resolve()
@@ -105,7 +97,6 @@ def rates_pipeline(run_metadata,
                            vaccine_coverage_root=vaccine_coverage_root,
                            variant_scaleup_root=variant_scaleup_root,
                            age_rates_root=age_rates_root,
-                           mr_age_root=mr_age_root,
                            testing_root=testing_root,
                            n_samples=n_samples,
                            excess_mortality=not use_unscaled,)

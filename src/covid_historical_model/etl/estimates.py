@@ -64,16 +64,24 @@ def ihr_age_pattern(age_rates_root: Path, hierarchy: pd.DataFrame,) -> pd.Series
     return data
 
 
-def ifr_age_pattern(age_rates_root: Path) -> pd.Series:
+def ifr_age_pattern(age_rates_root: Path, hierarchy: pd.DataFrame,) -> pd.Series:
+    # can lose hierarchy if IFR becomes location-specific
     data_path = age_rates_root / 'ifr_preds_5yr_byloc.csv'
     data = pd.read_csv(data_path)
+    data = data.loc[data['location_id'] == 1]
     
     data = data.rename(columns={'age_group_start': 'age_group_years_start',
                                 'age_group_end': 'age_group_years_end',})
-    if data['age_group_years_start'].max() != 95:
-        raise ValueError('Last age group expected to be 95+; is not.')
-    data.loc[data['age_group_years_start'] == 95, 'age_group_years_end'] = 125
+    data['age_group_years_end'].iloc[-1] = 125
 
+    data = (data.loc[:, ['age_group_years_start', 'age_group_years_end', 'ifr']])
+    data['key'] = 1
+    
+    hierarchy = hierarchy.copy()
+    hierarchy['key'] = 1
+    
+    data = hierarchy.loc[:, ['location_id', 'key']].merge(data)
+        
     data = (data
             .set_index(['location_id', 'age_group_years_start', 'age_group_years_end'])
             .sort_index()
@@ -82,28 +90,24 @@ def ifr_age_pattern(age_rates_root: Path) -> pd.Series:
     return data
 
 
-def seroprevalence_age_pattern(age_rates_root: Path, mr_age_root: Path,) -> pd.Series:
-    ifr_data_path = age_rates_root / 'ifr_preds_5yr_byloc.csv'
-    mr_data_path = mr_age_root / 'mortality_agepattern_preds_byloc_5yr.csv'
-    ifr_data = pd.read_csv(ifr_data_path)
-    mr_data = pd.read_csv(mr_data_path)
-    mr_data = mr_data.rename(columns={'age_start': 'age_group_start',
-                                      'age_end': 'age_group_end',})
-    data = ifr_data.loc[:, ['location_id', 'age_group_start', 'age_group_end', 'ifr']].merge(
-        mr_data.loc[:, ['location_id', 'age_group_start', 'age_group_end', 'MR']]
-    )
-    
-    # these seroprevalence units are nonsense (MR is normalized), but that's OK for getting the age pattern
-    # make seroprevalence numbers non-enormous by multiplying by 1e-6
-    data['seroprevalence'] = data['MR'] / data['ifr']
-    data['seroprevalence'] *= 1e-6
+def seroprevalence_age_pattern(age_rates_root: Path, hierarchy: pd.DataFrame,) -> pd.Series:
+    # can lose hierarchy if sero becomes location-specific
+    data_path = age_rates_root / 'seroprev_preds_5yr.csv'
+    data = pd.read_csv(data_path)
     
     data = data.rename(columns={'age_group_start': 'age_group_years_start',
-                                'age_group_end': 'age_group_years_end',})
-    if data['age_group_years_start'].max() != 95:
-        raise ValueError('Last age group expected to be 95+; is not.')
-    data.loc[data['age_group_years_start'] == 95, 'age_group_years_end'] = 125
+                                'age_group_end': 'age_group_years_end',
+                                'seroprev': 'seroprevalence',})
+    data['age_group_years_end'].iloc[-1] = 125
 
+    data = (data.loc[:, ['age_group_years_start', 'age_group_years_end', 'seroprevalence']])
+    data['key'] = 1
+    
+    hierarchy = hierarchy.copy()
+    hierarchy['key'] = 1
+    
+    data = hierarchy.loc[:, ['location_id', 'key']].merge(data)
+        
     data = (data
             .set_index(['location_id', 'age_group_years_start', 'age_group_years_end'])
             .sort_index()
@@ -163,6 +167,18 @@ def variant_scaleup(variant_scaleup_root: Path, variant_type: str, verbose: bool
     severity = [v for v in severity if v != 'wild_type']
     escape = status.loc[status['escape'] == 1, 'variant'].unique().tolist()
     variants_in_model = ['wild_type'] + severity + escape
+    
+    # ADJUST TO SAY DELTA IS 1 IMMEDIATELY
+    if any([i != 'B16172' for i in variants_in_data if i.startswith('B1617')]):
+        raise ValueError('Adjusting delta, not present as expected (B16172).')
+    delta = data.loc[data['variant'] == 'B16172', ['location_id', 'date', 'prevalence']]
+    delta.loc[delta['prevalence'] > 0, 'prevalence'] = 1
+    delta = delta.rename(columns={'prevalence': 'delta'})
+    data = data.merge(delta, how='left')
+    data['delta'] = data['delta'].fillna(0)
+    data.loc[(data['delta'] == 1) & (data['variant'] != 'B16172'), 'prevalence'] = 0
+    data.loc[(data['delta'] == 1) & (data['variant'] == 'B16172'), 'prevalence'] = 1
+    del data['delta']
     
     if any([v not in variants_in_data for v in variants_in_model]):
         missing_in_data = ', '.join([v for v in variants_in_model if v not in variants_in_data])

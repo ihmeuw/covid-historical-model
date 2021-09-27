@@ -9,7 +9,7 @@ from covid_historical_model.etl import db, model_inputs, estimates
 
 
 def load_input_data(model_inputs_root: Path, excess_mortality: bool,
-                    age_rates_root: Path, mr_age_root: Path,
+                    age_rates_root: Path,
                     shared: Dict, seroprevalence: pd.DataFrame, sensitivity_data: pd.DataFrame,
                     vaccine_coverage: pd.DataFrame,
                     escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
@@ -21,8 +21,8 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool,
         model_inputs_root, 'deaths', shared['hierarchy'], shared['gbd_hierarchy'], excess_mortality
     )
     assay_map = model_inputs.assay_map(model_inputs_root)
-    sero_age_pattern = estimates.seroprevalence_age_pattern(age_rates_root, mr_age_root)
-    ifr_age_pattern = estimates.ifr_age_pattern(age_rates_root)
+    sero_age_pattern = estimates.seroprevalence_age_pattern(age_rates_root, shared['hierarchy'].copy())
+    ifr_age_pattern = estimates.ifr_age_pattern(age_rates_root, shared['hierarchy'].copy())
     ihr_age_pattern = estimates.ihr_age_pattern(age_rates_root, shared['hierarchy'].copy())
 
     input_data = {
