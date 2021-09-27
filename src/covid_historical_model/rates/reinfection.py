@@ -53,7 +53,7 @@ def add_repeat_infections(escape_variant_prevalence: pd.Series,
     escape_variant_prevalence = escape_variant_prevalence['escape_variant_prevalence'].fillna(0)
     
     ancestral_infections = (infections * (1 - escape_variant_prevalence)).groupby(level=0).cumsum().dropna()
-    repeat_infections = ((ancestral_infections / population) * (1 - cross_variant_immunity) * infections * escape_variant_prevalence).rename('infections')
+    repeat_infections = ((ancestral_infections / population).clip(0, 1) * (1 - cross_variant_immunity) * infections * escape_variant_prevalence).rename('infections')
     repeat_infections = repeat_infections.fillna(infections).dropna()
     
     obs_infections = infections.groupby(level=0).cumsum().dropna()
