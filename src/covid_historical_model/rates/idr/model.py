@@ -6,6 +6,7 @@ import numpy as np
 from covid_historical_model.utils.math import logit, expit
 from covid_historical_model.mrbrt import cascade
 from covid_historical_model.etl import model_inputs
+from covid_historical_model.rates.covariate_priors import get_covariate_priors, get_covariate_constraints
 
 
 def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
@@ -22,12 +23,11 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     # lose 0s and 1s
     model_data = model_data.loc[model_data['logit_idr'].notnull()]
     
-    covariate_priors = {
-        'uhc':         {'prior_beta_uniform': np.array([-np.inf, 0])},
-        'haq':         {'prior_beta_uniform': np.array([-np.inf, 0])},
-        'prop_65plus': {'prior_beta_uniform': np.array([-np.inf, 0])},
-    }
+    covariate_priors = get_covariate_priors(1, 'idr')
     covariate_priors = {covariate: covariate_priors[covariate] for covariate in covariate_list}
+    covariate_constraints = get_covariate_constraints('idr')
+    covariate_constraints = {covariate: covariate_constraints[covariate] for covariate in covariate_list}
+
     covariate_lambdas = {covariate: 1. for covariate in covariate_list}
 
     var_args = {'dep_var': 'logit_idr',
@@ -43,12 +43,12 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     pred_replace_dict = {'log_testing_rate_capacity': 'log_infwavg_testing_rate_capacity',}
     pred_exclude_vars = []
     level_lambdas = {
-        0: {'intercept': 1. , 'log_infwavg_testing_rate_capacity': 2.  , **covariate_lambdas,},  # G->SR
-        1: {'intercept': 1. , 'log_infwavg_testing_rate_capacity': 2.  , **covariate_lambdas,},  # SR->R
-        2: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100., **covariate_lambdas,},  # R->A0
-        3: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100., **covariate_lambdas,},  # A0->A1
-        4: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100., **covariate_lambdas,},  # A1->A2
-        5: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100., **covariate_lambdas,},  # A2->A3
+        0: {'intercept': 2.  , 'log_infwavg_testing_rate_capacity': 2.  , **covariate_lambdas,},  # G->SR
+        1: {'intercept': 2.  , 'log_infwavg_testing_rate_capacity': 2.  , **covariate_lambdas,},  # SR->R
+        2: {'intercept': 100., 'log_infwavg_testing_rate_capacity': 100., **covariate_lambdas,},  # R->A0
+        3: {'intercept': 100., 'log_infwavg_testing_rate_capacity': 100., **covariate_lambdas,},  # A0->A1
+        4: {'intercept': 100., 'log_infwavg_testing_rate_capacity': 100., **covariate_lambdas,},  # A1->A2
+        5: {'intercept': 100., 'log_infwavg_testing_rate_capacity': 100., **covariate_lambdas,},  # A2->A3
     }
     
     if var_args['group_var'] != 'location_id':

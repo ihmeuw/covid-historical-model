@@ -151,7 +151,7 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     data.loc[is_ny & is_cdc & is_nov_or_later, 'test_target'] = 'nucleocapsid'  #  & is_N
     data.loc[is_ny & is_cdc & is_nov_or_later, 'test_name'] = 'Abbott Architect IgG; Roche Elecsys N pan-Ig'  #  & is_N
     
-    # Louisiana mixed portion looks the same as the nucleocapsid; recode (will actually use average, see below)
+    # Louisiana mixed portion looks the same as the nucleocapsid; recode (will actually use average)
     is_la = data['location_id'] == 541
     is_cdc = data['survey_series'] == 'cdc_series'
     is_nov_or_later = data['date'] >= pd.Timestamp('2020-11-01')
@@ -503,12 +503,12 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     ])
     lumley['source'] = 'Lumley'
     
-    # combine them all -- EXCEPT MUECKSCH
+    # combine them all
     keep_cols = ['source', 'assay', 'hospitalization_status', 't', 'sensitivity_mean', 'sensitivity_std',]
     sensitivity = pd.concat([peluso.loc[:, keep_cols],
                              perez_saez.loc[:, keep_cols],
                              bond.loc[:, keep_cols],
-                             # muecksch.loc[:, keep_cols],
+                             muecksch.loc[:, keep_cols],
                              lumley.loc[:, keep_cols],]).reset_index(drop=True)
     
     return sensitivity

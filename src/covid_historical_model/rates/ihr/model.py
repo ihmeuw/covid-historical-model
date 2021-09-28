@@ -7,7 +7,7 @@ from covid_historical_model.utils.math import logit, expit
 from covid_historical_model.mrbrt import cascade
 from covid_historical_model.rates import age_standardization
 from covid_historical_model.etl import model_inputs
-from covid_historical_model.rates.covariate_priors import get_covariate_priors
+from covid_historical_model.rates.covariate_priors import get_covariate_priors, get_covariate_constraints
 
 
 def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
@@ -33,14 +33,18 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     # lose 0s and 1s
     model_data = model_data.loc[model_data['logit_ihr'].notnull()]
     
-    covariate_priors = get_covariate_priors()
+    covariate_priors = get_covariate_priors(1, 'ihr')
     covariate_priors = {covariate: covariate_priors[covariate] for covariate in covariate_list}
+    covariate_constraints = get_covariate_constraints('ihr')
+    covariate_constraints = {covariate: covariate_constraints[covariate] for covariate in covariate_list}
     covariate_lambdas = {covariate: 1. for covariate in covariate_list}
 
     var_args = {'dep_var': 'logit_ihr',
                 'dep_var_se': 'logit_ihr_se',
                 'fe_vars': ['intercept'] + covariate_list,
-                'prior_dict': {},
+                'prior_dict': {
+                    **covariate_constraints,
+                },
                 're_vars': [],
                 'group_var': 'location_id',}
     global_prior_dict = covariate_priors
@@ -57,7 +61,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     
     if var_args['group_var'] != 'location_id':
         raise ValueError('NRMSE data assignment assumes `study_id` == `location_id` (`location_id` must be group_var).')
-        
+    
     # SUPPRESSING CASCADE CONSOLE OUTPUT
     model_data_cols = ['location_id', 'date', var_args['dep_var'],
                        var_args['dep_var_se']] + var_args['fe_vars']

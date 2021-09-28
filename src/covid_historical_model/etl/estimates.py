@@ -168,18 +168,6 @@ def variant_scaleup(variant_scaleup_root: Path, variant_type: str, verbose: bool
     escape = status.loc[status['escape'] == 1, 'variant'].unique().tolist()
     variants_in_model = ['wild_type'] + severity + escape
     
-    # ADJUST TO SAY DELTA IS 1 IMMEDIATELY
-    if any([i != 'B16172' for i in variants_in_data if i.startswith('B1617')]):
-        raise ValueError('Adjusting delta, not present as expected (B16172).')
-    delta = data.loc[data['variant'] == 'B16172', ['location_id', 'date', 'prevalence']]
-    delta.loc[delta['prevalence'] > 0, 'prevalence'] = 1
-    delta = delta.rename(columns={'prevalence': 'delta'})
-    data = data.merge(delta, how='left')
-    data['delta'] = data['delta'].fillna(0)
-    data.loc[(data['delta'] == 1) & (data['variant'] != 'B16172'), 'prevalence'] = 0
-    data.loc[(data['delta'] == 1) & (data['variant'] == 'B16172'), 'prevalence'] = 1
-    del data['delta']
-    
     if any([v not in variants_in_data for v in variants_in_model]):
         missing_in_data = ', '.join([v for v in variants_in_model if v not in variants_in_data])
         raise ValueError(f'The following variants are expected in the data but not present: {missing_in_data}')

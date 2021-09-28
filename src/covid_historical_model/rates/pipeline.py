@@ -103,6 +103,7 @@ def pipeline_wrapper(out_dir: Path,
                                               np.mean(durations.EXPOSURE_TO_SEROCONVERSION)))
                   },
     )
+    idr_covariate_pool = np.random.choice([['haq'], ['uhc'], ['prop_65plus'], []], n_samples)
     day_inflection_pool = np.random.choice(day_inflection_options, n_samples)
     day_inflection_pool = [str(d) for d in day_inflection_pool]  # can't be np.str_
     
@@ -121,12 +122,16 @@ def pipeline_wrapper(out_dir: Path,
             'day_inflection': day_inflection,
             'covariates': covariates,
             'covariate_list': covariate_list,
+            'idr_covariate_list': idr_covariate_list,
             'cross_variant_immunity': cross_variant_immunity,
             'durations': durations,
             'verbose': verbose,
         }
-        for n, (covariate_list, seroprevalence, sensitivity_data, cross_variant_immunity, day_inflection, durations,)
-        in enumerate(zip(selected_combinations, seroprevalence_samples, sensitivity_data_samples,
+        for n, (covariate_list, idr_covariate_list,
+                seroprevalence, sensitivity_data,
+                cross_variant_immunity, day_inflection, durations,)
+        in enumerate(zip(selected_combinations, idr_covariate_pool,
+                         seroprevalence_samples, sensitivity_data_samples,
                          cross_variant_immunity_samples, day_inflection_pool, durations_samples,))
     }
     
@@ -166,6 +171,7 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
              day_inflection: str,
              covariates: List[pd.Series],
              covariate_list: List[str],
+             idr_covariate_list: List[str],
              cross_variant_immunity: float,
              durations: Dict,
              verbose: bool,) -> Tuple:
@@ -195,7 +201,7 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
         logger.info('\n*************************************\n'
                     'IDR ESTIMATION\n'
                     '*************************************')
-    idr_covariate_list = np.random.choice([['haq'], ['uhc'], ['prop_65plus'], []])
+    
     idr_input_data = idr.data.load_input_data(model_inputs_root, excess_mortality, testing_root,
                                               shared.copy(),
                                               adj_seroprevalence.copy(), vaccine_coverage.copy(),
@@ -230,6 +236,7 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                     '*************************************')
     pipeline_results = {
         'covariate_list': covariate_list,
+        'idr_covariate_list': idr_covariate_list,
         'durations': durations,
         'seroprevalence': adj_seroprevalence,
         'sensitivity': sensitivity,

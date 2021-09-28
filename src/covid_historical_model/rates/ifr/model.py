@@ -7,7 +7,7 @@ from covid_historical_model.utils.math import logit, expit
 from covid_historical_model.mrbrt import cascade
 from covid_historical_model.rates import age_standardization
 from covid_historical_model.etl import model_inputs
-from covid_historical_model.rates.covariate_priors import get_covariate_priors
+from covid_historical_model.rates.covariate_priors import get_covariate_priors, get_covariate_constraints
 
 
 def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
@@ -81,8 +81,10 @@ def prepare_model(model_data: pd.DataFrame,
     inflection_point = (day_inflection - day_0).days
     inflection_point = (inflection_point - model_data['t'].min()) / model_data['t'].values.ptp()
     
-    covariate_priors = get_covariate_priors()
+    covariate_priors = get_covariate_priors(1, 'ifr')
     covariate_priors = {covariate: covariate_priors[covariate] for covariate in covariate_list}
+    covariate_constraints = get_covariate_constraints('ifr')
+    covariate_constraints = {covariate: covariate_constraints[covariate] for covariate in covariate_list}
     covariate_lambdas = {covariate: 1. for covariate in covariate_list}
 
     var_args = {'dep_var': 'logit_ifr',
@@ -95,11 +97,12 @@ def prepare_model(model_data: pd.DataFrame,
                                      'prior_spline_maxder_uniform': np.array([[-np.inf, -0.],
                                                                               [-1e-6  , -0.]]),
                                     },
+                               **covariate_constraints,
                               },
                 're_vars': [],
                 'group_var': 'location_id',}
     global_prior_dict = {'t': {'prior_spline_maxder_gaussian': np.array([[-2e-3, 0.    ],
-                                                                         [1e-3 , np.inf]]),},
+                                                                         [ 1e-3, np.inf]]),},
                          **covariate_priors,}
     pred_replace_dict = {}
     pred_exclude_vars = []
