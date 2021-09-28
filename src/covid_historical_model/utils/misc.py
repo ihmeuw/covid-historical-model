@@ -1,13 +1,15 @@
 import os
 import sys
 from contextlib import contextmanager
+import hashlib
 
 import pandas as pd
+import numpy as np
 
 
 @contextmanager
 def suppress_stdout():
-    with open(os.devnull, "w") as devnull:
+    with open(os.devnull, 'w') as devnull:
         old_stdout = sys.stdout
         sys.stdout = devnull
         try:  
@@ -53,3 +55,10 @@ def text_wrap(text: str, splitter: str = ' ', line_length: int = 30) -> str:
         new_text = new_text[:-len(splitter)]
     
     return new_text
+
+
+def get_random_state(key: str):
+    seed = int(hashlib.sha1(key.encode('utf8')).hexdigest(), 16) % 4294967295
+    random_state = np.random.RandomState(seed=seed)
+    
+    return random_state

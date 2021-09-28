@@ -62,7 +62,7 @@ def covariate_selection(n_samples: int, test_combinations: List[List[str]],
                         durations: Dict,
                         exclude_US: bool = True,
                         day_0: pd.Timestamp = pd.Timestamp('2020-03-15'),
-                        day_inflection: pd.Timestamp = pd.Timestamp('2020-10-01'),
+                        day_inflection: pd.Timestamp = pd.Timestamp('2020-09-01'),
                         verbose: bool = True,):
     input_data = ifr.data.load_input_data(model_inputs_root=model_inputs_root,
                                           excess_mortality=excess_mortality,

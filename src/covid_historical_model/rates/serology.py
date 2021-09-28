@@ -18,7 +18,7 @@ import matplotlib.dates as mdates
 import seaborn as sns
 
 from covid_historical_model.etl import model_inputs
-from covid_historical_model.utils.misc import text_wrap
+from covid_historical_model.utils.misc import text_wrap, get_random_state
 from covid_historical_model.utils.math import logit, expit, scale_to_bounds
 from covid_historical_model.cluster import CONTROLLER_MP_THREADS, OMP_NUM_THREADS
 from covid_historical_model.mrbrt import mrbrt
@@ -54,12 +54,15 @@ PLOT_END_DATE = pd.Timestamp(str(datetime.today().date()))
 
 
 def bootstrap(sample: pd.DataFrame,):
-    rows = np.random.choice(sample.index, size=len(sample), replace=True)
-    _bootstrap = []
+    n = sample['n'].unique().item()
+    random_state = get_random_state(f'bootstrap_{n}')
+    rows = random_state.choice(sample.index, size=len(sample), replace=True)
+    # rows = np.random.choice(sample.index, size=len(sample), replace=True)
+    bootstraped_samples = []
     for row in rows:
-        _bootstrap.append(sample.loc[[row]])
+        bootstraped_samples.append(sample.loc[[row]])
         
-    return pd.concat(_bootstrap).reset_index(drop=True)
+    return pd.concat(bootstraped_samples).reset_index(drop=True).drop('n', axis=1)
 
 
 def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
@@ -122,9 +125,10 @@ def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
         seroprevalence = seroprevalence.drop(['seroprevalence', 'seroprevalence_lower', 'seroprevalence_upper', 'sample_size'],
                                              axis=1)
         sample_list = []
-        for sample in samples.T:
+        for n, sample in enumerate(samples.T):
             _sample = seroprevalence.copy()
             _sample['seroprevalence'] = sample
+            _sample['n'] = n
             sample_list.append(_sample.reset_index(drop=True))
 
     elif n_samples > 1:
@@ -137,9 +141,14 @@ def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
             
         seroprevalence = seroprevalence.drop(['seroprevalence_lower', 'seroprevalence_upper', 'sample_size'],
                                              axis=1)
+        
+        seroprevalence['n'] = 0
+        
         sample_list = [seroprevalence.reset_index(drop=True)]
 
     if bootstrap_samples:
+        if n_samples < min_samples:
+            raise ValueError('Not set up to bootstrap means only.')
         with multiprocessing.Pool(CONTROLLER_MP_THREADS) as p:
             bootstrap_list = list(tqdm(p.imap(bootstrap, sample_list), total=n_samples, file=sys.stdout))
     else:
