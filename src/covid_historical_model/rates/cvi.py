@@ -1,6 +1,5 @@
 from typing import List
 
-
 from covid_historical_model.utils.misc import get_random_state
 
 

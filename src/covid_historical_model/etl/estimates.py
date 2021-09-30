@@ -48,7 +48,7 @@ def ihr_age_pattern(age_rates_root: Path, hierarchy: pd.DataFrame,) -> pd.Series
                                 'hir': 'ihr',})
     data['age_group_years_end'].iloc[-1] = 125
 
-    data = (data.loc[:, ['age_group_years_start', 'age_group_years_end', 'ihr']])
+    data = data.loc[:, ['age_group_years_start', 'age_group_years_end', 'ihr']]
     data['key'] = 1
     
     hierarchy = hierarchy.copy()
@@ -74,7 +74,7 @@ def ifr_age_pattern(age_rates_root: Path, hierarchy: pd.DataFrame,) -> pd.Series
                                 'age_group_end': 'age_group_years_end',})
     data['age_group_years_end'].iloc[-1] = 125
 
-    data = (data.loc[:, ['age_group_years_start', 'age_group_years_end', 'ifr']])
+    data = data.loc[:, ['age_group_years_start', 'age_group_years_end', 'ifr']]
     data['key'] = 1
     
     hierarchy = hierarchy.copy()

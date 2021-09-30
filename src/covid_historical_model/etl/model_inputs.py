@@ -355,16 +355,36 @@ def reported_epi(model_inputs_root: Path, input_measure: str,
 def hierarchy(model_inputs_root:Path, hierarchy_type: str = 'covid_modeling') -> pd.DataFrame:
     if hierarchy_type == 'covid_modeling':
         data_path = model_inputs_root / 'locations' / 'modeling_hierarchy.csv'
+        
+        data = pd.read_csv(data_path)
+        data = data.sort_values('sort_order').reset_index(drop=True)
     elif hierarchy_type == 'covid_covariate':
         data_path = model_inputs_root / 'locations' / 'covariate_with_aggregates_hierarchy.csv'
+        
+        data = pd.read_csv(data_path)
+        data = data.sort_values('sort_order').reset_index(drop=True)
     elif hierarchy_type == 'covid_gbd':
         logger.warning('Not actually using GBD hierarchy (to save space)...')
-        # data_path = model_inputs_root / 'locations' / 'gbd_analysis_hierarchy.csv'
-        data_path = model_inputs_root / 'locations' / 'modeling_hierarchy.csv'
-    
-    data = pd.read_csv(data_path)
-    data = data.sort_values('sort_order').reset_index(drop=True)
-    
+        gbd_path = model_inputs_root / 'locations' / 'gbd_analysis_hierarchy.csv'
+        covid_path = model_inputs_root / 'locations' / 'modeling_hierarchy.csv'
+        
+        # get ZAF only from GBD for now
+        covid = pd.read_csv(covid_path)
+        covid_is_zaf = covid['path_to_top_parent'].apply(lambda x: '196' in x.split(','))
+        if not covid_is_zaf.sum() == 1:
+            raise ValueError('Already have ZAF subnats in Covid hierarchy.')
+        sort_order = covid.loc[covid_is_zaf, 'sort_order'].item()
+        covid = covid.loc[~covid_is_zaf]
+        
+        gbd = pd.read_csv(gbd_path)
+        gbd_is_zaf = gbd['path_to_top_parent'].apply(lambda x: '196' in x.split(','))
+        gbd = gbd.loc[gbd_is_zaf].reset_index(drop=True)
+        gbd['sort_order'] = sort_order + gbd.index
+        
+        covid.loc[covid['sort_order'] > sort_order, 'sort_order'] += len(gbd) - 1
+        
+        data = pd.concat([covid, gbd]).sort_values('sort_order').reset_index(drop=True)
+        
     return data
 
 

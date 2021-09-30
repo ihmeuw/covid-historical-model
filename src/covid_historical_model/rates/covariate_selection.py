@@ -91,7 +91,8 @@ def covariate_selection(n_samples: int, test_combinations: List[List[str]],
     )
     with multiprocessing.Pool(int(OMP_NUM_THREADS)) as p:
         performance_data = list(tqdm(p.imap(_gc, test_combinations), total=len(test_combinations), file=sys.stdout))
-    performance_data = pd.concat(performance_data).sort_values('r2', ascending=False).reset_index(drop=True)
+    performance_data = pd.concat(performance_data).sort_values(['r2', 'covariates'], ascending=False)
+    performance_data = performance_dataperformance_data.reset_index(drop=True)
     
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     # LIMIT REDUNDANCY IN COVARIATE POOL
