@@ -69,13 +69,21 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
         ifr_draws.append(ifr_draw.loc[:, ['location_id', 'date', 'draw', 'ifr']])
     ifr_draws = pd.concat(ifr_draws).reset_index(drop=True)
     
+    ifr_unadj_draws = []
+    for n, ifr_unadj_draw in [(n, pipeline_results[n]['ifr_results'].pred_unadj.rename('ifr_unadj').reset_index()) for n in range(n_samples)]:
+        ifr_unadj_draw['draw'] = n
+        ifr_unadj_draws.append(ifr_unadj_draw.loc[:, ['location_id', 'date', 'draw', 'ifr_unadj']])
+    ifr_unadj_draws = pd.concat(ifr_unadj_draws).reset_index(drop=True)
+    
     ifr_fe_draws = []
     for n, ifr_fe_draw in [(n, pipeline_results[n]['ifr_results'].pred_fe.rename('ifr_fe').reset_index()) for n in range(n_samples)]:
         ifr_fe_draw['draw'] = n
         ifr_fe_draws.append(ifr_fe_draw.loc[:, ['location_id', 'date', 'draw', 'ifr_fe']])
     ifr_fe_draws = pd.concat(ifr_fe_draws).reset_index(drop=True)
+    
+    ifr_draws = ifr_draws.merge(ifr_unadj_draws)
     ifr_draws = ifr_draws.merge(ifr_fe_draws)
-    del ifr_fe_draws
+    del ifr_unadj_draws, ifr_fe_draws
     
     ifr_lr_draws = []
     for n, ifr_lr_draw in [(n, pipeline_results[n]['ifr_results'].pred_lr.rename('ifr_lr').reset_index()) for n in range(n_samples)]:

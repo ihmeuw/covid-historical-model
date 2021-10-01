@@ -193,6 +193,12 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
         data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'test_name'] = 'Roche Elecsys N pan-Ig'  # 'Abbott Architect IgG; Roche Elecsys N pan-Ig'
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
+    ## un-outlier Nigeria point before looking at that variable
+    data.loc[(data['location_id'] == 214) &
+             (data['manual_outlier'] == 1) &
+             (data['notes'].str.startswith('Average of ncdc_nimr study')),
+             'manual_outlier'] = 0
+    
     outliers = []
     data['manual_outlier'] = data['manual_outlier'].astype(float)
     data['manual_outlier'] = data['manual_outlier'].fillna(0)

@@ -104,7 +104,7 @@ def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
         # # re-center around original mean
         # samples *= seroprevalence[['seroprevalence']].values / samples.mean(axis=1, keepdims=True)
         if correlate_samples:
-            logger.info('Correlating seroprevalence samples.')
+            logger.info('Correlating seroprevalence samples within location.')
             series_data = (seroprevalence[[sv for sv in series_vars if sv not in ['survey_series', 'date']]]
                            .drop_duplicates()
                            .reset_index(drop=True))

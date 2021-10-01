@@ -1,3 +1,4 @@
+import os
 import sys
 from typing import List, Tuple, Dict
 from pathlib import Path
@@ -304,6 +305,9 @@ def submit_plots():
 
 
 def main(n: int, inputs_path: str, pipeline_dir: str):
+    os.environ['OMP_NUM_THREADS'] = cluster.OMP_NUM_THREADS
+    os.environ['MKL_NUM_THREADS'] = cluster.MKL_NUM_THREADS
+
     with Path(inputs_path).open('rb') as file:
         inputs = pickle.load(file)[n]
     
