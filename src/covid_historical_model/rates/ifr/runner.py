@@ -16,7 +16,7 @@ from covid_historical_model.rates import ihr
 from covid_historical_model.rates import reinfection
 from covid_historical_model.rates import serology
 from covid_historical_model.rates import age_standardization
-from covid_historical_model.rates import post
+from covid_historical_model.rates import variants_vaccines
 from covid_historical_model.rates import squeeze
 
 RESULTS = namedtuple('Results',
@@ -111,7 +111,7 @@ def runner(input_data: Dict,
     
     ## POST
     logger.info('post')
-    refit_pred, refit_pred_lr, refit_pred_hr, pct_inf_lr, pct_inf_hr = post.variants_vaccines(
+    refit_pred, refit_pred_lr, refit_pred_hr, pct_inf_lr, pct_inf_hr = variants_vaccines.variants_vaccines(
         rate_age_pattern=refit_input_data['ifr_age_pattern'].copy(),
         denom_age_pattern=refit_input_data['sero_age_pattern'].copy(),
         age_spec_population=refit_input_data['age_spec_population'].copy(),

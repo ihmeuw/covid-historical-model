@@ -6,7 +6,7 @@ from loguru import logger
 import pandas as pd
 
 from covid_historical_model.rates import ihr
-from covid_historical_model.rates import post
+from covid_historical_model.rates import variants_vaccines
 from covid_historical_model.rates import squeeze
 
 RESULTS = namedtuple('Results',
@@ -41,7 +41,7 @@ def runner(input_data: Dict,
     )
     pred_unadj = pred.copy()
     
-    pred, pred_lr, pred_hr, *_ = post.variants_vaccines(
+    pred, pred_lr, pred_hr, *_ = variants_vaccines.variants_vaccines(
         rate_age_pattern=input_data['ihr_age_pattern'].copy(),
         denom_age_pattern=input_data['sero_age_pattern'].copy(),
         age_spec_population=input_data['age_spec_population'].copy(),
