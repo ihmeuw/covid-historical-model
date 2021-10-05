@@ -15,6 +15,7 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool,
                     escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
                     covariates: List[pd.Series],
                     cross_variant_immunity: float,
+                    variant_risk_ratio: float,
                     verbose: bool = True) -> Dict:
     # load data
     cumulative_deaths, daily_deaths = model_inputs.reported_epi(
@@ -39,6 +40,7 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool,
         'escape_variant_prevalence': escape_variant_prevalence,
         'severity_variant_prevalence': severity_variant_prevalence,
         'cross_variant_immunity': cross_variant_immunity,
+        'variant_risk_ratio': variant_risk_ratio,
     }
     input_data.update(shared)
     

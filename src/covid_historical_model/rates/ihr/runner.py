@@ -5,9 +5,9 @@ from loguru import logger
 
 import pandas as pd
 
-from covid_historical_model.rates import ihr
-from covid_historical_model.rates import variants_vaccines
-from covid_historical_model.rates import squeeze
+from covid_historical_model.rates import (
+    ihr, variants_vaccines, squeeze
+)
 
 RESULTS = namedtuple('Results',
                      'seroprevalence model_data mr_model_dict pred_location_map level_lambdas ' \
@@ -39,6 +39,7 @@ def runner(input_data: Dict,
         population=input_data['population'].copy(),
         location_dates=input_data['seroprevalence'][['location_id', 'date']].drop_duplicates().values.tolist(),
         durations=durations.copy(),
+        variant_risk_ratio=input_data['variant_risk_ratio'],
     )
 
     model_data = ihr.data.create_model_data(day_0=day_0, durations=durations,
@@ -69,6 +70,7 @@ def runner(input_data: Dict,
         severity_variant_prevalence=input_data['severity_variant_prevalence'].copy(),
         vaccine_coverage=input_data['vaccine_coverage'].copy(),
         population=input_data['population'].copy(),
+        variant_risk_ratio=input_data['variant_risk_ratio'],
     )
     
     lr_rr = pred_lr / pred

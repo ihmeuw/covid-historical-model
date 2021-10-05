@@ -9,8 +9,6 @@ import pandas as pd
 from covid_historical_model.rates import age_standardization
 from covid_historical_model.cluster import OMP_NUM_THREADS
 
-SEVERE_DISEASE_INFLATION = 1.29
-
 
 def get_ratio_data_scalar(rate_age_pattern: pd.Series,
                           denom_age_pattern: pd.Series,
@@ -23,7 +21,8 @@ def get_ratio_data_scalar(rate_age_pattern: pd.Series,
                           population: pd.Series,
                           daily: pd.Series,
                           location_dates: List,
-                          durations: Dict,):
+                          durations: Dict,
+                          variant_risk_ratio: float,):
     vv_rate, *_ = variants_vaccines(
         rate_age_pattern=rate_age_pattern.copy(),
         denom_age_pattern=denom_age_pattern.copy(),
@@ -34,6 +33,7 @@ def get_ratio_data_scalar(rate_age_pattern: pd.Series,
         severity_variant_prevalence=severity_variant_prevalence.copy(),
         vaccine_coverage=vaccine_coverage.copy(),
         population=population.copy(),
+        variant_risk_ratio=variant_risk_ratio,
     )
     daily_ratio_scalar = (rate / vv_rate).rename('daily_ratio_scalar')
 
@@ -69,7 +69,8 @@ def variants_vaccines(rate_age_pattern: pd.Series,
                       escape_variant_prevalence: pd.Series,
                       severity_variant_prevalence: pd.Series,
                       vaccine_coverage: pd.DataFrame,
-                      population: pd.Series,):
+                      population: pd.Series,
+                      variant_risk_ratio: float,):
     escape_variant_prevalence = escape_variant_prevalence.reset_index()
     escape_variant_prevalence['date'] += pd.Timedelta(days=day_shift)
     escape_variant_prevalence = (escape_variant_prevalence
@@ -105,15 +106,15 @@ def variants_vaccines(rate_age_pattern: pd.Series,
     numerator /= population
     
     denominator_a = (numerator / rate)
-    denominator_ev = (numerator / (rate * SEVERE_DISEASE_INFLATION))
+    denominator_ev = (numerator / (rate * variant_risk_ratio))
     denominator_sv = denominator_ev.copy()
     denominator_a *= (1 - (escape_variant_prevalence + severity_variant_prevalence)[denominator_a.index])
     denominator_ev *= escape_variant_prevalence[denominator_ev.index]
     denominator_sv *= severity_variant_prevalence[denominator_sv.index]
 
     numerator_a = (rate * denominator_a)
-    numerator_ev = (rate * SEVERE_DISEASE_INFLATION * denominator_ev)
-    numerator_sv = (rate * SEVERE_DISEASE_INFLATION * denominator_sv)
+    numerator_ev = (rate * variant_risk_ratio * denominator_ev)
+    numerator_sv = (rate * variant_risk_ratio * denominator_sv)
     
     _abvc = functools.partial(
         adjust_by_variant_classification,

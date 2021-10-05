@@ -101,6 +101,7 @@ def runner(input_data: Dict,
         daily=input_data['daily_deaths'].copy(),
         location_dates=seroprevalence[['location_id', 'date']].drop_duplicates().values.tolist(),
         durations=durations.copy(),
+        variant_risk_ratio=input_data['variant_risk_ratio'],
     )
     
     ## SET UP REFIT
@@ -142,6 +143,7 @@ def runner(input_data: Dict,
         severity_variant_prevalence=refit_input_data['severity_variant_prevalence'].copy(),
         vaccine_coverage=refit_input_data['vaccine_coverage'].copy(),
         population=refit_input_data['population'].copy(),
+        variant_risk_ratio=input_data['variant_risk_ratio'],
     )
     
     ## SQUEEZE

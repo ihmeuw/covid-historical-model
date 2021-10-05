@@ -73,6 +73,7 @@ def covariate_selection(n_samples: int, test_combinations: List[List[str]],
                                           escape_variant_prevalence=None,
                                           severity_variant_prevalence=None,
                                           cross_variant_immunity=None,
+                                          variant_risk_ratio=None,
                                           verbose=False)
     model_data = ifr.data.create_model_data(day_0=day_0, durations=durations,
                                             ifr_data_scalar=None,

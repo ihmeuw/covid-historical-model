@@ -49,7 +49,8 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
          excess_mortality: bool,
          n_samples: int,):
     ## run models
-    pipeline_results, selected_combinations, cross_variant_immunity_samples, \
+    pipeline_results, selected_combinations, \
+    cross_variant_immunity_samples, variant_risk_ratio_samples, \
     reported_seroprevalence, reported_sensitivity_data, \
     escape_variant_prevalence, severity_variant_prevalence, \
     vaccine_coverage, em_data = pipeline_wrapper(
@@ -244,6 +245,9 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
         
     with (out_dir / 'cross_variant_immunity.pkl').open('wb') as file:
         pickle.dump(cross_variant_immunity_samples, file, -1)
+        
+    with (out_dir / 'variant_risk_ratio.pkl').open('wb') as file:
+        pickle.dump(variant_risk_ratio_samples, file, -1)
     
     em_data.to_parquet(out_dir / 'excess_mortality.parquet')
 
