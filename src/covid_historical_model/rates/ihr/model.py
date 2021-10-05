@@ -22,6 +22,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     )
     model_data = model_data.set_index('location_id')
     model_data['ihr'] *= age_stand_scaling_factor[model_data.index]
+    model_data['ihr'] *= model_data['ratio_data_scalar']
     model_data = model_data.reset_index()
     
     model_data['logit_ihr'] = logit(model_data['ihr'])

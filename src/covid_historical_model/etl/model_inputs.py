@@ -5,7 +5,7 @@ from loguru import logger
 import pandas as pd
 import numpy as np
 
-from covid_historical_model.etl import db, helpers
+from covid_historical_model.etl import db, helpers, estimates
 
 
 def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str) -> Tuple[pd.DataFrame, Dict]:
@@ -18,6 +18,11 @@ def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str)
         # is_argentina = data['location_id'] == 97
         # data = data.loc[~is_argentina].reset_index(drop=True)
         # manipulation_metadata['argentina'] = 'dropped all hospitalizations'
+        
+        ## late, not cumulative on first day
+        is_ndl = data['location_id'] == 89
+        data = data.loc[~is_ndl].reset_index(drop=True)
+        manipulation_metadata['netherlands'] = 'dropped all hospitalizations'
                 
         ## is just march-june 2020
         is_vietnam = data['location_id'] == 20
@@ -312,11 +317,7 @@ def reported_epi(model_inputs_root: Path, input_measure: str,
     if input_measure == 'deaths':
         if type(excess_mortality) != bool:
             raise TypeError('Must specify `excess_mortality` argument to load deaths.')
-        if excess_mortality:
-            data_path = model_inputs_root / 'use_at_your_own_risk' / 'full_data_extra_hospital.csv'
-        else:
-            data_path = model_inputs_root / 'full_data_unscaled.csv'
-            logger.info('Using unscaled deaths.')
+        data_path = model_inputs_root / 'full_data_unscaled.csv'
     else:
         data_path = model_inputs_root / 'use_at_your_own_risk' / 'full_data_extra_hospital.csv'
     data = pd.read_csv(data_path)
@@ -327,12 +328,27 @@ def reported_epi(model_inputs_root: Path, input_measure: str,
     keep_cols = ['location_id', 'date', f'cumulative_{input_measure}']
     data = data.loc[:, keep_cols].dropna()
     data['location_id'] = data['location_id'].astype(int)
+    data = data.sort_values(['location_id', 'date']).reset_index(drop=True)
     
     data = (data.groupby('location_id', as_index=False)
             .apply(lambda x: helpers.fill_dates(x, [f'cumulative_{input_measure}']))
             .reset_index(drop=True))
     
     data, manipulation_metadata = evil_doings(data, hierarchy, input_measure)
+    
+    if excess_mortality:
+        # NEED TO UPDATE PATH
+        em_scalar_data = estimates.excess_mortailty_scalars(excess_mortality)
+        
+        data = data.merge(em_scalar_data, how='left')
+        missing_locations = data.loc[data['em_scalar'].isnull(), 'location_id'].astype(str).unique().tolist()
+        if missing_locations:
+            logger.warning(f"Missing scalars for the following locations: {', '.join(missing_locations)}")
+        data['em_scalar'] = data['em_scalar'].fillna(1)
+        data['cumulative_deaths'] *= data['em_scalar']
+        del data['em_scalar']
+    else:
+        logger.info('Using unscaled deaths.')
     
     extra_locations = gbd_hierarchy.loc[gbd_hierarchy['most_detailed'] == 1, 'location_id'].to_list()
     extra_locations = [l for l in extra_locations if l not in hierarchy['location_id'].to_list()]

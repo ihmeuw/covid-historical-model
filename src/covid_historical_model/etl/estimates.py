@@ -196,17 +196,14 @@ def variant_scaleup(variant_scaleup_root: Path, variant_type: str, verbose: bool
     return data
 
 
-def excess_mortailty_scalars(model_inputs_root: Path, excess_mortality: bool,) -> pd.DataFrame:
-    data_path = model_inputs_root / 'raw_formatted' / 'location_scalars.csv'
-    data = pd.read_csv(data_path)
-    data['date'] = pd.to_datetime(data['start_date'])
-    data = data.rename(columns={'value':'em_scalar'})
-    data = data.loc[:, ['location_id', 'date', 'em_scalar']]
-    data = data.sort_values(['location_id', 'date']).reset_index(drop=True)
+def excess_mortailty_scalars(excess_mortality: bool,) -> pd.DataFrame:
+    data = pd.read_csv('/mnt/team/mortality/pub/requests/covid_em_plots/2021-10-01/em_scalars-2021-10-01-19-14.csv')
+    if 'date' in data.columns:
+        raise ValueError('Not using date.')
+    data = data.rename(columns={'scalar.mean_level':'em_scalar'})
+    data = data.loc[:, ['location_id', 'em_scalar',]]
     
-    data['scaled'] = excess_mortality
     if not excess_mortality:
         data['em_scalar'] = 1
     
     return data
-

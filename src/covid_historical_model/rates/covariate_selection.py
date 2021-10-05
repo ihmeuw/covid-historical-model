@@ -60,7 +60,7 @@ def covariate_selection(n_samples: int, test_combinations: List[List[str]],
                         covariates: List[pd.Series],
                         cutoff_pct: float,
                         durations: Dict,
-                        exclude_US: bool = True,
+                        exclude_US_UK: bool = True,
                         day_0: pd.Timestamp = pd.Timestamp('2020-03-15'),
                         day_inflection: pd.Timestamp = pd.Timestamp('2020-09-01'),
                         verbose: bool = True,):
@@ -75,14 +75,16 @@ def covariate_selection(n_samples: int, test_combinations: List[List[str]],
                                           cross_variant_immunity=None,
                                           verbose=False)
     model_data = ifr.data.create_model_data(day_0=day_0, durations=durations,
+                                            ifr_data_scalar=None,
                                             **input_data)
     
-    if exclude_US:
+    if exclude_US_UK:
         logger.info('Excluding US data from covariate selection, is over-representative.')
         hierarchy = input_data['hierarchy'].copy()
         usa = hierarchy.loc[hierarchy['path_to_top_parent'].apply(lambda x: '102' in x.split(',')), 'location_id'].to_list()
-        model_data = model_data.loc[~model_data['location_id'].isin(usa)]
-        del hierarchy, usa
+        uk = hierarchy.loc[hierarchy['path_to_top_parent'].apply(lambda x: '95' in x.split(',')), 'location_id'].to_list()
+        model_data = model_data.loc[~model_data['location_id'].isin(usa + uk)]
+        del hierarchy, usa, uk
 
     _gc = functools.partial(
         get_coefficients,

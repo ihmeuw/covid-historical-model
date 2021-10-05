@@ -15,6 +15,7 @@ RESULTS = namedtuple('Results',
 
 
 def runner(input_data: Dict,
+           pred_ifr: pd.Series,
            covariate_list: List[str],
            durations: Dict,
            day_0: str = '2020-03-15',
@@ -24,8 +25,25 @@ def runner(input_data: Dict,
     day_0 = pd.Timestamp(day_0)
     pred_start_date = pd.Timestamp(pred_start_date)
     pred_end_date = pd.Timestamp(pred_end_date)
+    
+    ihr_data_scalar = variants_vaccines.get_ratio_data_scalar(
+        rate_age_pattern=input_data['ihr_age_pattern'].copy(),
+        denom_age_pattern=input_data['sero_age_pattern'].copy(),
+        age_spec_population=input_data['age_spec_population'].copy(),
+        daily=input_data['daily_deaths'].copy(),
+        rate=pred_ifr.copy(),
+        day_shift=durations['exposure_to_admission'],
+        escape_variant_prevalence=input_data['escape_variant_prevalence'].copy(),
+        severity_variant_prevalence=input_data['severity_variant_prevalence'].copy(),
+        vaccine_coverage=input_data['vaccine_coverage'].copy(),
+        population=input_data['population'].copy(),
+        location_dates=input_data['seroprevalence'][['location_id', 'date']].drop_duplicates().values.tolist(),
+        durations=durations.copy(),
+    )
 
-    model_data = ihr.data.create_model_data(day_0=day_0, durations=durations, **input_data)
+    model_data = ihr.data.create_model_data(day_0=day_0, durations=durations,
+                                            ihr_data_scalar=ihr_data_scalar,
+                                            **input_data)
     pred_data = ihr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,
         day_0=day_0, **input_data

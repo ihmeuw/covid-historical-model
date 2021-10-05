@@ -39,7 +39,9 @@ def runner(input_data: Dict,
     pred_start_date = pd.Timestamp(pred_start_date)
     pred_end_date = pd.Timestamp(pred_end_date)
 
-    model_data = ifr.data.create_model_data(day_0=day_0, durations=durations, **input_data)
+    model_data = ifr.data.create_model_data(day_0=day_0, durations=durations,
+                                            ifr_data_scalar=None,
+                                            **input_data)
     pred_data = ifr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,
         day_0=day_0, **input_data
@@ -84,12 +86,31 @@ def runner(input_data: Dict,
         durations,
     )
     
+    ## REMOVE EFFECTS OF VARIANTS/VACCINATIONS FROM INPUT DATA
+    logger.info('variant/vax data scalar')
+    ifr_data_scalar = variants_vaccines.get_ratio_data_scalar(
+        rate_age_pattern=input_data['ifr_age_pattern'].copy(),
+        denom_age_pattern=input_data['sero_age_pattern'].copy(),
+        age_spec_population=input_data['age_spec_population'].copy(),
+        rate=pred.copy(),
+        day_shift=durations['exposure_to_death'],
+        escape_variant_prevalence=input_data['escape_variant_prevalence'].copy(),
+        severity_variant_prevalence=input_data['severity_variant_prevalence'].copy(),
+        vaccine_coverage=input_data['vaccine_coverage'].copy(),
+        population=input_data['population'].copy(),
+        daily=input_data['daily_deaths'].copy(),
+        location_dates=seroprevalence[['location_id', 'date']].drop_duplicates().values.tolist(),
+        durations=durations.copy(),
+    )
+    
     ## SET UP REFIT
     logger.info('set up stage 2')
     refit_input_data = input_data.copy()
     refit_input_data['seroprevalence'] = seroprevalence
     del seroprevalence
-    refit_model_data = ifr.data.create_model_data(day_0=day_0, durations=durations, **refit_input_data)
+    refit_model_data = ifr.data.create_model_data(day_0=day_0, durations=durations,
+                                                  ifr_data_scalar=ifr_data_scalar,
+                                                  **refit_input_data)
     refit_pred_data = ifr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,
         day_0=day_0, **refit_input_data

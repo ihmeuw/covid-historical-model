@@ -18,10 +18,10 @@ def add_repeat_infections(cross_variant_immunity: float,
                           verbose: bool = True,
                           **kwargs) -> pd.DataFrame:
     infections = ((daily_deaths / pred_ifr)
-                  .clip(1e-4, np.inf)
                   .dropna()
-                  .rename('infections')
-                  .reset_index())
+                  .rename('infections'))
+    infections += 1
+    infections = infections.reset_index()
     infections['date'] -= pd.Timedelta(days=durations['exposure_to_death'])
     infections = (infections
                   .set_index(['location_id', 'date'])

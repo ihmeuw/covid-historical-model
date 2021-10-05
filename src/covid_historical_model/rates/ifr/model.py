@@ -52,6 +52,9 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     
     pred /= age_stand_scaling_factor
     pred_fe /= age_stand_scaling_factor
+    
+    pred = pred.groupby(level=0).apply(lambda x: x * (1.0 / x.max()).clip(0, 1))
+    pred_fe = pred_fe.groupby(level=0).apply(lambda x: x * (1.0 / x.max()).clip(0, 1))
 
     return mr_model_dict, prior_dicts, pred.dropna(), pred_fe.dropna(), pred_location_map, \
            age_stand_scaling_factor, level_lambdas
@@ -67,6 +70,7 @@ def prepare_model(model_data: pd.DataFrame,
     )
     model_data = model_data.set_index('location_id')
     model_data['ifr'] *= age_stand_scaling_factor[model_data.index]
+    model_data['ifr'] *= model_data['ratio_data_scalar']
     model_data = model_data.reset_index()
     
     model_data['logit_ifr'] = logit(model_data['ifr'])
@@ -95,7 +99,7 @@ def prepare_model(model_data: pd.DataFrame,
                                      'spline_knots': np.array([0., inflection_point, 1.]),
                                      'spline_degree': 1,
                                      'prior_spline_maxder_uniform': np.array([[-np.inf, -0.],
-                                                                              [-1e-6  , -0.]]),
+                                                                              [-1e-6  , 0. ]]),
                                     },
                                **covariate_constraints,
                               },

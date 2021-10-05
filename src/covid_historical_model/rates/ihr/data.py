@@ -8,7 +8,7 @@ import numpy as np
 from covid_historical_model.etl import model_inputs, estimates
 
 
-def load_input_data(model_inputs_root: Path, age_rates_root: Path,
+def load_input_data(model_inputs_root: Path, excess_mortality: bool, age_rates_root: Path,
                     shared: Dict, seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
                     escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
                     covariates: List[pd.Series],
@@ -18,12 +18,16 @@ def load_input_data(model_inputs_root: Path, age_rates_root: Path,
     cumulative_hospitalizations, daily_hospitalizations = model_inputs.reported_epi(
         model_inputs_root, 'hospitalizations', shared['hierarchy'], shared['gbd_hierarchy'],
     )
+    _, daily_deaths = model_inputs.reported_epi(
+        model_inputs_root, 'deaths', shared['hierarchy'], shared['gbd_hierarchy'], excess_mortality
+    )
     sero_age_pattern = estimates.seroprevalence_age_pattern(age_rates_root, shared['hierarchy'].copy())
     ihr_age_pattern = estimates.ihr_age_pattern(age_rates_root, shared['hierarchy'].copy())
     
     input_data = {
         'cumulative_hospitalizations': cumulative_hospitalizations,
         'daily_hospitalizations': daily_hospitalizations,
+        'daily_deaths': daily_deaths,
         'seroprevalence': seroprevalence,
         'vaccine_coverage': vaccine_coverage,
         'covariates': covariates,
@@ -42,6 +46,7 @@ def create_model_data(cumulative_hospitalizations: pd.Series,
                       daily_hospitalizations: pd.Series,
                       seroprevalence: pd.DataFrame,
                       covariates: List[pd.Series],
+                      ihr_data_scalar: pd.Series,
                       hierarchy: pd.DataFrame, population: pd.Series,
                       day_0: pd.Timestamp,
                       durations: Dict,
@@ -81,6 +86,10 @@ def create_model_data(cumulative_hospitalizations: pd.Series,
     # add covariates
     for covariate in covariates:
         model_data = model_data.join(covariate, how='outer')
+        
+    model_data = model_data.join(ihr_data_scalar, how='left')
+    if model_data['ratio_data_scalar'].isnull().any():
+        raise ValueError('Missing data scalar.')
             
     return model_data.reset_index()
 

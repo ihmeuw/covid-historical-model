@@ -48,6 +48,7 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool,
 def create_model_data(cumulative_deaths: pd.Series, daily_deaths: pd.Series,
                       seroprevalence: pd.DataFrame,
                       covariates: List[pd.Series],
+                      ifr_data_scalar: pd.Series,
                       hierarchy: pd.DataFrame, population: pd.Series,
                       day_0: pd.Timestamp,
                       durations: Dict,
@@ -87,7 +88,14 @@ def create_model_data(cumulative_deaths: pd.Series, daily_deaths: pd.Series,
     # add covariates
     for covariate in covariates:
         model_data = model_data.join(covariate, how='outer')
-            
+        
+    if ifr_data_scalar is None:
+        model_data['ratio_data_scalar'] = 1
+    else:
+        model_data = model_data.join(ifr_data_scalar, how='left')
+        if model_data['ratio_data_scalar'].isnull().any():
+            raise ValueError('Missing data scalar.')
+    
     return model_data.reset_index()
 
 

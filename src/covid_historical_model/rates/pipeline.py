@@ -33,10 +33,6 @@ def pipeline_wrapper(out_dir: Path,
                      age_rates_root: Path,
                      testing_root: Path,
                      n_samples: int,
-                     day_inflection_options: List[str] = ['2020-05-01', '2020-06-01', '2020-07-01',
-                                                          '2020-08-01', '2020-09-01', '2020-10-01',
-                                                          '2020-11-01', '2020-12-01', '2021-01-01',
-                                                          '2021-02-01', '2021-03-01',],
                      correlate_samples: bool = True,
                      bootstrap: bool = True,
                      verbose: bool = True,) -> Tuple:
@@ -104,7 +100,14 @@ def pipeline_wrapper(out_dir: Path,
                                               np.mean(durations.EXPOSURE_TO_SEROCONVERSION)))
                   },
     )
-    idr_covariate_pool = np.random.choice([['haq'], ['uhc'], ['prop_65plus'], []], n_samples)
+    
+    idr_covariate_options = [['haq'], ['uhc'], ['prop_65plus'], [],]
+    idr_covariate_pool = np.random.choice(idr_covariate_options, n_samples)
+    
+    day_inflection_options = ['2020-05-01', '2020-06-01',
+                              '2020-07-01', '2020-08-01', '2020-09-01',
+                              '2020-10-01', '2020-11-01', '2020-12-01',
+                              '2021-01-01', '2021-02-01', '2021-03-01',]
     day_inflection_pool = np.random.choice(day_inflection_options, n_samples)
     day_inflection_pool = [str(d) for d in day_inflection_pool]  # can't be np.str_
     
@@ -152,7 +155,7 @@ def pipeline_wrapper(out_dir: Path,
             outputs = pickle.load(file)
         pipeline_results.update(outputs)
     
-    em_data = estimates.excess_mortailty_scalars(model_inputs_root, excess_mortality)
+    em_data = estimates.excess_mortailty_scalars(excess_mortality)
     
     return pipeline_results, selected_combinations, cross_variant_immunity_samples, \
            reported_seroprevalence, reported_sensitivity_data, \
@@ -178,7 +181,7 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
              verbose: bool,) -> Tuple:
     if verbose:
         logger.info('\n*************************************\n'
-                    f"IFR ESTIMATION -- inflection point at {day_inflection}\n"
+                    f"IFR ESTIMATION\n"
                     '*************************************')
     ifr_input_data = ifr.data.load_input_data(model_inputs_root, excess_mortality,
                                               age_rates_root,
@@ -220,7 +223,7 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
         logger.info('\n*************************************\n'
                     'IHR ESTIMATION\n'
                     '*************************************')
-    ihr_input_data = ihr.data.load_input_data(model_inputs_root,
+    ihr_input_data = ihr.data.load_input_data(model_inputs_root, excess_mortality,
                                               age_rates_root,
                                               shared.copy(),
                                               adj_seroprevalence.copy(), vaccine_coverage.copy(),
@@ -228,7 +231,10 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                                               covariates.copy(),
                                               cross_variant_immunity,
                                               verbose=verbose)
-    ihr_results = ihr.runner.runner(ihr_input_data, covariate_list, durations,
+    ihr_results = ihr.runner.runner(ihr_input_data,
+                                    ifr_results.pred.copy(),
+                                    covariate_list,
+                                    durations,
                                     verbose=verbose)
     
     if verbose:

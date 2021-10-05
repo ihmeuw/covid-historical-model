@@ -12,6 +12,55 @@ from covid_historical_model.cluster import OMP_NUM_THREADS
 SEVERE_DISEASE_INFLATION = 1.29
 
 
+def get_ratio_data_scalar(rate_age_pattern: pd.Series,
+                          denom_age_pattern: pd.Series,
+                          age_spec_population: pd.Series,
+                          rate: pd.Series,
+                          day_shift: int,
+                          escape_variant_prevalence: pd.Series,
+                          severity_variant_prevalence: pd.Series,
+                          vaccine_coverage: pd.DataFrame,
+                          population: pd.Series,
+                          daily: pd.Series,
+                          location_dates: List,
+                          durations: Dict,):
+    vv_rate, *_ = variants_vaccines(
+        rate_age_pattern=rate_age_pattern.copy(),
+        denom_age_pattern=denom_age_pattern.copy(),
+        age_spec_population=age_spec_population.copy(),
+        rate=rate.copy(),
+        day_shift=day_shift,
+        escape_variant_prevalence=escape_variant_prevalence.copy(),
+        severity_variant_prevalence=severity_variant_prevalence.copy(),
+        vaccine_coverage=vaccine_coverage.copy(),
+        population=population.copy(),
+    )
+    daily_ratio_scalar = (rate / vv_rate).rename('daily_ratio_scalar')
+
+    daily_infections = (daily / rate).dropna().rename('infections')
+    daily_infections += 1
+
+    daily_ratio_scalar = daily_ratio_scalar.to_frame().join(daily_infections, how='right')
+    daily_ratio_scalar['daily_ratio_exp'] = daily_ratio_scalar['daily_ratio_scalar'] * \
+                                            daily_ratio_scalar['infections']
+    del daily_ratio_scalar['daily_ratio_scalar']
+    daily_ratio_scalar = daily_ratio_scalar.sort_index().groupby(level=0).cumsum()
+
+    ratio_scalars = []
+    for location_id, date in location_dates:
+        if day_shift - durations['exposure_to_seroconversion'] > 0:
+            shifted_date = date + pd.Timedelta(days=day_shift - durations['exposure_to_seroconversion'])
+        else:
+            shifted_date = date - pd.Timedelta(days=durations['exposure_to_seroconversion'] - day_shift)
+        loc_date_data = daily_ratio_scalar.loc[location_id, shifted_date]
+        loc_date_scalar = loc_date_data['daily_ratio_exp'] / loc_date_data['infections']
+        ratio_scalars.append(pd.Series(loc_date_scalar, name='ratio_data_scalar',
+                                 index=pd.MultiIndex.from_arrays([[location_id], [shifted_date]], names=['location_id', 'date'])))
+    ratio_scalars = pd.concat(ratio_scalars)
+
+    return ratio_scalars
+
+
 def variants_vaccines(rate_age_pattern: pd.Series,
                       denom_age_pattern: pd.Series,
                       age_spec_population: pd.Series,
