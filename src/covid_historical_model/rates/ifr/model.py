@@ -53,8 +53,8 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     pred /= age_stand_scaling_factor
     pred_fe /= age_stand_scaling_factor
     
-    pred = pred.groupby(level=0).apply(lambda x: x * (1.0 / x.max()).clip(0, 1))
-    pred_fe = pred_fe.groupby(level=0).apply(lambda x: x * (1.0 / x.max()).clip(0, 1))
+    pred = pred.clip(0, 1)
+    pred_fe = pred_fe.clip(0, 1)
 
     return mr_model_dict, prior_dicts, pred.dropna(), pred_fe.dropna(), pred_location_map, \
            age_stand_scaling_factor, level_lambdas
