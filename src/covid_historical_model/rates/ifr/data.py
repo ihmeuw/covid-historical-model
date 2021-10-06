@@ -8,7 +8,9 @@ import numpy as np
 from covid_historical_model.etl import db, model_inputs, estimates
 
 
-def load_input_data(model_inputs_root: Path, excess_mortality: bool,
+def load_input_data(model_inputs_root: Path,
+                    excess_mortality: bool,
+                    excess_mortality_draw: int,
                     age_rates_root: Path,
                     shared: Dict, seroprevalence: pd.DataFrame, sensitivity_data: pd.DataFrame,
                     vaccine_coverage: pd.DataFrame,
@@ -19,7 +21,8 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool,
                     verbose: bool = True) -> Dict:
     # load data
     cumulative_deaths, daily_deaths = model_inputs.reported_epi(
-        model_inputs_root, 'deaths', shared['hierarchy'], shared['gbd_hierarchy'], excess_mortality
+        model_inputs_root, 'deaths', shared['hierarchy'], shared['gbd_hierarchy'],
+        excess_mortality, excess_mortality_draw,
     )
     assay_map = model_inputs.assay_map(model_inputs_root)
     sero_age_pattern = estimates.seroprevalence_age_pattern(age_rates_root, shared['hierarchy'].copy())

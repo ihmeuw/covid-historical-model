@@ -168,7 +168,8 @@ def pipeline_wrapper(out_dir: Path,
            vaccine_coverage, em_data
 
 
-def pipeline(orig_seroprevalence: pd.DataFrame,
+def pipeline(n: int,
+             orig_seroprevalence: pd.DataFrame,
              shared: Dict,
              model_inputs_root: Path, excess_mortality: bool,
              sensitivity_data: pd.DataFrame,
@@ -189,7 +190,8 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
         logger.info('\n*************************************\n'
                     f"IFR ESTIMATION\n"
                     '*************************************')
-    ifr_input_data = ifr.data.load_input_data(model_inputs_root, excess_mortality,
+    ifr_input_data = ifr.data.load_input_data(model_inputs_root,
+                                              excess_mortality, n,
                                               age_rates_root,
                                               shared.copy(),
                                               orig_seroprevalence.copy(), sensitivity_data.copy(), vaccine_coverage.copy(),
@@ -198,7 +200,6 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                                               cross_variant_immunity,
                                               variant_risk_ratio,
                                               verbose=verbose)
-    # , daily_reinfection_inflation_factor
     ifr_results, adj_seroprevalence, sensitivity, \
     cumul_reinfection_inflation_factor, _ = ifr.runner.runner(
         input_data=ifr_input_data,
@@ -213,7 +214,9 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
                     'IDR ESTIMATION\n'
                     '*************************************')
     
-    idr_input_data = idr.data.load_input_data(model_inputs_root, excess_mortality, testing_root,
+    idr_input_data = idr.data.load_input_data(model_inputs_root,
+                                              excess_mortality, n,
+                                              testing_root,
                                               shared.copy(),
                                               adj_seroprevalence.copy(), vaccine_coverage.copy(),
                                               escape_variant_prevalence.copy(),
@@ -230,7 +233,8 @@ def pipeline(orig_seroprevalence: pd.DataFrame,
         logger.info('\n*************************************\n'
                     'IHR ESTIMATION\n'
                     '*************************************')
-    ihr_input_data = ihr.data.load_input_data(model_inputs_root, excess_mortality,
+    ihr_input_data = ihr.data.load_input_data(model_inputs_root,
+                                              excess_mortality, n,
                                               age_rates_root,
                                               shared.copy(),
                                               adj_seroprevalence.copy(), vaccine_coverage.copy(),
@@ -326,7 +330,7 @@ def main(n: int, inputs_path: str, pipeline_dir: str):
         inputs = pickle.load(file)[n]
     
     np.random.seed(123 * (n + 1))
-    pipeline_outputs = pipeline(**inputs)
+    pipeline_outputs = pipeline(n, **inputs)
     
     with (Path(pipeline_dir) / f'{n}_outputs.pkl').open('wb') as file:
         pickle.dump({n: pipeline_outputs}, file)

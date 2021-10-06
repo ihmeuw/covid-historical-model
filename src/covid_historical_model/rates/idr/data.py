@@ -9,7 +9,10 @@ import numpy as np
 from covid_historical_model.etl import model_inputs, estimates
 
 
-def load_input_data(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
+def load_input_data(model_inputs_root: Path,
+                    excess_mortality: bool,
+                    excess_mortality_draw: int,
+                    testing_root: Path,
                     shared: Dict, seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
                     escape_variant_prevalence: pd.Series,
                     covariates: List[pd.Series],
@@ -20,7 +23,8 @@ def load_input_data(model_inputs_root: Path, excess_mortality: bool, testing_roo
         model_inputs_root, 'cases', shared['hierarchy'], shared['gbd_hierarchy'],
     )
     _, daily_deaths = model_inputs.reported_epi(
-        model_inputs_root, 'deaths', shared['hierarchy'], shared['gbd_hierarchy'], excess_mortality
+        model_inputs_root, 'deaths', shared['hierarchy'], shared['gbd_hierarchy'],
+        excess_mortality, excess_mortality_draw,
     )
     testing_capacity = estimates.testing(testing_root)['testing_capacity']
     

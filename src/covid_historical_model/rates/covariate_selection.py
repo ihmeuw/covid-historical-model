@@ -66,6 +66,7 @@ def covariate_selection(n_samples: int, test_combinations: List[List[str]],
                         verbose: bool = True,):
     input_data = ifr.data.load_input_data(model_inputs_root=model_inputs_root,
                                           excess_mortality=excess_mortality,
+                                          excess_mortality_draw=-1,
                                           age_rates_root=age_rates_root,
                                           shared=shared, seroprevalence=reported_seroprevalence,
                                           covariates=covariates,

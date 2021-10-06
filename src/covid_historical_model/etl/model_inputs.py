@@ -313,7 +313,8 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
 
 def reported_epi(model_inputs_root: Path, input_measure: str,
                  hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame,
-                 excess_mortality: bool = None,) -> Tuple[pd.Series, pd.Series]:
+                 excess_mortality: bool = None,
+                 excess_mortality_draw: int = None,) -> Tuple[pd.Series, pd.Series]:
     if input_measure == 'deaths':
         if type(excess_mortality) != bool:
             raise TypeError('Must specify `excess_mortality` argument to load deaths.')
@@ -339,11 +340,20 @@ def reported_epi(model_inputs_root: Path, input_measure: str,
     if excess_mortality:
         # NEED TO UPDATE PATH
         em_scalar_data = estimates.excess_mortailty_scalars(excess_mortality)
+        if excess_mortality_draw == -1:
+            em_scalar_data = em_scalar_data.groupby('location_id', as_index=False)['em_scalar'].mean()
+        else:
+            em_scalar_data = em_scalar_data.loc[excess_mortality_draw].reset_index(drop=True)
         
         data = data.merge(em_scalar_data, how='left')
         missing_locations = data.loc[data['em_scalar'].isnull(), 'location_id'].astype(str).unique().tolist()
-        if missing_locations:
-            logger.warning(f"Missing scalars for the following locations: {', '.join(missing_locations)}")
+        missing_covid_locations = [l for l in missing_locations if l in hierarchy['location_id'].to_list()]
+        missing_gbd_locations = [l for l in missing_locations if l in gbd_hierarchy['location_id'].to_list()]
+        missing_gbd_locations = [l for l in missing_gbd_locations if l not in missing_covid_locations]
+        if missing_covid_locations:
+            logger.warning(f"Missing scalars for the following Covid hierarchy locations: {', '.join(missing_covid_locations)}")
+        if missing_gbd_locations:
+            logger.warning(f"Missing scalars for the following GBD hierarchy locations: {', '.join(missing_gbd_locations)}")
         data['em_scalar'] = data['em_scalar'].fillna(1)
         data['cumulative_deaths'] *= data['em_scalar']
         del data['em_scalar']

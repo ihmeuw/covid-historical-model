@@ -6,6 +6,9 @@ import numpy as np
 
 from covid_historical_model.etl import helpers
 
+EM_PATH = '/mnt/team/mortality/pub/requests/covid_em_plots/2021-10-06/'\
+          'model_prediction-ratios-draws-2021-10-06-09-29.csv'
+
 
 def testing(testing_root: Path) -> pd.DataFrame:
     data_path = testing_root / 'forecast_raked_test_pc_simple.csv'
@@ -197,11 +200,15 @@ def variant_scaleup(variant_scaleup_root: Path, variant_type: str, verbose: bool
 
 
 def excess_mortailty_scalars(excess_mortality: bool,) -> pd.DataFrame:
-    data = pd.read_csv('/mnt/team/mortality/pub/requests/covid_em_plots/2021-10-01/em_scalars-2021-10-01-19-14.csv')
+    data = pd.read_csv(EM_PATH)
     if 'date' in data.columns:
         raise ValueError('Not using date.')
-    data = data.rename(columns={'scalar.mean_level':'em_scalar'})
-    data = data.loc[:, ['location_id', 'em_scalar',]]
+    data = data.rename(columns={'ratio_true_reported_covid': 'em_scalar'})
+    data['draw'] -= 1
+    data = (data
+            .set_index('draw')
+            .sort_index()
+            .loc[:, ['location_id', 'em_scalar',]])
     
     if not excess_mortality:
         data['em_scalar'] = 1
