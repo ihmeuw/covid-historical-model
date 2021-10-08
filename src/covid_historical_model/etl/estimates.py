@@ -69,9 +69,8 @@ def ihr_age_pattern(age_rates_root: Path, hierarchy: pd.DataFrame,) -> pd.Series
 
 def ifr_age_pattern(age_rates_root: Path, hierarchy: pd.DataFrame,) -> pd.Series:
     # can lose hierarchy if IFR becomes location-specific
-    data_path = age_rates_root / 'ifr_preds_5yr_byloc.csv'
+    data_path = age_rates_root / 'ifr_preds_5yr_global.csv'
     data = pd.read_csv(data_path)
-    data = data.loc[data['location_id'] == 1]
     
     data = data.rename(columns={'age_group_start': 'age_group_years_start',
                                 'age_group_end': 'age_group_years_end',})
@@ -203,6 +202,7 @@ def excess_mortailty_scalars(excess_mortality: bool,) -> pd.DataFrame:
     data = pd.read_csv(EM_PATH)
     if 'date' in data.columns:
         raise ValueError('Not using date.')
+    data = data.loc[data['data_frame'] == 'pred_all_draw']
     data = data.rename(columns={'ratio_true_reported_covid': 'em_scalar'})
     data['draw'] -= 1
     data = (data
