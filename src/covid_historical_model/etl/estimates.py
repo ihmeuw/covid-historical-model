@@ -6,8 +6,8 @@ import numpy as np
 
 from covid_historical_model.etl import helpers
 
-EM_PATH = '/mnt/team/mortality/pub/requests/covid_em_plots/2021-10-06/'\
-          'model_prediction-ratios-draws-2021-10-06-09-29.csv'
+EM_PATH = '/mnt/team/demographics/pub/covid_em_estimate/s3-2021-10-08-17-09/'\
+          'outputs/covid_em_scalars-draw-s3-2021-10-08-17-09.csv'
 
 
 def testing(testing_root: Path) -> pd.DataFrame:
@@ -202,8 +202,7 @@ def excess_mortailty_scalars(excess_mortality: bool,) -> pd.DataFrame:
     data = pd.read_csv(EM_PATH)
     if 'date' in data.columns:
         raise ValueError('Not using date.')
-    data = data.loc[data['data_frame'] == 'pred_all_draw']
-    data = data.rename(columns={'ratio_true_reported_covid': 'em_scalar'})
+    data = data.rename(columns={'scalar': 'em_scalar'})
     data['draw'] -= 1
     data = (data
             .set_index('draw')
