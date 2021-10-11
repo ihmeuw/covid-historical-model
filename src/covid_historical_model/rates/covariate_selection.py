@@ -1,21 +1,27 @@
 import sys
 from pathlib import Path
-from typing import List, Dict
+from typing import Tuple, List, Dict
 import functools
 import multiprocessing
 from tqdm import tqdm
 from loguru import logger
 
 import pandas as pd
+import numpy as np
 
 from covid_historical_model.rates import ifr
 from covid_historical_model.mrbrt import cascade, mrbrt
 from covid_historical_model.cluster import OMP_NUM_THREADS
+from covid_historical_model.utils.misc import get_random_seed
 
 
-def get_coefficients(covariate_list: List[str],
+def get_coefficients(n_covariate_list: Tuple[int, List[str]],
                      model_data: pd.DataFrame, input_data: Dict,
                      day_0: pd.Timestamp, day_inflection: pd.Timestamp,):
+    n, covariate_list = n_covariate_list
+    seed = get_random_seed(f'covariate_list_{n}')
+    np.random.seed(seed)
+    
     model_data, age_stand_scaling_factor, level_lambdas, var_args, \
     global_prior_dict, pred_replace_dict, pred_exclude_vars = ifr.model.prepare_model(
         model_data=model_data,
@@ -94,7 +100,8 @@ def covariate_selection(n_samples: int, test_combinations: List[List[str]],
         day_0=day_0, day_inflection=day_inflection,
     )
     with multiprocessing.Pool(int(OMP_NUM_THREADS)) as p:
-        performance_data = list(tqdm(p.imap(_gc, test_combinations), total=len(test_combinations), file=sys.stdout))
+        performance_data = list(tqdm(p.imap(_gc, enumerate(test_combinations)),
+                                     total=len(test_combinations), file=sys.stdout))
     performance_data = pd.concat(performance_data).sort_values(['r2', 'covariates'], ascending=False)
     performance_data = performance_data.reset_index(drop=True)
     

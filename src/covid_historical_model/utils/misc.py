@@ -57,8 +57,13 @@ def text_wrap(text: str, splitter: str = ' ', line_length: int = 30) -> str:
     return new_text
 
 
-def get_random_state(key: str):
+def get_random_seed(key: str):
     seed = int(hashlib.sha1(key.encode('utf8')).hexdigest(), 16) % 4294967295
+    
+    return seed
+
+def get_random_state(key: str):
+    seed = get_random_seed(key)
     random_state = np.random.RandomState(seed=seed)
     
     return random_state

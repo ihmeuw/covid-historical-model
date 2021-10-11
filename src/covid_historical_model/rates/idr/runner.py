@@ -79,7 +79,7 @@ def runner(input_data: Dict,
     )
     model_data = model_data.merge(dates_data, how='left')
     model_data['mean_infection_date'] = model_data['mean_infection_date'].fillna(model_data['date'])
-    model_data = (model_data.loc[:, ['location_id', 'date', 'mean_infection_date', 'idr']].reset_index(drop=True))
+    model_data = (model_data.loc[:, ['data_id', 'location_id', 'date', 'mean_infection_date', 'idr']].reset_index(drop=True))
 
     results = RESULTS(
         seroprevalence=input_data['seroprevalence'],

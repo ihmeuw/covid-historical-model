@@ -60,14 +60,19 @@ def create_model_data(cumulative_hospitalizations: pd.Series,
     ihr_data = seroprevalence.loc[seroprevalence['is_outlier'] == 0].copy()
     ihr_data['date'] -= pd.Timedelta(days=durations['admission_to_sero'])
     ihr_data = (ihr_data
-                .set_index(['location_id', 'date'])
+                .set_index(['data_id', 'location_id', 'date'])
                 .loc[:, 'seroprevalence'])
     ihr_data = ((cumulative_hospitalizations / (ihr_data * population))
                 .dropna()
                 .rename('ihr'))
 
     # get mean day of admission int
-    loc_dates = ihr_data.index.drop_duplicates().to_list()
+    loc_dates = (ihr_data
+                 .reset_index()
+                 .loc[:, ['location_id', 'date']]
+                 .drop_duplicates()
+                 .values
+                 .tolist())
     time = []
     for location_id, survey_end_date in loc_dates:
         lochosps = daily_hospitalizations.loc[location_id]

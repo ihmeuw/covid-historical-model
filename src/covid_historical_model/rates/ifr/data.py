@@ -61,14 +61,19 @@ def create_model_data(cumulative_deaths: pd.Series, daily_deaths: pd.Series,
     ifr_data = seroprevalence.loc[seroprevalence['is_outlier'] == 0].copy()
     ifr_data['date'] += pd.Timedelta(days=durations['sero_to_death'])
     ifr_data = (ifr_data
-                .set_index(['location_id', 'date'])
+                .set_index(['data_id', 'location_id', 'date'])
                 .loc[:, 'seroprevalence'])
     ifr_data = ((cumulative_deaths / (ifr_data * population))
                 .dropna()
                 .rename('ifr'))
 
     # get mean day of death int
-    loc_dates = ifr_data.index.drop_duplicates().to_list()
+    loc_dates = (ifr_data
+                 .reset_index()
+                 .loc[:, ['location_id', 'date']]
+                 .drop_duplicates()
+                 .values
+                 .tolist())
     time = []
     for location_id, survey_end_date in loc_dates:
         locdeaths = daily_deaths.loc[location_id]

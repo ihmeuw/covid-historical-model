@@ -36,9 +36,8 @@ from covid_historical_model.durations.durations import EXPOSURE_TO_SEROCONVERSIO
 ##     - PLOTTING (draws updates)
 
 ## JEFFREY FUTURE TODO:
-##     - add smarter logic around dropping leading 0s?
-##     - plot dropped data
-##     - PLOTTING (draws updates; infections + infected)
+##     - add smarter logic around dropping leading 0s? also, add ability to drop from infecion modeling only
+##     - plot scaled deaths (w/ UI)
 
 
 def main(app_metadata: cli_tools.Metadata, out_dir: Path,
@@ -53,7 +52,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     cross_variant_immunity_samples, variant_risk_ratio_samples, \
     reported_seroprevalence, reported_sensitivity_data, \
     escape_variant_prevalence, severity_variant_prevalence, \
-    vaccine_coverage, em_data = pipeline_wrapper(
+    vaccine_coverage, em_data, hierarchy, population = pipeline_wrapper(
         out_dir,
         model_inputs_root, excess_mortality,
         vaccine_coverage_root, variant_scaleup_root,
@@ -105,13 +104,16 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ifr_rr_draws['ifr_hr_rr'] = ifr_rr_draws['ifr_hr'] / ifr_rr_draws['ifr']
     del ifr_rr_draws['ifr'], ifr_rr_draws['ifr_lr'], ifr_rr_draws['ifr_hr']
     
-    ifr_model_data = [pipeline_results[n]['ifr_results'].model_data for n in range(n_samples)]
-    ifr_model_data = pd.concat([md.groupby(['location_id', 'mean_death_date'])['ifr'].mean().rename(f'draw_{n}')
-                                for n, md in enumerate(ifr_model_data)], axis=1)
-    ifr_model_data = pd.concat([ifr_model_data.mean(axis=1).rename('ifr_mean'),
-                                ifr_model_data.std(axis=1).rename('ifr_std'),],
-                                axis=1).reset_index()
+    ifr_model_data = pd.concat([pipeline_results[n]['ifr_results'].model_data for n in range(n_samples)])
+    ifr_model_data = ifr_model_data.reset_index(drop=True)
+    ifr_model_data = pd.concat([
+        ifr_model_data.loc[:, ['data_id', 'location_id']].drop_duplicates().set_index('data_id'),
+        ifr_model_data.groupby('data_id')['mean_death_date'].median(),
+        ifr_model_data.groupby('data_id')['ifr'].mean().rename('ifr_mean'),
+        ifr_model_data.groupby('data_id')['ifr'].std().rename('ifr_std'),
+    ], axis=1)
     ifr_model_data['is_outlier'] = 0
+    ifr_model_data = ifr_model_data.reset_index()
     ifr_model_data = ifr_model_data.rename(columns={'mean_death_date': 'date'})
     ifr_model_data = ifr_model_data.loc[:, ['location_id', 'date', 'ifr_mean', 'ifr_std', 'is_outlier']]
     
@@ -142,13 +144,16 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ihr_draws = ihr_draws.merge(ihr_fe_draws)
     del ihr_fe_draws
 
-    ihr_model_data = [pipeline_results[n]['ihr_results'].model_data for n in range(n_samples)]
-    ihr_model_data = pd.concat([md.groupby(['location_id', 'mean_hospitalization_date'])['ihr'].mean().rename(f'draw_{n}')
-                                for n, md in enumerate(ihr_model_data)], axis=1)
-    ihr_model_data = pd.concat([ihr_model_data.mean(axis=1).rename('ihr_mean'),
-                                ihr_model_data.std(axis=1).rename('ihr_std'),],
-                                axis=1).reset_index()
+    ihr_model_data = pd.concat([pipeline_results[n]['ihr_results'].model_data for n in range(n_samples)])
+    ihr_model_data = ihr_model_data.reset_index(drop=True)
+    ihr_model_data = pd.concat([
+        ihr_model_data.loc[:, ['data_id', 'location_id']].drop_duplicates().set_index('data_id'),
+        ihr_model_data.groupby('data_id')['mean_hospitalization_date'].median(),
+        ihr_model_data.groupby('data_id')['ihr'].mean().rename('ihr_mean'),
+        ihr_model_data.groupby('data_id')['ihr'].std().rename('ihr_std'),
+    ], axis=1)
     ihr_model_data['is_outlier'] = 0
+    ihr_model_data = ihr_model_data.reset_index()
     ihr_model_data = ihr_model_data.rename(columns={'mean_hospitalization_date': 'date'})
     ihr_model_data = ihr_model_data.loc[:, ['location_id', 'date', 'ihr_mean', 'ihr_std', 'is_outlier']]
     
@@ -179,13 +184,16 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     idr_draws = idr_draws.merge(idr_fe_draws)
     del idr_fe_draws
     
-    idr_model_data = [pipeline_results[n]['idr_results'].model_data for n in range(n_samples)]
-    idr_model_data = pd.concat([md.groupby(['location_id', 'mean_infection_date'])['idr'].mean().rename(f'draw_{n}')
-                                for n, md in enumerate(idr_model_data)], axis=1)
-    idr_model_data = pd.concat([idr_model_data.mean(axis=1).rename('idr_mean'),
-                                idr_model_data.std(axis=1).rename('idr_std'),],
-                                axis=1).reset_index()
+    idr_model_data = pd.concat([pipeline_results[n]['idr_results'].model_data for n in range(n_samples)])
+    idr_model_data = idr_model_data.reset_index(drop=True)
+    idr_model_data = pd.concat([
+        idr_model_data.loc[:, ['data_id', 'location_id']].drop_duplicates().set_index('data_id'),
+        idr_model_data.groupby('data_id')['mean_infection_date'].median(),
+        idr_model_data.groupby('data_id')['idr'].mean().rename('idr_mean'),
+        idr_model_data.groupby('data_id')['idr'].std().rename('idr_std'),
+    ], axis=1)
     idr_model_data['is_outlier'] = 0
+    idr_model_data = idr_model_data.reset_index()
     idr_model_data = idr_model_data.rename(columns={'mean_infection_date': 'date'})
     idr_model_data = idr_model_data.loc[:, ['location_id', 'date', 'idr_mean', 'idr_std', 'is_outlier']]
     
@@ -234,8 +242,8 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     logger.info('Writing output files.')
     ## write outputs
-    # hierarchy.to_csv(out_dir / 'hierarchy.csv', index=False)
-    # population.reset_index().to_csv(out_dir / 'population.csv', index=False)
+    hierarchy.to_parquet(out_dir / 'hierarchy.parquet')
+    population.reset_index().to_parquet(out_dir / 'population.parquet')
     
     with (out_dir / 'covariate_combinations.pkl').open('wb') as file:
         pickle.dump(selected_combinations, file, -1)

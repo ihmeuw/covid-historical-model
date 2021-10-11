@@ -165,7 +165,7 @@ def pipeline_wrapper(out_dir: Path,
            cross_variant_immunity_samples, variant_risk_ratio_samples, \
            reported_seroprevalence, reported_sensitivity_data, \
            escape_variant_prevalence, severity_variant_prevalence, \
-           vaccine_coverage, em_data
+           vaccine_coverage, em_data, hierarchy, population
 
 
 def pipeline(n: int,
