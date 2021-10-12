@@ -52,7 +52,10 @@ def get_ratio_data_scalar(rate_age_pattern: pd.Series,
             shifted_date = date + pd.Timedelta(days=day_shift - durations['exposure_to_seroconversion'])
         else:
             shifted_date = date - pd.Timedelta(days=durations['exposure_to_seroconversion'] - day_shift)
-        loc_date_data = daily_ratio_scalar.loc[location_id, shifted_date]
+        if shifted_date > daily_ratio_scalar.loc[location_id].index.max():
+            loc_date_data = daily_ratio_scalar.loc[location_id, daily_ratio_scalar.loc[location_id].index.max()]
+        else:
+            loc_date_data = daily_ratio_scalar.loc[location_id, shifted_date]
         loc_date_scalar = loc_date_data['daily_ratio_exp'] / loc_date_data['infections']
         ratio_scalars.append(pd.Series(loc_date_scalar, name='ratio_data_scalar',
                                  index=pd.MultiIndex.from_arrays([[location_id], [shifted_date]], names=['location_id', 'date'])))
