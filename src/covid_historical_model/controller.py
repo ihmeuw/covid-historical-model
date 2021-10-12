@@ -143,7 +143,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ihr_fe_draws = pd.concat(ihr_fe_draws).reset_index(drop=True)
     ihr_draws = ihr_draws.merge(ihr_fe_draws)
     del ihr_fe_draws
-
+    
     ihr_model_data = pd.concat([pipeline_results[n]['ihr_results'].model_data for n in range(n_samples)])
     ihr_model_data = ihr_model_data.reset_index(drop=True)
     ihr_model_data = pd.concat([
@@ -205,6 +205,11 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
         idr_level_lambdas['draw'] = n
         idr_level_lambdas_draws.append(idr_level_lambdas)
     idr_level_lambdas_draws = pd.concat(idr_level_lambdas_draws).reset_index(drop=True)
+    
+    ## save sero scaling factor
+    reinfection_inflation_factor = pd.concat([pipeline_results[n]['cumul_reinfection_inflation_factor'] for n in range(n_samples)])
+    reinfection_inflation_factor = reinfection_inflation_factor.groupby(['location_id', 'date'])['inflation_factor'].mean()
+    reinfection_inflation_factor = reinfection_inflation_factor.reset_index()
     
     ## save serology
     logger.info('Compiling serology data.')
@@ -274,6 +279,8 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     idr_model_data.to_parquet(out_dir / 'idr_model_data.parquet')
     idr_level_lambdas_draws.to_parquet(out_dir / 'idr_level_lambdas_draws.parquet')
 
+    reinfection_inflation_factor.to_parquet(out_dir / 'reinfection_inflation_factor.parquet')
+    
     ## write this as a csv, for data intake purposes
     seroprevalence.to_csv(out_dir / 'sero_data.csv', index=False)
     
