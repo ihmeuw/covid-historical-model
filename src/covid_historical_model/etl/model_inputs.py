@@ -241,7 +241,13 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
         logger.info(f'{geo_outlier.sum()} rows from sero data do not have `geo_accordance`.')
     data['correction_status'] = helpers.str_fmt(data['correction_status']).replace(('unchecked', 'not specified', np.nan), '0').astype(int)
     
-    # 3) Extra drops
+    # 3) Level threshold - 3%
+    is_sub3 = data['seroprevalence'] < 0.03
+    outliers.append(is_sub3)
+    if verbose:
+        logger.info(f'{is_sub3.sum()} rows from sero data dropped due to having values below 3%.')
+    
+    # 4) Extra drops
     # vaccine debacle, lose all the UK spike data in 2021
     is_uk = data['location_id'].isin([4749, 433, 434, 4636])
     is_spike = data['test_target'] == 'spike'
@@ -282,12 +288,12 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     if verbose:
         logger.info(f'{pr_vax_outlier.sum()} rows from sero data dropped due to Puerto Rico vax issues.')
 
-    # # drop Rio Grande do Sul
-    # rgds_outlier = data['location_id'] == 4772
+    # King/Snohomish data is too early
+    is_k_s = data['location_id'] == 60886
 
-    # outliers.append(rgds_outlier)
-    # if verbose:
-    #     logger.info(f'{rgds_outlier.sum()} rows from sero data dropped due to implausible in Rio Grande do Sul.')
+    outliers.append(is_k_s)
+    if verbose:
+        logger.info(f'{is_k_s.sum()} rows from sero data dropped from to early King/Snohomish data.')
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
     keep_columns = ['data_id', 'nid', 'survey_series', 'location_id', 'start_date', 'date',
