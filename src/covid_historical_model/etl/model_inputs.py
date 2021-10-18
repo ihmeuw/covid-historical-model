@@ -113,7 +113,7 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     for value_var in ['value', 'lower', 'upper']:
         if data[value_var].dtype.name == 'object':
             data[value_var] = helpers.str_fmt(data[value_var]).replace('not specified', np.nan).astype(float)
-        elif data[value_var].dtype.name != 'float64':
+        if data[value_var].dtype.name != 'float64':
             raise ValueError(f'Unexpected type for {value_var} column.')
     
     data['seroprevalence'] = data['value'] / 100
