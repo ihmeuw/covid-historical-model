@@ -1,3 +1,4 @@
+from typing import Dict, List
 from pathlib import Path
 from collections import namedtuple
 from loguru import logger
@@ -6,7 +7,6 @@ import pandas as pd
 
 from covid_historical_model.rates import idr
 from covid_historical_model.rates import squeeze
-from covid_historical_model.durations.durations import EXPOSURE_TO_CASE
 from covid_historical_model.etl import model_inputs
 from covid_historical_model.utils.math import scale_to_bounds
 
@@ -15,18 +15,17 @@ RESULTS = namedtuple('Results',
                      'floor_data floor_rmse daily_numerator pred pred_fe')
 
 
-def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
-           seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
-           pred_ifr: pd.Series, reinfection_inflation_factor: pd.Series,
+def runner(input_data: Dict,
+           pred_ifr: pd.Series,
+           covariate_list: List[str],
+           durations: Dict,
            pred_start_date: str = '2019-11-01',
            pred_end_date: str = '2021-12-31',
            verbose: bool = True,) -> namedtuple:
     pred_start_date = pd.Timestamp(pred_start_date)
     pred_end_date = pd.Timestamp(pred_end_date)
 
-    input_data = idr.data.load_input_data(model_inputs_root, excess_mortality, testing_root,
-                                          seroprevalence, vaccine_coverage, verbose=verbose)
-    model_data = idr.data.create_model_data(pred_ifr=pred_ifr, verbose=verbose, **input_data)
+    model_data = idr.data.create_model_data(pred_ifr=pred_ifr, durations=durations, verbose=verbose, **input_data)
     pred_data = idr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,
         **input_data
@@ -36,21 +35,20 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
     mr_model_dict, prior_dicts, pred, pred_fe, pred_location_map, level_lambdas = idr.model.run_model(
         model_data=model_data.copy(),
         pred_data=pred_data.copy(),
+        covariate_list=covariate_list,
         verbose=verbose,
         **input_data
     )
     
-    adj_gbd_hierarchy = model_inputs.validate_hierarchies(input_data['hierarchy'].copy(),
-                                                          input_data['gbd_hierarchy'].copy())
     rmse_data, floor_data = idr.flooring.find_idr_floor(
         pred=pred.copy(),
         daily_cases=input_data['daily_cases'].copy(),
-        serosurveys=(seroprevalence
+        serosurveys=(input_data['seroprevalence']
                      .set_index(['location_id', 'date'])
                      .sort_index()
-                     .loc[:, 'seroprevalence']),
+                     .loc[:, 'seroprevalence']).copy(),
         population=input_data['population'].copy(),
-        hierarchy=adj_gbd_hierarchy.copy(),
+        hierarchy=input_data['adj_gbd_hierarchy'].copy(),
         test_range=[0.01, 0.1] + list(range(1, 11)),
         verbose=verbose,
     )
@@ -67,12 +65,10 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
     pred = squeeze.squeeze(
         daily=input_data['daily_cases'].copy(),
         rate=pred.copy(),
-        day_shift=EXPOSURE_TO_CASE,
+        day_shift=durations['exposure_to_case'],
         population=input_data['population'].copy(),
-        reinfection_inflation_factor=(reinfection_inflation_factor
-                                      .set_index(['location_id', 'date'])
-                                      .loc[:, 'inflation_factor']
-                                      .copy()),
+        cross_variant_immunity=input_data['cross_variant_immunity'],
+        escape_variant_prevalence=input_data['escape_variant_prevalence'].copy(),
         vaccine_coverage=input_data['vaccine_coverage'].copy(),
     )
 
@@ -82,9 +78,8 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
         pred=pred.copy()
     )
     model_data = model_data.merge(dates_data, how='left')
-    model_data['avg_date_of_infection'] = model_data['avg_date_of_infection'].fillna(model_data['date'])
-    model_data = (model_data.loc[:, ['location_id', 'avg_date_of_infection', 'idr']].reset_index(drop=True))
-    model_data = model_data.rename(columns={'avg_date_of_infection':'date'})
+    model_data['mean_infection_date'] = model_data['mean_infection_date'].fillna(model_data['date'])
+    model_data = (model_data.loc[:, ['data_id', 'location_id', 'date', 'mean_infection_date', 'idr']].reset_index(drop=True))
 
     results = RESULTS(
         seroprevalence=input_data['seroprevalence'],
@@ -95,7 +90,7 @@ def runner(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
         level_lambdas=level_lambdas,
         floor_data=floor_data,
         floor_rmse=rmse_data,
-        daily_numerator=input_data['daily_cases'].copy(),
+        daily_numerator=input_data['daily_cases'],
         pred=pred,
         pred_fe=pred_fe,
     )

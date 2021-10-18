@@ -11,8 +11,6 @@ import matplotlib.gridspec as gridspec
 import matplotlib.dates as mdates
 import seaborn as sns
 
-from covid_historical_model.durations.durations import EXPOSURE_TO_DEATH
-
 DATE_LOCATOR = mdates.AutoDateLocator(maxticks=10)
 DATE_FORMATTER = mdates.ConciseDateFormatter(DATE_LOCATOR, show_offset=False)
 
@@ -157,13 +155,13 @@ def plotter(location_id: int, location_name: str,
 
         try:
             e_a = e_a.loc[location_id]
-            e_a.index += pd.Timedelta(days=EXPOSURE_TO_DEATH)
+            e_a.index += pd.Timedelta(days=durations['exposure_to_death'])
             ep_a = ep_a.loc[location_id]
-            ep_a.index += pd.Timedelta(days=EXPOSURE_TO_DEATH)
+            ep_a.index += pd.Timedelta(days=durations['exposure_to_death'])
             e_v = e_v.loc[location_id]
-            e_v.index += pd.Timedelta(days=EXPOSURE_TO_DEATH)
+            e_v.index += pd.Timedelta(days=durations['exposure_to_death'])
             ep_v = ep_v.loc[location_id]
-            ep_v.index += pd.Timedelta(days=EXPOSURE_TO_DEATH)
+            ep_v.index += pd.Timedelta(days=durations['exposure_to_death'])
         except KeyError:
             e_a = pd.Series(np.nan, index=filler_date_index)
             ep_a = pd.Series(np.nan, index=filler_date_index)
@@ -172,9 +170,9 @@ def plotter(location_id: int, location_name: str,
 
         try:
             escape = escape_variant_prevalence.loc[location_id]
-            escape.index += pd.Timedelta(days=EXPOSURE_TO_DEATH)
+            escape.index += pd.Timedelta(days=durations['exposure_to_death'])
             severity = severity_variant_prevalence.loc[location_id]
-            severity.index += pd.Timedelta(days=EXPOSURE_TO_DEATH)
+            severity.index += pd.Timedelta(days=durations['exposure_to_death'])
         except KeyError:
             escape = pd.Series(np.nan, index=filler_date_index)
             severity = pd.Series(np.nan, index=filler_date_index)

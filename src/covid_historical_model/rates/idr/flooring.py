@@ -1,4 +1,7 @@
+import sys
 from typing import Tuple, List
+import functools
+import multiprocessing
 from tqdm import tqdm
 from loguru import logger
 
@@ -6,6 +9,7 @@ import pandas as pd
 import numpy as np
 
 from covid_historical_model.utils.math import scale_to_bounds
+from covid_historical_model.cluster import OMP_NUM_THREADS
 
 
 def manual_floor_setting(rmse: pd.DataFrame,
@@ -35,18 +39,20 @@ def find_idr_floor(pred: pd.Series,
                    population: pd.Series,
                    hierarchy: pd.DataFrame,
                    test_range: List,
-                   verbose: bool = True) -> Tuple[pd.DataFrame, pd.Series]:    
-    rmse_floor = []
-    for floor in test_range:
-        rmse = test_floor_value(pred=pred.copy(),
-                                daily_cases=daily_cases.copy(),
-                                serosurveys=serosurveys.copy(),
-                                population=population.copy(),
-                                hierarchy=hierarchy.copy(),
-                                floor=floor/100,
-                                verbose=verbose,)
-        rmse_floor.append(rmse.reset_index())
-    rmse = pd.concat(rmse_floor).reset_index(drop=True)
+                   verbose: bool = True) -> Tuple[pd.DataFrame, pd.Series]:
+    _tfv = functools.partial(
+        test_floor_value,
+        pred=pred.copy(),
+        daily_cases=daily_cases.copy(),
+        serosurveys=serosurveys.copy(),
+        population=population.copy(),
+        hierarchy=hierarchy.copy(),
+        verbose=verbose,
+    )
+    floors = (np.array(test_range) / 100).tolist()
+    with multiprocessing.Pool(int(OMP_NUM_THREADS)) as p:
+        rmse = list(tqdm(p.imap(_tfv, floors), total=len(floors), file=sys.stdout))
+    rmse = pd.concat(rmse).reset_index()
     
     best_floor = rmse.groupby('location_id').apply(lambda x: x.sort_values('rmse')['floor'].values[0]).rename('idr_floor')
     
@@ -58,12 +64,12 @@ def find_idr_floor(pred: pd.Series,
 
 
 
-def test_floor_value(pred: pd.Series,
+def test_floor_value(floor: float,
+                     pred: pd.Series,
                      daily_cases: pd.Series,
                      serosurveys: pd.Series,
                      population: pd.Series,
                      hierarchy: pd.DataFrame,
-                     floor: float,
                      min_children: int = 3,
                      verbose: bool = True,) -> pd.DataFrame:
     if verbose:
@@ -86,7 +92,7 @@ def test_floor_value(pred: pd.Series,
                       dtype='float',
                       index=pd.Index([], name='location_id'))
     location_ids = hierarchy.sort_values(['level', 'sort_order'])['location_id']
-    for location_id in tqdm(location_ids):
+    for location_id in location_ids:
         in_path = hierarchy['path_to_top_parent'].apply(lambda x: str(location_id) in x.split(','))
         child_ids = hierarchy.loc[in_path, 'location_id'].to_list()
         if location_id not in [95, 4749, 434]:
