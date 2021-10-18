@@ -109,8 +109,13 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     # convert to m/l/u to 0-1, sample size to numeric
     if not (helpers.str_fmt(data['units']).unique() == 'percentage').all():
         raise ValueError('Units other than percentage present.')
-    data['lower'] = helpers.str_fmt(data['lower']).replace('not specified', np.nan).astype(float)
-    data['upper'] = helpers.str_fmt(data['upper']).replace('not specified', np.nan).astype(float)
+    
+    for value_var in ['value', 'lower', 'upper']:
+        if data[value_var].dtype.name == 'object':
+            data[value_var] = helpers.str_fmt(data[value_var]).replace('not specified', np.nan).astype(float)
+        if data[value_var].dtype.name != 'float64':
+            raise ValueError(f'Unexpected type for {value_var} column.')
+    
     data['seroprevalence'] = data['value'] / 100
     data['seroprevalence_lower'] = data['lower'] / 100
     data['seroprevalence_upper'] = data['upper'] / 100
