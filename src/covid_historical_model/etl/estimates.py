@@ -6,6 +6,9 @@ import numpy as np
 
 from covid_historical_model.etl import helpers
 
+EM_PATH = '/mnt/team/demographics/pub/covid_em_estimate/s3-2021-10-14-18-05'\
+          '/outputs/covid_em_scalars-draw-s3-2021-10-14-18-05.csv'
+
 
 def testing(testing_root: Path) -> pd.DataFrame:
     data_path = testing_root / 'forecast_raked_test_pc_simple.csv'
@@ -38,8 +41,9 @@ def testing(testing_root: Path) -> pd.DataFrame:
     return data
 
 
-def ihr_age_pattern(age_pattern_root: Path) -> pd.Series:
-    data_path = age_pattern_root / 'hir_preds_5yr.csv'
+def ihr_age_pattern(age_rates_root: Path, hierarchy: pd.DataFrame,) -> pd.Series:
+    # can lose hierarchy if IHR becomes location-specific
+    data_path = age_rates_root / 'hir_preds_5yr.csv'
     data = pd.read_csv(data_path)
     
     data = data.rename(columns={'age_group_start': 'age_group_years_start',
@@ -47,32 +51,50 @@ def ihr_age_pattern(age_pattern_root: Path) -> pd.Series:
                                 'hir': 'ihr',})
     data['age_group_years_end'].iloc[-1] = 125
 
+    data = data.loc[:, ['age_group_years_start', 'age_group_years_end', 'ihr']]
+    data['key'] = 1
+    
+    hierarchy = hierarchy.copy()
+    hierarchy['key'] = 1
+    
+    data = hierarchy.loc[:, ['location_id', 'key']].merge(data)
+        
     data = (data
-            .set_index(['age_group_years_start', 'age_group_years_end'])
+            .set_index(['location_id', 'age_group_years_start', 'age_group_years_end'])
             .sort_index()
             .loc[:, 'ihr'])
-    
+
     return data
 
 
-def ifr_age_pattern(age_pattern_root: Path) -> pd.Series:
-    data_path = age_pattern_root / 'ifr_preds_5yr.csv'
+def ifr_age_pattern(age_rates_root: Path, hierarchy: pd.DataFrame,) -> pd.Series:
+    # can lose hierarchy if IFR becomes location-specific
+    data_path = age_rates_root / 'ifr_preds_5yr_global.csv'
     data = pd.read_csv(data_path)
     
     data = data.rename(columns={'age_group_start': 'age_group_years_start',
                                 'age_group_end': 'age_group_years_end',})
     data['age_group_years_end'].iloc[-1] = 125
 
+    data = data.loc[:, ['age_group_years_start', 'age_group_years_end', 'ifr']]
+    data['key'] = 1
+    
+    hierarchy = hierarchy.copy()
+    hierarchy['key'] = 1
+    
+    data = hierarchy.loc[:, ['location_id', 'key']].merge(data)
+        
     data = (data
-            .set_index(['age_group_years_start', 'age_group_years_end'])
+            .set_index(['location_id', 'age_group_years_start', 'age_group_years_end'])
             .sort_index()
             .loc[:, 'ifr'])
     
     return data
 
 
-def seroprevalence_age_pattern(age_pattern_root: Path) -> pd.Series:
-    data_path = age_pattern_root / 'seroprev_preds_5yr.csv'
+def seroprevalence_age_pattern(age_rates_root: Path, hierarchy: pd.DataFrame,) -> pd.Series:
+    # can lose hierarchy if sero becomes location-specific
+    data_path = age_rates_root / 'seroprev_preds_5yr.csv'
     data = pd.read_csv(data_path)
     
     data = data.rename(columns={'age_group_start': 'age_group_years_start',
@@ -80,8 +102,16 @@ def seroprevalence_age_pattern(age_pattern_root: Path) -> pd.Series:
                                 'seroprev': 'seroprevalence',})
     data['age_group_years_end'].iloc[-1] = 125
 
+    data = (data.loc[:, ['age_group_years_start', 'age_group_years_end', 'seroprevalence']])
+    data['key'] = 1
+    
+    hierarchy = hierarchy.copy()
+    hierarchy['key'] = 1
+    
+    data = hierarchy.loc[:, ['location_id', 'key']].merge(data)
+        
     data = (data
-            .set_index(['age_group_years_start', 'age_group_years_end'])
+            .set_index(['location_id', 'age_group_years_start', 'age_group_years_end'])
             .sort_index()
             .loc[:, 'seroprevalence'])
     
@@ -168,17 +198,18 @@ def variant_scaleup(variant_scaleup_root: Path, variant_type: str, verbose: bool
     return data
 
 
-def excess_mortailty_scalars(model_inputs_root: Path, excess_mortality: bool,) -> pd.DataFrame:
-    data_path = model_inputs_root / 'raw_formatted' / 'location_scalars.csv'
-    data = pd.read_csv(data_path)
-    data['date'] = pd.to_datetime(data['start_date'])
-    data = data.rename(columns={'value':'em_scalar'})
-    data = data.loc[:, ['location_id', 'date', 'em_scalar']]
-    data = data.sort_values(['location_id', 'date']).reset_index(drop=True)
+def excess_mortailty_scalars(excess_mortality: bool,) -> pd.DataFrame:
+    data = pd.read_csv(EM_PATH)
+    if 'date' in data.columns:
+        raise ValueError('Not using date.')
+    data = data.rename(columns={'scalar': 'em_scalar'})
+    data['draw'] -= 1
+    data = data.sort_values(['draw', 'location_id'])
+    data = (data
+            .set_index('draw')
+            .loc[:, ['location_id', 'em_scalar',]])
     
-    data['scaled'] = excess_mortality
     if not excess_mortality:
         data['em_scalar'] = 1
     
     return data
-

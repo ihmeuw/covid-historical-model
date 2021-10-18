@@ -7,41 +7,51 @@ import pandas as pd
 import numpy as np
 
 from covid_historical_model.etl import model_inputs, estimates
-from covid_historical_model.durations.durations import (
-    EXPOSURE_TO_DEATH, EXPOSURE_TO_CASE, PCR_TO_SERO, EXPOSURE_TO_SEROPOSITIVE
-)
 
 
-def load_input_data(model_inputs_root: Path, excess_mortality: bool, testing_root: Path,
-                    seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
+def load_input_data(model_inputs_root: Path,
+                    excess_mortality: bool,
+                    excess_mortality_draw: int,
+                    testing_root: Path,
+                    shared: Dict, seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
+                    escape_variant_prevalence: pd.Series,
+                    covariates: List[pd.Series],
+                    cross_variant_immunity: float,
                     verbose: bool = True) -> Dict:
     # load data
-    hierarchy = model_inputs.hierarchy(model_inputs_root)
-    gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_gbd')
-    population = model_inputs.population(model_inputs_root)
     cumulative_cases, daily_cases = model_inputs.reported_epi(
-        model_inputs_root, 'cases', hierarchy, gbd_hierarchy, None,
+        model_inputs_root, 'cases', shared['hierarchy'], shared['gbd_hierarchy'],
     )
     _, daily_deaths = model_inputs.reported_epi(
-        model_inputs_root, 'deaths', hierarchy, gbd_hierarchy, excess_mortality
+        model_inputs_root, 'deaths', shared['hierarchy'], shared['gbd_hierarchy'],
+        excess_mortality, excess_mortality_draw,
     )
     testing_capacity = estimates.testing(testing_root)['testing_capacity']
-
-    covariates = []
     
-    return {'cumulative_cases': cumulative_cases,
-            'daily_cases': daily_cases,
-            'daily_deaths': daily_deaths,
-            'seroprevalence': seroprevalence,
-            'vaccine_coverage': vaccine_coverage,
-            'testing_capacity': testing_capacity,
-            'covariates': covariates,
-            'hierarchy': hierarchy,
-            'gbd_hierarchy': gbd_hierarchy,
-            'population': population,}
+    # over 65 covariate
+    prop_65plus = shared['age_spec_population'].copy().reset_index()
+    prop_65plus = prop_65plus.loc[prop_65plus['age_group_years_start'] >= 65].groupby('location_id')['population'].sum() /\
+                  prop_65plus.groupby('location_id')['population'].sum()
+    prop_65plus = prop_65plus.rename('prop_65plus')
+
+    input_data = {
+        'cumulative_cases': cumulative_cases,
+        'daily_cases': daily_cases,
+        'daily_deaths': daily_deaths,
+        'seroprevalence': seroprevalence,
+        'vaccine_coverage': vaccine_coverage,
+        'testing_capacity': testing_capacity,
+        'covariates': covariates + [prop_65plus],
+        'escape_variant_prevalence': escape_variant_prevalence,
+        'cross_variant_immunity': cross_variant_immunity,
+    }
+    input_data.update(shared)
+    
+    
+    return input_data
 
 
-def create_infections_from_deaths(daily_deaths: pd.Series, pred_ifr: pd.Series,) -> pd.Series:
+def create_infections_from_deaths(daily_deaths: pd.Series, pred_ifr: pd.Series, durations: Dict,) -> pd.Series:
     daily_deaths = (daily_deaths
                     .reset_index()
                     .groupby('location_id')
@@ -50,7 +60,7 @@ def create_infections_from_deaths(daily_deaths: pd.Series, pred_ifr: pd.Series,)
                     .dropna())
 
     infections = (daily_deaths / pred_ifr).rename('infections').dropna().sort_index().reset_index()
-    infections['date'] -= pd.Timedelta(days=EXPOSURE_TO_DEATH)
+    infections['date'] -= pd.Timedelta(days=durations['exposure_to_death'])
     infections = infections.set_index(['location_id', 'date'])
             
     return infections
@@ -82,23 +92,24 @@ def create_model_data(cumulative_cases: pd.Series,
                       testing_capacity: pd.Series,
                       daily_deaths: pd.Series, pred_ifr: pd.Series,
                       covariates: List,
-                      hierarchy: pd.DataFrame, population: pd.Series,
+                      durations: Dict,
+                      population: pd.Series,
                       verbose: bool = True,
                       **kwargs):
     idr_data = seroprevalence.loc[seroprevalence['is_outlier'] == 0].copy()
-    idr_data['date'] -= pd.Timedelta(days=PCR_TO_SERO)
+    idr_data['date'] -= pd.Timedelta(days=durations['pcr_to_sero'])
     idr_data = (idr_data
-                .set_index(['location_id', 'date'])
+                .set_index(['data_id', 'location_id', 'date'])
                 .loc[:, 'seroprevalence'])
     idr_data = ((cumulative_cases / (idr_data * population))
                 .dropna()
                 .rename('idr'))
     
-    infections = create_infections_from_deaths(daily_deaths, pred_ifr)
+    infections = create_infections_from_deaths(daily_deaths, pred_ifr, durations,)
     infections = infections.reset_index()
     
     testing_capacity = testing_capacity.reset_index()
-    testing_capacity['date'] -= pd.Timedelta(days=EXPOSURE_TO_CASE)
+    testing_capacity['date'] -= pd.Timedelta(days=durations['exposure_to_case'])
     sero_location_dates = seroprevalence[['location_id', 'date']].drop_duplicates()
     sero_location_dates = list(zip(sero_location_dates['location_id'], sero_location_dates['date']))
     infwavg_testing_capacity = []
@@ -107,12 +118,12 @@ def create_model_data(cumulative_cases: pd.Series,
             get_infection_weighted_avg_testing(
                 (infections
                  .loc[(infections['location_id'] == location_id) &
-                      (infections['date'] <= (date - pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)))]
+                      (infections['date'] <= (date - pd.Timedelta(days=durations['exposure_to_seroconversion'])))]
                  .set_index(['location_id', 'date'])
                  .loc[:, 'infections']),
                 (testing_capacity
                  .loc[(testing_capacity['location_id'] == location_id) &
-                      (testing_capacity['date'] <= (date - pd.Timedelta(days=EXPOSURE_TO_SEROPOSITIVE)))]
+                      (testing_capacity['date'] <= (date - pd.Timedelta(days=durations['exposure_to_seroconversion'])))]
                  .set_index(['location_id', 'date'])
                  .loc[:, 'testing_capacity']),
                 verbose,
@@ -120,7 +131,7 @@ def create_model_data(cumulative_cases: pd.Series,
         )
     infwavg_testing_capacity = pd.concat(infwavg_testing_capacity,
                                          names='infwavg_testing_capacity').reset_index()
-    infwavg_testing_capacity['date'] += pd.Timedelta(days=EXPOSURE_TO_CASE)
+    infwavg_testing_capacity['date'] += pd.Timedelta(days=durations['exposure_to_case'])
     infwavg_testing_capacity = (infwavg_testing_capacity
                                 .set_index(['location_id', 'date'])
                                 .loc[:, 'infwavg_testing_capacity'])
@@ -140,12 +151,11 @@ def create_model_data(cumulative_cases: pd.Series,
     return model_data.reset_index()
 
 
-def create_pred_data(hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame, population: pd.Series,
+def create_pred_data(hierarchy: pd.DataFrame, adj_gbd_hierarchy: pd.DataFrame, population: pd.Series,
                      testing_capacity: pd.Series,
                      covariates: List[pd.Series],
                      pred_start_date: pd.Timestamp, pred_end_date: pd.Timestamp,
                      **kwargs):
-    adj_gbd_hierarchy = model_inputs.validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
     pred_data = pd.DataFrame(list(itertools.product(adj_gbd_hierarchy['location_id'].to_list(),
                                                     list(pd.date_range(pred_start_date, pred_end_date)))),
                          columns=['location_id', 'date'])

@@ -6,10 +6,12 @@ import numpy as np
 from covid_historical_model.utils.math import logit, expit
 from covid_historical_model.mrbrt import cascade
 from covid_historical_model.etl import model_inputs
+from covid_historical_model.rates.covariate_priors import get_covariate_priors, get_covariate_constraints
 
 
 def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
               hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame,
+              covariate_list: List[str],
               verbose: bool = True,
               **kwargs) -> Tuple[Dict, Dict, pd.Series, pd.Series, pd.Series]:
     model_data['logit_idr'] = logit(model_data['idr'])
@@ -20,26 +22,33 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     
     # lose 0s and 1s
     model_data = model_data.loc[model_data['logit_idr'].notnull()]
+    
+    covariate_priors = get_covariate_priors(1, 'idr')
+    covariate_priors = {covariate: covariate_priors[covariate] for covariate in covariate_list}
+    covariate_constraints = get_covariate_constraints('idr')
+    covariate_constraints = {covariate: covariate_constraints[covariate] for covariate in covariate_list}
+
+    covariate_lambdas = {covariate: 1. for covariate in covariate_list}
 
     var_args = {'dep_var': 'logit_idr',
                 'dep_var_se': 'logit_idr_se',
                 'fe_vars': ['intercept',
-                            'log_infwavg_testing_rate_capacity',],
+                            'log_infwavg_testing_rate_capacity',] + covariate_list,
                 'prior_dict': {'log_infwavg_testing_rate_capacity':
-                                   {'prior_beta_uniform':np.array([1e-6, np.inf])},
+                               {'prior_beta_uniform':np.array([1e-6, np.inf])},
                               },
                 're_vars': [],
                 'group_var': 'location_id',}
-    global_prior_dict = {}
+    global_prior_dict = covariate_priors
     pred_replace_dict = {'log_testing_rate_capacity': 'log_infwavg_testing_rate_capacity',}
     pred_exclude_vars = []
     level_lambdas = {
-        0: {'intercept': 1. , 'log_infwavg_testing_rate_capacity': 2.  ,},
-        1: {'intercept': 1. , 'log_infwavg_testing_rate_capacity': 2.  ,},
-        2: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
-        3: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
-        4: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
-        5: {'intercept': 10., 'log_infwavg_testing_rate_capacity': 100.,},
+        0: {'intercept': 2.  , 'log_infwavg_testing_rate_capacity': 2.  , **covariate_lambdas,},  # G->SR
+        1: {'intercept': 2.  , 'log_infwavg_testing_rate_capacity': 2.  , **covariate_lambdas,},  # SR->R
+        2: {'intercept': 100., 'log_infwavg_testing_rate_capacity': 100., **covariate_lambdas,},  # R->A0
+        3: {'intercept': 100., 'log_infwavg_testing_rate_capacity': 100., **covariate_lambdas,},  # A0->A1
+        4: {'intercept': 100., 'log_infwavg_testing_rate_capacity': 100., **covariate_lambdas,},  # A1->A2
+        5: {'intercept': 100., 'log_infwavg_testing_rate_capacity': 100., **covariate_lambdas,},  # A2->A3
     }
     
     if var_args['group_var'] != 'location_id':
@@ -87,9 +96,9 @@ def determine_mean_date_of_infection(location_dates: List,
         data = data.reset_index()
         data = data.loc[data['date'] <= date].reset_index(drop=True)
         if not data.empty:
-            avg_date_of_infection_idx = int(np.round(np.average(data.index, weights=(data['daily_infections'] + 1))))
-            avg_date_of_infection = data.loc[avg_date_of_infection_idx, 'date']
-            dates_data.append(pd.DataFrame({'location_id':location_id, 'date':date, 'avg_date_of_infection':avg_date_of_infection},
+            mean_infection_date_idx = int(np.round(np.average(data.index, weights=(data['daily_infections'] + 1))))
+            mean_infection_date = data.loc[mean_infection_date_idx, 'date']
+            dates_data.append(pd.DataFrame({'location_id':location_id, 'date':date, 'mean_infection_date':mean_infection_date},
                                            index=[0]))
     dates_data = pd.concat(dates_data).reset_index(drop=True)
 

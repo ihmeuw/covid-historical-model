@@ -1,7 +1,12 @@
+import sys
+from typing import Dict
 from pathlib import Path
 from loguru import logger
 from collections import namedtuple
 from datetime import datetime
+import functools
+import multiprocessing
+from tqdm import tqdm
 
 import numpy as np
 import pandas as pd
@@ -12,10 +17,11 @@ import matplotlib.gridspec as gridspec
 import matplotlib.dates as mdates
 import seaborn as sns
 
-from covid_historical_model.durations.durations import SERO_TO_DEATH, EXPOSURE_TO_SEROPOSITIVE, EXPOSURE_TO_DEATH
 from covid_historical_model.etl import model_inputs
-from covid_historical_model.utils.misc import text_wrap
-from covid_historical_model.utils.math import scale_to_bounds
+from covid_historical_model.utils.misc import text_wrap, get_random_state
+from covid_historical_model.utils.math import logit, expit, scale_to_bounds
+from covid_historical_model.cluster import CONTROLLER_MP_THREADS, OMP_NUM_THREADS
+from covid_historical_model.mrbrt import mrbrt
 
 VAX_SERO_PROB = 0.9
 SEROREV_LB = 0.
@@ -26,19 +32,20 @@ ASSAYS = ['N-Abbott',  # IgG
           'S-Roche', 'N-Roche',  # Ig
           'S-Ortho Ig', 'S-Ortho IgG', # Ig/IgG
           'S-DiaSorin',  # IgG
-          'S-EuroImmun',]  # IgG
+          'S-EuroImmun',  # IgG
+          'S-Oxford',]  # IgG
 INCREASING = ['S-Ortho Ig', 'S-Roche']
 ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
 PLOT_DATE_LOCATOR = mdates.AutoDateLocator(maxticks=10)
 PLOT_DATE_FORMATTER = mdates.ConciseDateFormatter(PLOT_DATE_LOCATOR, show_offset=False)
 
-PLOT_C_LIST  = ['cornflowerblue', 'lightcoral', 'mediumseagreen', 'plum'         ,
-                'navajowhite', 'paleturquoise', 'hotpink' , 'peru'       ,
-                'palegreen'   , 'lightgrey']
-PLOT_EC_LIST = ['mediumblue'    , 'darkred'   , 'darkgreen'     , 'rebeccapurple',
-                'orange'     , 'teal'         , 'deeppink', 'saddlebrown',
-                'darkseagreen', 'grey'     ]
+PLOT_C_LIST  = ['cornflowerblue', 'lightcoral'   , 'mediumseagreen', 'plum'        ,
+                'navajowhite'   , 'paleturquoise', 'hotpink'       , 'peru'        ,
+                'palegreen'     , 'lightgrey'    ,]
+PLOT_EC_LIST = ['mediumblue'    , 'darkred'      , 'darkgreen'     , 'rebeccapurple',
+                'orange'        , 'teal'         , 'deeppink'      , 'saddlebrown'  ,
+                'darkseagreen'  , 'grey'         ,]
 
 PLOT_INF_C = 'darkgrey'
 
@@ -46,12 +53,118 @@ PLOT_START_DATE = pd.Timestamp('2020-03-01')
 PLOT_END_DATE = pd.Timestamp(str(datetime.today().date()))
 
 
-def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.Series,
-                                        verbose: bool = True) -> pd.DataFrame:
-    seroprevalence = model_inputs.seroprevalence(model_inputs_root, verbose=verbose)
+def bootstrap(sample: pd.DataFrame,):
+    n = sample['n'].unique().item()
+    random_state = get_random_state(f'bootstrap_{n}')
+    rows = random_state.choice(sample.index, size=len(sample), replace=True)
+    # rows = np.random.choice(sample.index, size=len(sample), replace=True)
+    bootstraped_samples = []
+    for row in rows:
+        bootstraped_samples.append(sample.loc[[row]])
+        
+    return pd.concat(bootstraped_samples).reset_index(drop=True).drop('n', axis=1)
+
+
+def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
+                          correlate_samples: bool, bootstrap_samples: bool,
+                          min_samples: int = 10,
+                          floor: float = 1e-5, logit_se_cap: float = 1.,
+                          verbose: bool = True):
+    logit_se_from_ci = lambda x: (logit(x['seroprevalence_upper']) - logit(x['seroprevalence_lower'])) / 3.92
+    logit_se_from_ss = lambda x: np.sqrt((x['seroprevalence'] * (1 - x['seroprevalence'])) / x['sample_size']) / \
+                                 (x['seroprevalence'] * (1.0 - x['seroprevalence']))
     
-    ## ## ## ## ## #### ## ## ## ## ## ## ## ## ## ## ##
-    ## tweaks
+    series_vars = ['location_id', 'is_outlier', 'survey_series', 'date']
+    seroprevalence = seroprevalence.sort_values(series_vars).reset_index(drop=True)
+    
+    if n_samples >= min_samples:
+        if verbose:
+            logger.info(f'Producing {n_samples} seroprevalence samples.')
+        if (seroprevalence['seroprevalence'] < seroprevalence['seroprevalence_lower']).any():
+            mean_sub_low = seroprevalence['seroprevalence'] < seroprevalence['seroprevalence_lower']
+            raise ValueError(f'Mean seroprevalence below lower:\n{seroprevalence[mean_sub_low]}')
+        if (seroprevalence['seroprevalence'] > seroprevalence['seroprevalence_upper']).any():
+            high_sub_mean = seroprevalence['seroprevalence'] > seroprevalence['seroprevalence_upper']
+            raise ValueError(f'Mean seroprevalence above upper:\n{seroprevalence[high_sub_mean]}')
+            
+        summary_vars = ['seroprevalence', 'seroprevalence_lower', 'seroprevalence_upper']
+        seroprevalence[summary_vars] = seroprevalence[summary_vars].clip(floor, 1 - floor)
+
+        logit_mean = logit(seroprevalence['seroprevalence'].copy())
+        logit_se = logit_se_from_ci(seroprevalence.copy())
+        logit_se = logit_se.fillna(logit_se_from_ss(seroprevalence.copy()))
+        logit_se = logit_se.fillna(logit_se_cap)
+        logit_se = logit_se.clip(0, logit_se_cap)
+        logit_samples = np.random.normal(loc=logit_mean.to_frame().values,
+                                         scale=logit_se.to_frame().values,
+                                         size=(len(seroprevalence), n_samples),)
+        samples = expit(logit_samples)
+        
+        ## CANNOT DO THIS, MOVES SOME ABOVE 1
+        # # re-center around original mean
+        # samples *= seroprevalence[['seroprevalence']].values / samples.mean(axis=1, keepdims=True)
+        if correlate_samples:
+            logger.info('Correlating seroprevalence samples within location.')
+            series_data = (seroprevalence[[sv for sv in series_vars if sv not in ['survey_series', 'date']]]
+                           .drop_duplicates()
+                           .reset_index(drop=True))
+            series_data['series'] = series_data.index
+            series_data = seroprevalence.merge(series_data).reset_index(drop=True)
+            series_idx_list = [series_data.loc[series_data['series'] == series].index.to_list()
+                               for series in range(series_data['series'].max() + 1)]
+            sorted_samples = []
+            for series_idx in series_idx_list:
+                series_samples = samples[series_idx, :].copy()
+                series_draw_idx = series_samples[0].argsort().argsort()
+                series_samples = np.sort(series_samples, axis=1)[:, series_draw_idx]
+                sorted_samples.append(series_samples)
+            samples = np.vstack(sorted_samples)
+            ## THIS SORTS THE WHOLE SET
+            # samples = np.sort(samples, axis=1)
+
+        seroprevalence = seroprevalence.drop(['seroprevalence', 'seroprevalence_lower', 'seroprevalence_upper', 'sample_size'],
+                                             axis=1)
+        sample_list = []
+        for n, sample in enumerate(samples.T):
+            _sample = seroprevalence.copy()
+            _sample['seroprevalence'] = sample
+            _sample['n'] = n
+            sample_list.append(_sample.reset_index(drop=True))
+
+    elif n_samples > 1:
+        raise ValueError(f'If sampling, need at least {min_samples}.')
+    else:
+        if verbose:
+            logger.info('Just using mean seroprevalence.')
+            
+        seroprevalence['seroprevalence'] = seroprevalence['seroprevalence'].clip(floor, 1 - floor)
+            
+        seroprevalence = seroprevalence.drop(['seroprevalence_lower', 'seroprevalence_upper', 'sample_size'],
+                                             axis=1)
+        
+        seroprevalence['n'] = 0
+        
+        sample_list = [seroprevalence.reset_index(drop=True)]
+
+    if bootstrap_samples:
+        if n_samples < min_samples:
+            raise ValueError('Not set up to bootstrap means only.')
+        with multiprocessing.Pool(CONTROLLER_MP_THREADS) as p:
+            bootstrap_list = list(tqdm(p.imap(bootstrap, sample_list), total=n_samples, file=sys.stdout))
+    else:
+        bootstrap_list = sample_list
+    
+    return bootstrap_list
+
+
+def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.Series,
+                                        n_samples: int, correlate_samples: bool, bootstrap: bool,
+                                        verbose: bool = True,) -> pd.DataFrame:
+    seroprevalence = model_inputs.seroprevalence(model_inputs_root, verbose=verbose)
+    seroprevalence_samples = sample_seroprevalence(seroprevalence, n_samples, correlate_samples, bootstrap, verbose=verbose)
+    
+    # ## ## ## ## ## #### ## ## ## ## ## ## ## ## ## ## ##
+    # ## tweaks
     # # only take some old age from Danish blood bank data
     # age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
     # pct_65_69 = age_spec_population.loc[78, 65].item() / age_spec_population.loc[78, 65:].sum()
@@ -68,14 +181,20 @@ def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.
     age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
     vaccinated = get_pop_vaccinated(age_spec_population, vaccinated)
     
-    # use 80% of total vaccinated
+    # use 90% of total vaccinated
     vaccinated['vaccinated'] *= VAX_SERO_PROB
     
     if verbose:
         logger.info('Removing vaccinated from reported seroprevalence.')
-    seroprevalence = remove_vaccinated(seroprevalence, vaccinated,)
+    _rv = functools.partial(
+        remove_vaccinated,
+        vaccinated=vaccinated.copy(),
+    )
+    seroprevalence = remove_vaccinated(seroprevalence=seroprevalence, vaccinated=vaccinated)
+    with multiprocessing.Pool(int(CONTROLLER_MP_THREADS)) as p:
+        seroprevalence_samples = list(tqdm(p.imap(_rv, seroprevalence_samples), total=n_samples, file=sys.stdout))
     
-    return seroprevalence
+    return seroprevalence, seroprevalence_samples
 
 
 def get_pop_vaccinated(age_spec_population: pd.Series, vaccinated: pd.Series):
@@ -153,29 +272,58 @@ def remove_vaccinated(seroprevalence: pd.DataFrame,
     return seroprevalence
 
 
-def apply_waning_adjustment(model_inputs_root: Path,
+def load_sensitivity(model_inputs_root: Path, n_samples: int,
+                     floor: float = 1e-4, logit_se_cap: float = 1.,):
+    sensitivity_data = model_inputs.assay_sensitivity(model_inputs_root)
+    logit_mean = logit(sensitivity_data['sensitivity_mean'].clip(floor, 1 - floor))
+    logit_sd = sensitivity_data['sensitivity_std'] / \
+               (sensitivity_data['sensitivity_mean'].clip(floor, 1 - floor) * \
+                (1.0 - sensitivity_data['sensitivity_mean'].clip(floor, 1 - floor)))
+    logit_sd = logit_sd.clip(0, logit_se_cap)
+
+    logit_samples = np.random.normal(loc=logit_mean.to_frame().values,
+                                     scale=logit_sd.to_frame().values,
+                                     size=(len(sensitivity_data), n_samples),)
+    samples = expit(logit_samples)
+
+    ## CANNOT DO THIS, MOVES SOME ABOVE 1
+    # # re-center around original mean
+    # samples *= sensitivity_data[['sensitivity_mean']].values / samples.mean(axis=1, keepdims=True)
+    
+    # sort
+    samples = np.sort(samples, axis=1)
+
+    sample_list = []
+    for sample in samples.T:
+        _sample = sensitivity_data.drop(['sensitivity_mean', 'sensitivity_std',], axis=1).copy()
+        _sample['sensitivity'] = sample
+        sample_list.append(_sample.reset_index(drop=True))
+    
+    return sensitivity_data, sample_list
+
+
+def apply_waning_adjustment(sensitivity_data: pd.DataFrame,
+                            assay_map: pd.DataFrame,
                             hospitalized_weights: pd.Series,
                             seroprevalence: pd.DataFrame,
                             daily_deaths: pd.Series,
                             pred_ifr: pd.Series,
+                            durations: Dict,
                             verbose: bool = True,) -> pd.DataFrame:
-    sensitivity = model_inputs.assay_sensitivity(model_inputs_root)
-    assay_map = model_inputs.assay_map(model_inputs_root)
-    
-    data_assays = sensitivity['assay'].unique().tolist()
+    data_assays = sensitivity_data['assay'].unique().tolist()
     excluded_data_assays = [da for da in data_assays if da not in ASSAYS]
     if verbose and excluded_data_assays:
         logger.warning(f"Excluding the following assays found in sensitivity data: {', '.join(excluded_data_assays)}")
     if any([a not in data_assays for a in ASSAYS]):
         raise ValueError('Assay mis-labelled.')
-    sensitivity = sensitivity.loc[sensitivity['assay'].isin(ASSAYS)]
+    sensitivity_data = sensitivity_data.loc[sensitivity_data['assay'].isin(ASSAYS)]
     
-    source_assays = sensitivity[['source', 'assay']].drop_duplicates().values.tolist()
+    source_assays = sensitivity_data[['source', 'assay']].drop_duplicates().values.tolist()
     
     sensitivity = pd.concat(
         [
             fit_hospital_weighted_sensitivity_decay(
-                sensitivity.loc[(sensitivity['source'] == source) & (sensitivity['assay'] == assay)].copy(),
+                sensitivity_data.loc[(sensitivity_data['source'] == source) & (sensitivity_data['assay'] == assay)].copy(),
                 assay in INCREASING,
                 hospitalized_weights.copy()
             )
@@ -201,18 +349,25 @@ def apply_waning_adjustment(model_inputs_root: Path,
 
     assay_combinations = seroprevalence['assay_map'].unique().tolist()
     
+    infections = ((daily_deaths / pred_ifr)
+                  .dropna()
+                  .rename('infections')
+                  .reset_index()
+                  .set_index('location_id'))
+    infections['date'] -= pd.Timedelta(days=durations['sero_to_death'])
+    
     sensitivity_list = []
     seroprevalence_list = []
     for assay_combination in assay_combinations:
+        logger.info(f'Adjusting for sensitvity decay: {assay_combination}')
         ac_sensitivity = (sensitivity
-                             .loc[assay_combination.split(', ')]
-                             .reset_index()
-                             .groupby(['location_id', 't'])['sensitivity'].mean())
+                          .loc[assay_combination.split(', ')]
+                          .reset_index()
+                          .groupby(['location_id', 't'])['sensitivity'].mean())
         ac_seroprevalence = (seroprevalence
                              .loc[seroprevalence['assay_map'] == assay_combination].copy())
         ac_seroprevalence = waning_adjustment(
-            pred_ifr.copy(),
-            daily_deaths.copy(),
+            infections.copy(),
             ac_sensitivity.copy(),
             ac_seroprevalence.copy()
         )
@@ -232,15 +387,10 @@ def apply_waning_adjustment(model_inputs_root: Path,
     return sensitivity, seroprevalence
 
 
-def fit_sensitivity_decay(t: np.array, sensitivity: np.array, increasing: bool, lin: bool, t_N: int = 720) -> pd.DataFrame:
-    if lin:
-        def sigmoid(x, x0, k):
-            y = 10 / (1 + np.exp(-k * 0.1 * (x-x0)))
-            return y
-    else:
-        def sigmoid(x, x0, k):
-            y = 1 / (1 + np.exp(-k * (x-x0)))
-            return y
+def fit_sensitivity_decay_curvefit(t: np.array, sensitivity: np.array, increasing: bool, t_N: int = 720) -> pd.DataFrame:
+    def sigmoid(x, x0, k):
+        y = 1 / (1 + np.exp(-k * (x-x0)))
+        return y
     
     if increasing:
         bounds = ([-np.inf, 1e-4], [np.inf, 0.5])
@@ -257,21 +407,78 @@ def fit_sensitivity_decay(t: np.array, sensitivity: np.array, increasing: bool, 
     return pd.DataFrame({'t': t_pred, 'sensitivity': sensitivity_pred})
 
 
+def fit_sensitivity_decay_mrbrt(sensitivity_data: pd.DataFrame, increasing: bool, t_N: int = 720) -> pd.DataFrame:
+    sensitivity_data = sensitivity_data.loc[:, ['t', 'sensitivity',]]
+    sensitivity_data['sensitivity'] = logit(sensitivity_data['sensitivity'])
+    sensitivity_data['intercept'] = 1
+    sensitivity_data['se'] = 1
+    sensitivity_data['location_id'] = 1
+
+    if increasing:
+        mono_dir = 'increasing'
+    else:
+        mono_dir = 'decreasing'
+        
+    n_k = min(max(len(sensitivity_data) - 3, 2), 10,)
+    k = np.hstack([[0, 0.1], np.linspace(0.1, 1, n_k)[1:]])
+    max_t = sensitivity_data['t'].max()
+
+    mr_model = mrbrt.run_mr_model(
+        model_data=sensitivity_data,
+        dep_var='sensitivity', dep_var_se='se',
+        fe_vars=['intercept', 't'], re_vars=[],
+        group_var='location_id',
+        prior_dict={'intercept':{},
+                    't': {'use_spline': True,
+                          'spline_knots_type': 'domain',
+                          'spline_knots': np.linspace(0, 1, n_k),
+                          'spline_degree': 1,
+                          'prior_spline_monotonicity': mono_dir,
+                          'prior_spline_monotonicity_domain': (60 / max_t, 1),
+                         },}
+    )
+    t_pred = np.arange(t_N + 1)
+    sensitivity_pred, _ = mrbrt.predict(
+        pred_data=pd.DataFrame({'intercept': 1,
+                                't': t_pred,
+                                'location_id': 1,
+                                'date': t_pred,}),
+        hierarchy=None,
+        mr_model=mr_model,
+        pred_replace_dict={},
+        pred_exclude_vars=[],
+        dep_var='sensitivity', dep_var_se='se',
+        fe_vars=['t'], re_vars=[],
+        group_var='location_id',
+        sensitivity=True,
+    )
+        
+    return pd.DataFrame({'t': t_pred, 'sensitivity': expit(sensitivity_pred['sensitivity'])})
+
+
 def fit_hospital_weighted_sensitivity_decay(sensitivity: pd.DataFrame, increasing: bool,
                                             hospitalized_weights: pd.Series,) -> pd.DataFrame:
     assay = sensitivity['assay'].unique().item()
     
     source = sensitivity['source'].unique().item()
-    lin = source == 'Lumley'
+    
+    if source not in ['Peluso', 'Perez-Saez', 'Bond', 'Muecksch', 'Lumley']:
+        raise ValueError(f'Unexpected sensitivity source: {source}')
     
     hosp_sensitivity = sensitivity.loc[sensitivity['hospitalization_status'] == 'Hospitalized']
     nonhosp_sensitivity = sensitivity.loc[sensitivity['hospitalization_status'] == 'Non-hospitalized']
-    hosp_sensitivity = fit_sensitivity_decay(hosp_sensitivity['t'].values,
-                                             hosp_sensitivity['sensitivity'].values,
-                                             increasing, lin)
-    nonhosp_sensitivity = fit_sensitivity_decay(nonhosp_sensitivity['t'].values,
-                                                nonhosp_sensitivity['sensitivity'].values,
-                                                increasing, lin)
+    if source == 'Peluso':
+        hosp_sensitivity = fit_sensitivity_decay_curvefit(hosp_sensitivity['t'].values,
+                                                          hosp_sensitivity['sensitivity'].values,
+                                                          increasing,)
+        nonhosp_sensitivity = fit_sensitivity_decay_curvefit(nonhosp_sensitivity['t'].values,
+                                                             nonhosp_sensitivity['sensitivity'].values,
+                                                             increasing,)
+    else:
+        hosp_sensitivity = fit_sensitivity_decay_mrbrt(hosp_sensitivity.loc[:, ['t', 'sensitivity']],
+                                                       increasing,)
+        nonhosp_sensitivity = fit_sensitivity_decay_mrbrt(hosp_sensitivity.loc[:, ['t', 'sensitivity']],
+                                                          increasing,)
     sensitivity = (hosp_sensitivity
                    .rename(columns={'sensitivity':'hosp_sensitivity'})
                    .merge(nonhosp_sensitivity
@@ -296,9 +503,14 @@ def fit_hospital_weighted_sensitivity_decay(sensitivity: pd.DataFrame, increasin
 
 
 def calulate_waning_factor(infections: pd.DataFrame, sensitivity: pd.DataFrame,
-                           sero_date: pd.Timestamp) -> float:
+                           sero_date: pd.Timestamp, sero_corr: bool,) -> float:
     infections['t'] = (sero_date - infections['date']).dt.days
     infections = infections.loc[infections['t'] >= 0]
+    if sero_corr not in [0, 1]:
+        raise ValueError('`manufacturer_correction` should be 0 or 1.')
+    if sero_corr == 1:
+        # study adjusted for sensitivity, set baseline to 1
+        sensitivity /= sensitivity.max()
     infections = infections.merge(sensitivity.reset_index(), how='left')
     if infections['sensitivity'].isnull().any():
         raise ValueError(f"Unmatched sero/sens points: {infections.loc[infections['sensitivity'].isnull()]}")
@@ -308,54 +520,56 @@ def calulate_waning_factor(infections: pd.DataFrame, sensitivity: pd.DataFrame,
     return waning_factor
     
     
-def location_waning_adjustment(infections: pd.DataFrame, sensitivity: pd.DataFrame,
+def location_waning_adjustment(location_id: int,
+                               infections: pd.DataFrame, sensitivity: pd.DataFrame,
                                seroprevalence: pd.DataFrame) -> pd.DataFrame:
+    infections = infections.loc[location_id]
+    sensitivity = sensitivity.loc[location_id]
+    seroprevalence = seroprevalence.loc[seroprevalence['location_id'] == location_id,
+                                        ['data_id', 'date', 'manufacturer_correction', 'seroprevalence']
+                                       ].reset_index(drop=True)
     adj_seroprevalence = []
-    for i, (sero_data_id, sero_date, sero_value) in enumerate(zip(seroprevalence['data_id'],
-                                                                  seroprevalence['date'],
-                                                                  seroprevalence['seroprevalence'])):
-        waning_factor = calulate_waning_factor(infections, sensitivity, sero_date)
+    for i, (sero_data_id, sero_date, sero_corr, sero_value) in enumerate(zip(seroprevalence['data_id'],
+                                                                             seroprevalence['date'],
+                                                                             seroprevalence['manufacturer_correction'],
+                                                                             seroprevalence['seroprevalence'],)):
+        waning_factor = calulate_waning_factor(infections.copy(), sensitivity.copy(),
+                                               sero_date, sero_corr,)
         adj_seroprevalence.append(pd.DataFrame({
             'data_id': sero_data_id,
             'date': sero_date,
             'seroprevalence': sero_value * waning_factor
         }, index=[i]))
     adj_seroprevalence = pd.concat(adj_seroprevalence)
+    adj_seroprevalence['location_id'] = location_id
     
     return adj_seroprevalence
 
 
-def waning_adjustment(pred_ifr: pd.Series, daily_deaths: pd.Series, sensitivity: pd.DataFrame,
+def waning_adjustment(infections: pd.Series, sensitivity: pd.DataFrame,
                       seroprevalence: pd.DataFrame) -> pd.DataFrame:
-    infections = ((daily_deaths / pred_ifr)
-                  .dropna()
-                  .rename('infections')
-                  .reset_index()
-                  .set_index('location_id'))
-    infections['date'] -= pd.Timedelta(days=SERO_TO_DEATH)
-    
-    # determine waning adjustment based on midpoint of survey
-    orig_date = seroprevalence[['data_id', 'date']].copy()
-    seroprevalence['n_midpoint_days'] = (seroprevalence['date'] - seroprevalence['start_date']).dt.days / 2
-    seroprevalence['n_midpoint_days'] = seroprevalence['n_midpoint_days'].astype(int)
-    seroprevalence['date'] = seroprevalence.apply(lambda x: x['date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
-    del seroprevalence['n_midpoint_days']
+    # # determine waning adjustment based on midpoint of survey
+    # orig_date = seroprevalence[['data_id', 'date']].copy()
+    # seroprevalence['n_midpoint_days'] = (seroprevalence['date'] - seroprevalence['start_date']).dt.days / 2
+    # seroprevalence['n_midpoint_days'] = seroprevalence['n_midpoint_days'].astype(int)
+    # seroprevalence['date'] = seroprevalence.apply(lambda x: x['date'] - pd.Timedelta(days=x['n_midpoint_days']), axis=1)
+    # del seroprevalence['n_midpoint_days']
     
     seroprevalence_list = []
     location_ids = seroprevalence['location_id'].unique().tolist()
     location_ids = [location_id for location_id in location_ids if location_id in infections.reset_index()['location_id'].to_list()]
-    for location_id in location_ids:
-        _sero = location_waning_adjustment(infections.loc[location_id],
-                                           sensitivity.loc[location_id],
-                                           (seroprevalence
-                                            .loc[seroprevalence['location_id'] == location_id,
-                                                 ['data_id', 'date', 'seroprevalence']
-                                                ].reset_index(drop=True)))
-        _sero['location_id'] = location_id
-        seroprevalence_list.append(_sero)
-    seroprevalence = pd.concat(seroprevalence_list).reset_index(drop=True)
-    del seroprevalence['date']
-    seroprevalence = seroprevalence.merge(orig_date)
+    
+    _lwa = functools.partial(
+        location_waning_adjustment,
+        infections=infections, sensitivity=sensitivity,
+        seroprevalence=seroprevalence,
+    )
+    with multiprocessing.Pool(int(OMP_NUM_THREADS)) as p:
+        seroprevalence = list(tqdm(p.imap(_lwa, location_ids), total=len(location_ids), file=sys.stdout))
+    seroprevalence = pd.concat(seroprevalence).reset_index(drop=True)
+        
+    # del seroprevalence['date']
+    # seroprevalence = seroprevalence.merge(orig_date)
     
     return seroprevalence
 
@@ -496,65 +710,3 @@ def plotter(location_id: int, location_name: str,
     else:
         fig.savefig(out_path, bbox_inches='tight')
         plt.close(fig)
-
-        
-'''
-from pathlib import Path
-
-import matplotlib.pyplot as plt
-
-from covid_historical_model.etl import model_inputs
-from covid_historical_model.rates import serology
-
-model_inputs_root = Path('/ihme/covid-19-2/model-inputs/latest')
-
-sensitivity = model_inputs.assay_sensitivity(model_inputs_root)
-
-for assay in sensitivity['assay'].unique():
-    a_s = sensitivity.loc[sensitivity['assay'] == assay]
-    
-    sources = a_s['source'].unique().tolist()
-    n_sources = len(sources)
-    
-    fig, ax = plt.subplots(n_sources, figsize=(8, 4.5 * n_sources))
-    
-    a_sf = []
-    for source in sources:
-        s_a_s = a_s.loc[a_s['source'] == source]
-        a_sf.append(serology.fit_hospital_weighted_sensitivity_decay(
-            s_a_s,
-            assay in serology.INCREASING,
-            pd.Series([0.05], name='hospitalized_weights',
-                      index=pd.Index([-1], name='location_id')),  # hospitalized_weights.copy()
-        ))
-    a_sf = pd.concat(a_sf).groupby('t', as_index=False)['sensitivity'].mean()
-    for i, source in enumerate(sources):
-        s_a_s = a_s.loc[a_s['source'] == source]
-        s_a_sf = serology.fit_hospital_weighted_sensitivity_decay(
-            s_a_s,
-            assay in serology.INCREASING,
-            pd.Series([0.05], name='hospitalized_weights',
-                      index=pd.Index([-1], name='location_id')),  # hospitalized_weights.copy()
-        )
-        if n_sources > 1:
-            ax[i].scatter(a_s['t'], a_s['sensitivity'], s=100, color='darkgrey', alpha=0.5)
-            ax[i].scatter(s_a_s['t'], s_a_s['sensitivity'], s=100, color='royalblue')
-            ax[i].plot(a_sf['t'], a_sf['sensitivity'], linestyle='--', color='darkgrey', alpha=0.5)
-            ax[i].plot(s_a_sf['t'], s_a_sf['sensitivity'], linestyle='--', color='indianred')
-            ax[i].set_title(source)
-            ax[i].set_ylim(0, 1)
-            ax[i].set_ylabel('Sensitivity')
-            ax[i].set_xlabel('Time')
-        else:
-            ax.scatter(a_s['t'], a_s['sensitivity'], s=100, color='darkgrey', alpha=0.5)
-            ax.scatter(s_a_s['t'], s_a_s['sensitivity'], s=100, color='royalblue')
-            ax.plot(a_sf['t'], a_sf['sensitivity'], linestyle='--', color='darkgrey', alpha=0.5)
-            ax.plot(s_a_sf['t'], s_a_sf['sensitivity'], linestyle='--', color='indianred')
-            ax.set_title(source)
-            ax.set_ylim(0, 1)
-            ax.set_ylabel('Sensitivity')
-            ax.set_xlabel('Time')
-    fig.tight_layout()
-    fig.suptitle(assay, fontsize=14, y=1.0)
-    fig.show()
-'''

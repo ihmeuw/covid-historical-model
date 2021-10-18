@@ -6,58 +6,74 @@ import pandas as pd
 import numpy as np
 
 from covid_historical_model.etl import db, model_inputs, estimates
-from covid_historical_model.durations.durations import SERO_TO_DEATH
 
 
-def load_input_data(model_inputs_root: Path, excess_mortality: bool, age_pattern_root: Path,
-                    seroprevalence: pd.DataFrame, vaccine_coverage: pd.DataFrame,
+def load_input_data(model_inputs_root: Path,
+                    excess_mortality: bool,
+                    excess_mortality_draw: int,
+                    age_rates_root: Path,
+                    shared: Dict, seroprevalence: pd.DataFrame, sensitivity_data: pd.DataFrame,
+                    vaccine_coverage: pd.DataFrame,
                     escape_variant_prevalence: pd.Series, severity_variant_prevalence: pd.Series,
+                    covariates: List[pd.Series],
+                    cross_variant_immunity: float,
+                    variant_risk_ratio: float,
                     verbose: bool = True) -> Dict:
     # load data
-    hierarchy = model_inputs.hierarchy(model_inputs_root)
-    gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_gbd')
-    population = model_inputs.population(model_inputs_root)
-    age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
     cumulative_deaths, daily_deaths = model_inputs.reported_epi(
-        model_inputs_root, 'deaths', hierarchy, gbd_hierarchy, excess_mortality
+        model_inputs_root, 'deaths', shared['hierarchy'], shared['gbd_hierarchy'],
+        excess_mortality, excess_mortality_draw,
     )
-    sero_age_pattern = estimates.seroprevalence_age_pattern(age_pattern_root)
-    ifr_age_pattern = estimates.ifr_age_pattern(age_pattern_root)
-    adj_gbd_hierarchy = model_inputs.validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
-    covariates = [db.obesity(adj_gbd_hierarchy)]
+    assay_map = model_inputs.assay_map(model_inputs_root)
+    sero_age_pattern = estimates.seroprevalence_age_pattern(age_rates_root, shared['hierarchy'].copy())
+    ifr_age_pattern = estimates.ifr_age_pattern(age_rates_root, shared['hierarchy'].copy())
+    ihr_age_pattern = estimates.ihr_age_pattern(age_rates_root, shared['hierarchy'].copy())
+
+    input_data = {
+        'cumulative_deaths': cumulative_deaths,
+        'daily_deaths': daily_deaths,
+        'seroprevalence': seroprevalence,
+        'sensitivity_data': sensitivity_data,
+        'assay_map': assay_map,
+        'vaccine_coverage': vaccine_coverage,
+        'covariates': covariates,
+        'sero_age_pattern': sero_age_pattern,
+        'ifr_age_pattern': ifr_age_pattern,
+        'ihr_age_pattern': ihr_age_pattern,
+        'escape_variant_prevalence': escape_variant_prevalence,
+        'severity_variant_prevalence': severity_variant_prevalence,
+        'cross_variant_immunity': cross_variant_immunity,
+        'variant_risk_ratio': variant_risk_ratio,
+    }
+    input_data.update(shared)
     
-    return {'cumulative_deaths': cumulative_deaths,
-            'daily_deaths': daily_deaths,
-            'seroprevalence': seroprevalence,
-            'vaccine_coverage': vaccine_coverage,
-            'covariates': covariates,
-            'sero_age_pattern': sero_age_pattern,
-            'ifr_age_pattern': ifr_age_pattern,
-            'age_spec_population': age_spec_population,
-            'escape_variant_prevalence': escape_variant_prevalence,
-            'severity_variant_prevalence': severity_variant_prevalence,
-            'hierarchy': hierarchy,
-            'gbd_hierarchy': gbd_hierarchy,
-            'population': population,}
+    return input_data
 
 
 def create_model_data(cumulative_deaths: pd.Series, daily_deaths: pd.Series,
                       seroprevalence: pd.DataFrame,
                       covariates: List[pd.Series],
+                      ifr_data_scalar: pd.Series,
                       hierarchy: pd.DataFrame, population: pd.Series,
                       day_0: pd.Timestamp,
+                      durations: Dict,
                       **kwargs) -> pd.DataFrame:
     ifr_data = seroprevalence.loc[seroprevalence['is_outlier'] == 0].copy()
-    ifr_data['date'] += pd.Timedelta(days=SERO_TO_DEATH)
+    ifr_data['date'] += pd.Timedelta(days=durations['sero_to_death'])
     ifr_data = (ifr_data
-                .set_index(['location_id', 'date'])
+                .set_index(['data_id', 'location_id', 'date'])
                 .loc[:, 'seroprevalence'])
     ifr_data = ((cumulative_deaths / (ifr_data * population))
                 .dropna()
                 .rename('ifr'))
 
     # get mean day of death int
-    loc_dates = ifr_data.index.drop_duplicates().to_list()
+    loc_dates = (ifr_data
+                 .reset_index()
+                 .loc[:, ['location_id', 'date']]
+                 .drop_duplicates()
+                 .values
+                 .tolist())
     time = []
     for location_id, survey_end_date in loc_dates:
         locdeaths = daily_deaths.loc[location_id]
@@ -82,7 +98,14 @@ def create_model_data(cumulative_deaths: pd.Series, daily_deaths: pd.Series,
     # add covariates
     for covariate in covariates:
         model_data = model_data.join(covariate, how='outer')
-            
+        
+    if ifr_data_scalar is None:
+        model_data['ratio_data_scalar'] = 1
+    else:
+        model_data = model_data.join(ifr_data_scalar, how='left')
+        if model_data['ratio_data_scalar'].isnull().any():
+            raise ValueError('Missing data scalar.')
+    
     return model_data.reset_index()
 
 
