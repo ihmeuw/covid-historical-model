@@ -25,9 +25,11 @@ def load_input_data(model_inputs_root: Path,
         excess_mortality, excess_mortality_draw,
     )
     assay_map = model_inputs.assay_map(model_inputs_root)
-    sero_age_pattern = estimates.seroprevalence_age_pattern(age_rates_root, shared['hierarchy'].copy())
-    ifr_age_pattern = estimates.ifr_age_pattern(age_rates_root, shared['hierarchy'].copy())
-    ihr_age_pattern = estimates.ihr_age_pattern(age_rates_root, shared['hierarchy'].copy())
+    adj_gbd_hierarchy = model_inputs.validate_hierarchies(shared['hierarchy'].copy(),
+                                                          shared['gbd_hierarchy'].copy())
+    sero_age_pattern = estimates.seroprevalence_age_pattern(age_rates_root, adj_gbd_hierarchy.copy())
+    ifr_age_pattern = estimates.ifr_age_pattern(age_rates_root, adj_gbd_hierarchy.copy())
+    ihr_age_pattern = estimates.ihr_age_pattern(age_rates_root, adj_gbd_hierarchy.copy())
 
     input_data = {
         'cumulative_deaths': cumulative_deaths,

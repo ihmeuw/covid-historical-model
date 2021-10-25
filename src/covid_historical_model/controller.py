@@ -45,8 +45,9 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
          vaccine_coverage_root: Path, variant_scaleup_root: Path,
          age_rates_root: Path,
          testing_root: Path,
+         n_samples: int,
          excess_mortality: bool,
-         n_samples: int,):
+         gbd: bool,):
     ## run models
     pipeline_results, selected_combinations, \
     cross_variant_immunity_samples, variant_risk_ratio_samples, \
@@ -54,7 +55,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     escape_variant_prevalence, severity_variant_prevalence, \
     vaccine_coverage, em_data, hierarchy, population = pipeline_wrapper(
         out_dir,
-        model_inputs_root, excess_mortality,
+        model_inputs_root, excess_mortality, gbd,
         vaccine_coverage_root, variant_scaleup_root,
         age_rates_root,
         testing_root,

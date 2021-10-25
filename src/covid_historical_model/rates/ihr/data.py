@@ -26,8 +26,10 @@ def load_input_data(model_inputs_root: Path,
         model_inputs_root, 'deaths', shared['hierarchy'], shared['gbd_hierarchy'],
         excess_mortality, excess_mortality_draw,
     )
-    sero_age_pattern = estimates.seroprevalence_age_pattern(age_rates_root, shared['hierarchy'].copy())
-    ihr_age_pattern = estimates.ihr_age_pattern(age_rates_root, shared['hierarchy'].copy())
+    adj_gbd_hierarchy = model_inputs.validate_hierarchies(shared['hierarchy'].copy(),
+                                                          shared['gbd_hierarchy'].copy())
+    sero_age_pattern = estimates.seroprevalence_age_pattern(age_rates_root, adj_gbd_hierarchy.copy())
+    ihr_age_pattern = estimates.ihr_age_pattern(age_rates_root, adj_gbd_hierarchy.copy())
     
     input_data = {
         'cumulative_hospitalizations': cumulative_hospitalizations,
