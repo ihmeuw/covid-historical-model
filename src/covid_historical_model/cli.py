@@ -50,6 +50,9 @@ from covid_historical_model import controller
               type=click.INT,
               default=100,
               help='Number of seroprevalence samples.')
+@click.option('--gbd',
+              is_flag=True,
+              help='Whether to run GBD hierarchy or not.')
 @click.option('-b', '--mark-best', 'mark_dir_as_best',
               is_flag=True,
               help='Marks the new outputs as best in addition to marking them as latest.')
@@ -65,6 +68,7 @@ def rates_pipeline(run_metadata,
                    use_unscaled,
                    output_root,
                    n_samples,
+                   gbd,
                    mark_dir_as_best, production_tag,
                    verbose, with_debugger):
     """Run rates pipeline."""
@@ -99,7 +103,8 @@ def rates_pipeline(run_metadata,
                            age_rates_root=age_rates_root,
                            testing_root=testing_root,
                            n_samples=n_samples,
-                           excess_mortality=not use_unscaled,)
+                           excess_mortality=not use_unscaled,
+                           gbd=gbd,)
 
     cli_tools.finish_application(run_metadata, app_metadata, run_directory,
                                  mark_dir_as_best, production_tag)

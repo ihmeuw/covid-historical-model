@@ -28,7 +28,7 @@ from covid_historical_model import cluster
 
 
 def pipeline_wrapper(out_dir: Path,
-                     model_inputs_root: Path, excess_mortality: bool,
+                     model_inputs_root: Path, excess_mortality: bool, gbd: bool,
                      vaccine_coverage_root: Path, variant_scaleup_root: Path,
                      age_rates_root: Path,
                      testing_root: Path,
@@ -40,7 +40,10 @@ def pipeline_wrapper(out_dir: Path,
     if verbose:
         logger.info('Loading variant, vaccine, and sero data.')
     hierarchy = model_inputs.hierarchy(model_inputs_root)
-    gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_gbd')
+    if gbd:
+        gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_gbd')
+    else:
+        gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_modeling_plus_zaf')
     adj_gbd_hierarchy = model_inputs.validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
     population = model_inputs.population(model_inputs_root)
     age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
