@@ -74,6 +74,27 @@ def get_covariate_constraints(measure: str):
             'haq':
                 {'prior_beta_uniform': np.array([-np.inf, 0])},
         }
+    elif measure == 'ihr':
+        covariate_constraints = {
+            'obesity':
+                {'prior_beta_uniform': np.array([0, np.inf]),},
+            'smoking':
+                {'prior_beta_uniform': np.array([0, np.inf]),},
+            'diabetes':
+                {'prior_beta_uniform': np.array([0, np.inf]),},
+            'cancer':
+                {'prior_beta_uniform': np.array([0, np.inf]),},
+            'copd':
+                {'prior_beta_uniform': np.array([0, np.inf]),},
+            'cvd':
+                {'prior_beta_uniform': np.array([0, np.inf]),},
+            'ckd':
+                {'prior_beta_uniform': np.array([0, np.inf]),},
+            'uhc':
+                {'prior_beta_uniform': np.array([0, np.inf])},
+            'haq':
+                {'prior_beta_uniform': np.array([0, np.inf])},
+        }
     elif measure == 'idr':
         covariate_constraints = {
             'uhc':

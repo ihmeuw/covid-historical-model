@@ -76,13 +76,14 @@ def runner(input_data: Dict,
         input_data['ihr_age_pattern'].copy(), input_data['sero_age_pattern'].copy(),
         input_data['age_spec_population'].copy()
     )
-    sensitivity, seroprevalence = serology.apply_waning_adjustment(
+    sensitivity, seroprevalence = serology.apply_seroreversion_adjustment(
         input_data['sensitivity_data'].copy(),
         input_data['assay_map'].copy(),
         hospitalized_weights.copy(),
         input_data['seroprevalence'].copy(),
         input_data['daily_deaths'].copy(),
         pred.copy(),
+        input_data['population'].copy(),
         durations,
     )
     
