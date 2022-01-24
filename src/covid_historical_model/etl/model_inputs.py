@@ -514,7 +514,7 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     return data
 
 
-def reported_epi(model_inputs_root: Path, input_measure: str,
+def reported_epi(model_inputs_root: Path, input_measure: str, smooth: bool,
                  hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame,
                  excess_mortality: bool = None,
                  excess_mortality_draw: int = None,) -> Tuple[pd.Series, pd.Series]:
@@ -581,10 +581,33 @@ def reported_epi(model_inputs_root: Path, input_measure: str,
             .set_index(['location_id', 'date'])
             .sort_index())
     
-    cumulative_data = data[f'cumulative_{input_measure}']
-    daily_data = data[f'daily_{input_measure}']
+    daily_data = data.loc[:, f'daily_{input_measure}']
+    if smooth:
+        daily_data = (daily_data
+                      .groupby('location_id')
+                      .apply(lambda x: smooth_t1plus(x))
+                      .dropna())
+        cumulative_data = (daily_data
+                          .groupby('location_id')
+                          .cumsum())
+    else:
+        cumulative_data = daily_data.loc[:, f'cumulative_{input_measure}']
 
     return cumulative_data, daily_data
+
+
+def smooth_t1plus(data: pd.Series, window: int = 7) -> pd.Series:
+    if len(data) < window * 2:
+        t1plus = data.clip(0, np.inf)
+    else:
+        t1plus = (data[1:]
+                  .clip(0, np.inf)
+                  .rolling(window=window, min_periods=window, center=True)
+                  .mean())
+        add_date = t1plus.loc[~t1plus.notnull().cummax()].index[-1]
+        t1plus.loc[add_date] = data[0]
+    
+    return t1plus
 
 
 def hierarchy(model_inputs_root:Path, hierarchy_type: str = 'covid_modeling') -> pd.DataFrame:

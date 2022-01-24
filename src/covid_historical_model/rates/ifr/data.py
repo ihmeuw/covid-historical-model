@@ -21,7 +21,8 @@ def load_input_data(model_inputs_root: Path,
                     verbose: bool = True) -> Dict:
     # load data
     cumulative_deaths, daily_deaths = model_inputs.reported_epi(
-        model_inputs_root, 'deaths', shared['hierarchy'], shared['gbd_hierarchy'],
+        model_inputs_root, 'deaths', True,
+        shared['hierarchy'], shared['gbd_hierarchy'],
         excess_mortality, excess_mortality_draw,
     )
     assay_map = model_inputs.assay_map(model_inputs_root)
