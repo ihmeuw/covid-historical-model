@@ -246,59 +246,251 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
         logger.info(f'{geo_outlier.sum()} rows from sero data do not have `geo_accordance`.')
     data['correction_status'] = helpers.str_fmt(data['correction_status']).replace(('unchecked', 'not specified', np.nan), '0').astype(int)
     
-    # 3) Level threshold - 3%
-    is_sub3 = data['seroprevalence'] < 0.03
-    outliers.append(is_sub3)
-    if verbose:
-        logger.info(f'{is_sub3.sum()} rows from sero data dropped due to having values below 3%.')
-    
-    # 4) Extra drops
+    # 3) Extra drops
     # vaccine debacle, lose all the UK spike data in 2021
     is_uk = data['location_id'].isin([4749, 433, 434, 4636])
     is_spike = data['test_target'] == 'spike'
     is_2021 = data['date'] >= pd.Timestamp('2021-01-01')
-    
+
     uk_vax_outlier = is_uk & is_spike & is_2021
     outliers.append(uk_vax_outlier)
-    if verbose:
-        logger.info(f'{uk_vax_outlier.sum()} rows from sero data dropped due to UK vax issues.')
-        
-    # vaccine debacle, lose all the Danish data from Feb 2021 onward
+    logger.debug(f'{uk_vax_outlier.sum()} rows from sero data dropped due to UK vax issues.')
+
+    # vaccine debacle, lose all the Danish data from Jan 2021 onward
     is_den = data['location_id'].isin([78])
     is_spike = data['test_target'] == 'spike'
-    is_2021 = data['date'] >= pd.Timestamp('2021-02-01')
-    
+    is_2021 = data['date'] >= pd.Timestamp('2021-01-01')
+
     den_vax_outlier = is_den & is_spike & is_2021
     outliers.append(den_vax_outlier)
-    if verbose:
-        logger.info(f'{den_vax_outlier.sum()} rows from sero data dropped due to Denmark vax issues.')
-        
-    # vaccine debacle, lose all the Estonia and Netherlands data from Junue 2021 onward
+    logger.debug(f'{den_vax_outlier.sum()} rows from sero data dropped due to Denmark vax issues.')
+
+    # vaccine debacle, lose all the Estonia and Netherlands data from June 2021 onward
     is_est_ndl = data['location_id'].isin([58, 89])
     is_spike = data['test_target'] == 'spike'
-    is_2021 = data['date'] >= pd.Timestamp('2021-06-01')
-    
-    est_ndl_vax_outlier = is_est_ndl & is_spike & is_2021
+    is_post_june_2021 = data['date'] >= pd.Timestamp('2021-06-01')
+
+    est_ndl_vax_outlier = is_est_ndl & is_spike & is_post_june_2021
     outliers.append(est_ndl_vax_outlier)
-    if verbose:
-        logger.info(f'{est_ndl_vax_outlier.sum()} rows from sero data dropped due to Netherlands and Estonia vax issues.')
-    
+    logger.debug(f'{est_ndl_vax_outlier.sum()} rows from sero data dropped due to Netherlands and Estonia vax issues.')
+
     # vaccine debacle, lose all the Puerto Rico data from April 2021 onward
     is_pr = data['location_id'].isin([385])
     is_spike = data['test_target'] == 'spike'
     is_2021 = data['date'] >= pd.Timestamp('2021-04-01')
-    
+
     pr_vax_outlier = is_pr & is_spike & is_2021
     outliers.append(pr_vax_outlier)
-    if verbose:
-        logger.info(f'{pr_vax_outlier.sum()} rows from sero data dropped due to Puerto Rico vax issues.')
+    logger.debug(f'{pr_vax_outlier.sum()} rows from sero data dropped due to Puerto Rico vax issues.')
 
     # King/Snohomish data is too early
     is_k_s = data['location_id'] == 60886
+    is_pre_may_2020 = data['date'] < pd.Timestamp('2020-05-01')
 
-    outliers.append(is_k_s)
-    if verbose:
-        logger.info(f'{is_k_s.sum()} rows from sero data dropped from to early King/Snohomish data.')
+    k_s_outlier = is_k_s & is_pre_may_2020
+    outliers.append(k_s_outlier)
+    logger.debug(f'{k_s_outlier.sum()} rows from sero data dropped due to noisy (early) King/Snohomish data.')
+
+    # New York dialysis
+    is_ny = data['location_id'] == 555
+    is_usa_dialysis = data['survey_series'] == 'usa_dialysis'
+
+    ny_outlier = is_ny & is_usa_dialysis
+    outliers.append(ny_outlier)
+    logger.debug(f'{ny_outlier.sum()} rows from sero data dropped due to bogus dialysis data in New York.')
+
+    # Saskatchewan
+    is_sas = data['location_id'] == 43869
+    is_canadian_blood_services = data['survey_series'] == 'canadian_blood_services'
+
+    sas_outlier = is_sas & is_canadian_blood_services
+    outliers.append(sas_outlier)
+    logger.debug(f'{sas_outlier.sum()} rows from sero data dropped from Saskatchewan.')
+
+    # Ceuta first round
+    is_ceu = data['location_id'] == 60369
+    is_ene_covid = data['survey_series'] == 'ene_covid'
+    is_pre_june_2020 = data['date'] < pd.Timestamp('2020-06-01')
+
+    ceu_outlier = is_ceu & is_ene_covid & is_pre_june_2020
+    outliers.append(ceu_outlier)
+    logger.debug(f'{ceu_outlier.sum()} rows from sero data dropped due to implausibility '
+                 '(or at least incompatibility) of first survey round in Ceuta.')
+
+    # Kazakhstan collab data
+    is_kaz = data['location_id'] == 36
+    is_kaz_collab_data = data['survey_series'] == 'kazakhstan_who'
+
+    kaz_outlier = is_kaz & is_kaz_collab_data
+    outliers.append(kaz_outlier)
+    logger.debug(f'{kaz_outlier.sum()} rows from sero data dropped due to implausibility '
+                 '(or at least incompatibility) of Kazakhstan colloborator data.')
+
+    # # Albania first round data
+    # is_alb = data['location_id'] == 43
+    # ## this is actually first round (see dates), survey_series is mislabeled in extraction ##
+    # is_tirana_first_round_data = data['survey_series'] == 'tirana_second_round'
+
+    # alb_outlier = is_alb & is_tirana_first_round_data
+    # outliers.append(alb_outlier)
+    # logger.debug(f'{alb_outlier.sum()} rows from sero data dropped due to implausibility '
+    #              '(or at least incompatibility) of first round of Albania survey.')
+
+    # # Egypt
+    # is_egy = data['location_id'] == 141
+    # is_egypt_gomaa = data['survey_series'] == 'egypt_gomaa'
+
+    # egy_outlier = is_egy & is_egypt_gomaa
+    # outliers.append(egy_outlier)
+    # logger.debug(f'{egy_outlier.sum()} rows from sero data dropped due to implausibility '
+    #              '(or at least incompatibility) of Egypt GOMAA(?) survey.')
+
+    # # Qatar
+    # is_qat = data['location_id'] == 151
+    # is_qatar_raddad = data['survey_series'] == 'qatar_raddad'
+
+    # qat_outlier = is_qat & is_qatar_raddad
+    # outliers.append(qat_outlier)
+    # logger.debug(f'{qat_outlier.sum()} rows from sero data dropped due to implausibility '
+    #              '(or at least incompatibility) of Qatar RADDAD(?) survey.')
+
+    # # Afghanistan
+    # is_afg = data['location_id'] == 160
+    # is_afghanistan_sero_survey = data['survey_series'] == 'afghanistan_sero_survey'
+
+    # afg_outlier = is_afg & is_afghanistan_sero_survey
+    # outliers.append(afg_outlier)
+    # logger.debug(f'{afg_outlier.sum()} rows from sero data dropped due to implausibility '
+    #              '(or at afg_outlier incompatibility) of Afghanistan survey.')
+
+    # Chhattisgarh ICMR round 2
+    is_chhatt = data['location_id'] == 4846
+    is_icmr_round2 = data['survey_series'] == 'icmr_round2'
+
+    chhatt_outlier = is_chhatt & is_icmr_round2
+    outliers.append(chhatt_outlier)
+    logger.debug(f'{chhatt_outlier.sum()} rows from sero data dropped due to implausibility '
+                 '(or at least incompatibility) of Chhattisgarh survey data (ICMR round 2).')
+
+    # Delhi
+    is_delhi = data['location_id'] == 4849
+    is_dey_sharma = data['survey_series'].isin(['dey_delhi_sero', 'sharma_delhi_sero'])
+    is_pre_sept_2020 = data['date'] < pd.Timestamp('2020-09-01')
+
+    delhi_outlier = is_delhi & is_dey_sharma & is_pre_sept_2020
+    outliers.append(delhi_outlier)
+    logger.debug(f'{delhi_outlier.sum()} rows from sero data dropped due to implausibility '
+                 '(or at least incompatibility) of Delhi survey data (non-ICMR).')
+
+    # Gujarat ICMR round 2
+    is_guj = data['location_id'] == 4851
+    is_icmr_round2 = data['survey_series'] == 'icmr_round2'
+
+    guj_outlier = is_guj & is_icmr_round2
+    outliers.append(guj_outlier)
+    logger.debug(f'{guj_outlier.sum()} rows from sero data dropped due to implausibility '
+                 '(or at least incompatibility) of Gujarat survey data (ICMR round 2).')
+
+    # Himachal Pradesh non-ICMR survey
+    is_hp = data['location_id'] == 4853
+    is_phenome_india = data['survey_series'] == 'phenome_india'
+
+    hp_outlier = is_hp & is_phenome_india
+    outliers.append(hp_outlier)
+    logger.debug(f'{hp_outlier.sum()} rows from sero data dropped due to implausibility '
+                 '(or at least incompatibility) of Himachal Pradesh survey data (non-ICMR).')
+
+    # Jharkhand non-ICMR survey
+    is_jhark = data['location_id'] == 4855
+    is_jharkhand_feb = data['survey_series'] == 'jharkhand_feb'
+
+    jhark_outlier = is_jhark & is_jharkhand_feb
+    outliers.append(jhark_outlier)
+    logger.debug(f'{jhark_outlier.sum()} rows from sero data dropped due to implausibility '
+                 '(or at least incompatibility) of Jharkand survey data (non-ICMR).')
+
+    # Karnataka JAMA
+    is_karn = data['location_id'] == 4856
+    is_karnataka_mohanan = data['survey_series'] == 'karnataka_mohanan'
+
+    karn_outlier = is_karn & is_karnataka_mohanan
+    outliers.append(karn_outlier)
+    logger.debug(f'{karn_outlier.sum()} rows from sero data dropped due to implausibility '
+                 '(or at least incompatibility) of Karnataka survey data (non-ICMR).')
+
+    # Odisha ICMR round 2
+    is_odisha = data['location_id'] == 4865
+    is_icmr_round2 = data['survey_series'] == 'icmr_round2'
+
+    odisha_outlier = is_odisha & is_icmr_round2
+    outliers.append(odisha_outlier)
+    logger.debug(f'{odisha_outlier.sum()} rows from sero data dropped due to implausibility '
+                 '(or at least incompatibility) of Odisha survey data (ICMR round 2).')
+
+    # Rajasthan ICMR round 2
+    is_raj = data['location_id'] == 4868
+    is_icmr_round2 = data['survey_series'] == 'icmr_round2'
+
+    raj_outlier = is_raj & is_icmr_round2
+    outliers.append(raj_outlier)
+    logger.debug(f'{raj_outlier.sum()} rows from sero data dropped due to implausibility '
+                 '(or at least incompatibility) of Rajasthan survey data (ICMR round 2).')
+
+    # # Khyber Pakhtunkhwa
+    # is_kp = data['location_id'] == 53619
+    # is_pakistan_july = data['survey_series'] == 'pakistan_july'
+
+    # kp_outlier = is_kp & is_pakistan_july
+    # outliers.append(kp_outlier)
+    # logger.debug(f'{kp_outlier.sum()} rows from sero data dropped due to implausibility '
+    #              '(or at least incompatibility) of Khyber Pakhtunkhwa July survey.')
+
+    # Punjab (PAK)
+    is_pp = data['location_id'] == 53620
+    is_pakistan_july = data['survey_series'] == 'pakistan_july'
+
+    pp_outlier = is_pp & is_pakistan_july
+    outliers.append(pp_outlier)
+    logger.debug(f'{pp_outlier.sum()} rows from sero data dropped due to implausibility '
+                 '(or at least incompatibility) of Punjab (PAK) July survey.')
+
+    # Kenya blood transfusion pre-July
+    is_ken = data['location_id'] == 180
+    is_kenya_blood = data['survey_series'] == 'kenya_blood'
+    is_pre_july_2020 = data['date'] < pd.Timestamp('2020-07-15')
+
+    ken_outlier = is_ken & is_kenya_blood & is_pre_july_2020
+    outliers.append(ken_outlier)
+    logger.debug(f'{ken_outlier.sum()} rows from sero data dropped due to implausibility '
+                 '(or at least incompatibility) of first two months of Kenya blood transfusion surveillance.')
+
+    # Mozambique INS pre-Sept
+    is_moz = data['location_id'] == 184
+    is_moz_ins_incovid2020 = data['survey_series'] == 'moz_ins_incovid2020'
+    is_pre_sept_2020 = data['date'] < pd.Timestamp('2020-09-01')
+
+    moz_outlier = is_moz & is_moz_ins_incovid2020 & is_pre_sept_2020
+    outliers.append(moz_outlier)
+    logger.debug(f'{moz_outlier.sum()} rows from sero data dropped due to implausibility '
+                 '(or at least incompatibility) of first Mozabique INS survey.')
+
+    # 4) Level threshold - location max > 3%, value max > 1%
+    # exemtions -> Brazil
+    na_list = [135]
+    data['tmp_outlier'] = pd.concat(outliers, axis=1).max(axis=1).astype(int)
+    is_maxsub3 = (data
+                  .groupby(['location_id', 'tmp_outlier'])
+                  .apply(lambda x: x['seroprevalence'].max() < 0.03 and
+                                   x.reset_index()['location_id'].unique().item() not in na_list)
+                  .rename('is_maxsub3')
+                  .reset_index())
+    is_maxsub3 = data.merge(is_maxsub3, how='left').loc[data.index, 'is_maxsub3']
+    del data['tmp_outlier']
+    is_sub1 = data['seroprevalence'] < 0.01
+    is_maxsub3_sub1 = is_maxsub3 | is_sub1
+    outliers.append(is_maxsub3_sub1)
+    logger.debug(f'{is_maxsub3_sub1.sum()} rows from sero data dropped due to having values'
+                 'below 1% or a location max below 3%.')
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
     keep_columns = ['data_id', 'nid', 'survey_series', 'location_id', 'start_date', 'date',
