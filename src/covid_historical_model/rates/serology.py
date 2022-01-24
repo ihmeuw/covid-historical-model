@@ -337,11 +337,11 @@ def apply_seroreversion_adjustment(sensitivity_data: pd.DataFrame,
 
     assay_combinations = seroprevalence['assay_map'].unique().tolist()
     
-    infections = ((daily_deaths / pred_ifr)
-                  .dropna()
-                  .rename('infections')
-                  .reset_index()
-                  .set_index('location_id'))
+    daily_infections = ((daily_deaths / pred_ifr)
+                        .dropna()
+                        .rename('daily_infections')
+                        .reset_index()
+                        .set_index('location_id'))
     daily_infections['date'] -= pd.Timedelta(days=durations['sero_to_death'])
     daily_infections = daily_infections.set_index(['location_id', 'date']).loc[:, 'daily_infections']
     daily_infections /= population
@@ -492,8 +492,8 @@ def fit_hospital_weighted_sensitivity_decay(source_assay: Tuple[str, str],
     return sensitivity.loc[:, ['location_id', 'assay', 't', 'sensitivity', 'hosp_sensitivity', 'nonhosp_sensitivity']]
 
 
-def calculate_seroreversion_factor(daily_infections: pd.DataFrame, sensitivity: pd.DataFrame,
-                                   sero_date: pd.Timestamp, sero_corr: bool,) -> float:
+def calculate_true_negative_rate(daily_infections: pd.DataFrame, sensitivity: pd.DataFrame,
+                                 sero_date: pd.Timestamp, sero_corr: bool,) -> float:
     daily_infections['t'] = (sero_date - daily_infections['date']).dt.days
     daily_infections = daily_infections.loc[daily_infections['t'] >= 0]
     if sero_corr not in [0, 1]:
@@ -504,14 +504,16 @@ def calculate_seroreversion_factor(daily_infections: pd.DataFrame, sensitivity: 
     daily_infections = daily_infections.merge(sensitivity.reset_index(), how='left')
     if daily_infections['sensitivity'].isnull().any():
         raise ValueError(f"Unmatched sero/sens points: {daily_infections.loc[daily_infections['sensitivity'].isnull()]}")
+    
     daily_infections *= min(1, 1 / daily_infections['daily_infections'].sum())
-    seroreversion_factor = (
+    
+    true_negative_rate = (
         (1 - daily_infections['daily_infections'].sum())
         / (1 - (daily_infections['daily_infections'] * daily_infections['sensitivity']).sum())
     )
-    seroreversion_factor = min(1, seroreversion_factor)
+    true_negative_rate = min(1, true_negative_rate)
 
-    return seroreversion_factor
+    return true_negative_rate
     
     
 def location_sensitivity_adjustment(location_id: int,
@@ -527,12 +529,12 @@ def location_sensitivity_adjustment(location_id: int,
                                                                              seroprevalence['date'],
                                                                              seroprevalence['manufacturer_correction'],
                                                                              seroprevalence['seroprevalence'],)):
-        seroreversion_factor = calculate_seroreversion_factor(daily_infections.copy(), sensitivity.copy(),
-                                                              sero_date, sero_corr,)
+        true_negative_rate = calculate_true_negative_rate(daily_infections.copy(), sensitivity.copy(),
+                                                          sero_date, sero_corr,)
         adj_seroprevalence.append(pd.DataFrame({
             'data_id': sero_data_id,
             'date': sero_date,
-            'seroprevalence': 1 - (1 - sero_value) * seroreversion_factor
+            'seroprevalence': 1 - (1 - sero_value) * true_negative_rate
         }, index=[i]))
     adj_seroprevalence = pd.concat(adj_seroprevalence)
     adj_seroprevalence['location_id'] = location_id
@@ -541,7 +543,7 @@ def location_sensitivity_adjustment(location_id: int,
 
 
 def sensitivity_adjustment(daily_infections: pd.Series, sensitivity: pd.DataFrame,
-                      seroprevalence: pd.DataFrame) -> pd.DataFrame:
+                           seroprevalence: pd.DataFrame) -> pd.DataFrame:
     # # determine waning sensitivity adjustment based on midpoint of survey
     # orig_date = seroprevalence[['data_id', 'date']].copy()
     # seroprevalence['n_midpoint_days'] = (seroprevalence['date'] - seroprevalence['start_date']).dt.days / 2
