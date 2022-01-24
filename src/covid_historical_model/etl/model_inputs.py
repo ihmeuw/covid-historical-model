@@ -597,17 +597,17 @@ def reported_epi(model_inputs_root: Path, input_measure: str, smooth: bool,
 
 
 def smooth_t1plus(data: pd.Series, window: int = 7) -> pd.Series:
-    if len(data) < window * 2:
-        t1plus = data.clip(0, np.inf)
-    else:
-        t1plus = (data[1:]
-                  .clip(0, np.inf)
-                  .rolling(window=window, min_periods=window, center=True)
-                  .mean())
-        add_date = t1plus.loc[~t1plus.notnull().cummax()].index[-1]
-        t1plus.loc[add_date] = data[0]
+    if len(data) >= window * 2:
+        t1_val = data.iloc[0]
+        data.iloc[0] = np.nan
+        data = (data
+                .clip(0, np.inf)
+                .rolling(window=window, min_periods=window, center=True)
+                .mean())
+        add_date = data.loc[~data.notnull().cummax()].index[-1]
+        data.loc[add_date] = t1_val
     
-    return t1plus
+    return data
 
 
 def hierarchy(model_inputs_root:Path, hierarchy_type: str = 'covid_modeling') -> pd.DataFrame:
