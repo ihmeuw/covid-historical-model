@@ -17,18 +17,26 @@ def manual_floor_setting(rmse: pd.DataFrame,
                          hierarchy: pd.DataFrame,
                          data_locations: List[int],
                          verbose: bool = True) -> Tuple[pd.DataFrame, pd.Series]:
-    if verbose:
-        logger.warning('Manually setting IDR floor of 0.1% for SSA locations.')
     is_ssa_location = hierarchy['path_to_top_parent'].apply(lambda x: '166' in x.split(','))
+    is_zaf_location = hierarchy['path_to_top_parent'].apply(lambda x: '196' in x.split(','))
     ssa_location_ids = hierarchy.loc[is_ssa_location, 'location_id'].to_list()
+    zaf_location_ids = hierarchy.loc[is_zaf_location, 'location_id'].to_list()
     ssa_location_ids = [l for l in ssa_location_ids if l not in data_locations]
-    
+
+    not_flagged = True
     for ssa_location_id in ssa_location_ids:
-        if best_floor[ssa_location_id] > 0.001:
-            best_floor[ssa_location_id] = 0.001
+        if ssa_location_id in zaf_location_ids:
+            floor = 0.01
+        else:
+            floor = 0.001
+        if best_floor[ssa_location_id] > floor:
+            if verbose and not_flagged:
+                logger.warning('Manually setting IDR floor for SSA locations.')
+                not_flagged = False
+            best_floor[ssa_location_id] = floor
             is_ssa_rmse = rmse['location_id'] == ssa_location_id
             rmse.loc[is_ssa_rmse, 'rmse'] = np.nan
-            rmse.loc[is_ssa_rmse, 'floor'] = 0.001
+            rmse.loc[is_ssa_rmse, 'floor'] = floor
 
     return rmse, best_floor
     
