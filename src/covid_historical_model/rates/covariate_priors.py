@@ -53,7 +53,7 @@ def get_covariate_priors(lambda_scalar: float, measure: str,):
 
 
 def get_covariate_constraints(measure: str):
-    if measure in ['ifr', 'ihr']:
+    if measure == 'ifr':
         covariate_constraints = {
             'obesity':
                 {'prior_beta_uniform': np.array([0, np.inf]),},

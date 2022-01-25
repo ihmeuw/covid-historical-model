@@ -26,8 +26,6 @@ from covid_historical_model.mrbrt import mrbrt
 VAX_SERO_PROB = 0.9
 SEROREV_LB = 0.
 
-## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
-# should have module for these that is more robust to additions
 ASSAYS = ['N-Abbott',  # IgG
           'S-Roche', 'N-Roche',  # Ig
           'S-Ortho Ig', 'S-Ortho IgG', # Ig/IgG
@@ -35,7 +33,6 @@ ASSAYS = ['N-Abbott',  # IgG
           'S-EuroImmun',  # IgG
           'S-Oxford',]  # IgG
 INCREASING = ['S-Ortho Ig', 'S-Roche']
-## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
 
 def bootstrap(sample: pd.DataFrame,):
@@ -494,8 +491,8 @@ def fit_hospital_weighted_sensitivity_decay(source_assay: Tuple[str, str],
     return sensitivity.loc[:, ['location_id', 'assay', 't', 'sensitivity', 'hosp_sensitivity', 'nonhosp_sensitivity']]
 
 
-def calculate_npv(daily_infections: pd.DataFrame, sensitivity: pd.Series,
-                  sero_date: pd.Timestamp, sero_corr: bool,) -> float:
+def calculate_seroreversion_factor(daily_infections: pd.DataFrame, sensitivity: pd.Series,
+                                   sero_date: pd.Timestamp, sero_corr: bool,) -> float:
     daily_infections['t'] = (sero_date - daily_infections['date']).dt.days
     daily_infections = daily_infections.loc[daily_infections['t'] >= 0]
     if sero_corr not in [0, 1]:
@@ -507,23 +504,16 @@ def calculate_npv(daily_infections: pd.DataFrame, sensitivity: pd.Series,
     if daily_infections['sensitivity'].isnull().any():
         raise ValueError(f"Unmatched sero/sens points: {daily_infections.loc[daily_infections['sensitivity'].isnull()]}")
     
-    # can't have > 100%
     daily_infections['daily_infections'] *= min(1, 1 / daily_infections['daily_infections'].sum())
-    
-    # negative predictive value: TN / (TN + FN)
-    # works as correction factor for (1 - seroprevalence) because specificity ~= 100%
-    specificity = 1
-    prevalence = daily_infections['daily_infections'].sum()
-    sensitivity = ((daily_infections['daily_infections'] * daily_infections['sensitivity']).sum()
-                   / daily_infections['daily_infections'].sum())
-    npv = (
-        specificity * (1 - prevalence)
-        / specificity * (1 - prevalence) + (1 - sensitivity) * prevalence
+    seroreversion_factor = (
+        (1 - daily_infections['daily_infections'].sum())
+        /
+        (1 - (daily_infections['daily_infections'] * daily_infections['sensitivity']).sum())
     )
-    npv = max(0, npv)
-    npv = min(1, npv)
+    seroreversion_factor = max(0, seroreversion_factor)
+    seroreversion_factor = min(1, seroreversion_factor)
 
-    return npv
+    return seroreversion_factor
     
     
 def location_seroreversion_adjustment(location_id: int,
@@ -539,12 +529,13 @@ def location_seroreversion_adjustment(location_id: int,
                                                                              seroprevalence['date'],
                                                                              seroprevalence['manufacturer_correction'],
                                                                              seroprevalence['seroprevalence'],)):
-        npv = calculate_npv(daily_infections.copy(), sensitivity.copy(),
-                            sero_date, sero_corr,)
+        seroreversion_factor = calculate_seroreversion_factor(
+            daily_infections.copy(), sensitivity.copy(), sero_date, sero_corr,
+        )
         adj_seroprevalence.append(pd.DataFrame({
             'data_id': sero_data_id,
             'date': sero_date,
-            'seroprevalence': 1 - (1 - sero_value) * npv
+            'seroprevalence': 1 - (1 - sero_value) * seroreversion_factor
         }, index=[i]))
     adj_seroprevalence = pd.concat(adj_seroprevalence)
     adj_seroprevalence['location_id'] = location_id
