@@ -26,7 +26,7 @@ def manual_floor_setting(rmse: pd.DataFrame,
     not_flagged = True
     for ssa_location_id in ssa_location_ids:
         if ssa_location_id in zaf_location_ids:
-            floor = 0.01
+            floor = 0.02
         else:
             floor = 0.001
         if best_floor[ssa_location_id] > floor:
