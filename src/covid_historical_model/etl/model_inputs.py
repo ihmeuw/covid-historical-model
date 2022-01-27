@@ -514,6 +514,7 @@ def reported_epi(model_inputs_root: Path, input_measure: str, smooth: bool,
             raise TypeError('Must specify `excess_mortality` argument to load deaths.')
         data_path = model_inputs_root / 'full_data_unscaled.csv'
     else:
+        excess_mortality = False
         data_path = model_inputs_root / 'use_at_your_own_risk' / 'full_data_extra_hospital.csv'
     data = pd.read_csv(data_path)
     data = data.rename(columns={'Confirmed': 'cumulative_cases',
@@ -551,7 +552,7 @@ def reported_epi(model_inputs_root: Path, input_measure: str, smooth: bool,
         data['em_scalar'] = data['em_scalar'].fillna(1)
         data['cumulative_deaths'] *= data['em_scalar']
         del data['em_scalar']
-    else:
+    elif input_measure == 'deaths':
         logger.info('Using unscaled deaths.')
     
     extra_locations = gbd_hierarchy.loc[gbd_hierarchy['most_detailed'] == 1, 'location_id'].to_list()
