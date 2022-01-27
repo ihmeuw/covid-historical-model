@@ -118,10 +118,11 @@ def seroprevalence_age_pattern(age_rates_root: Path, hierarchy: pd.DataFrame,) -
     return data
 
 
-def vaccine_coverage(vaccine_coverage_root: Path) -> pd.DataFrame:
+def vaccine_coverage(vaccine_coverage_root: Path, pred_end_date: pd.Timestamp,) -> pd.DataFrame:
     data_path = vaccine_coverage_root / 'slow_scenario_vaccine_coverage.csv'
     data = pd.read_csv(data_path)
     data['date'] = pd.to_datetime(data['date'])
+    data = data.loc[data['date'] <= pred_end_date]
     
     keep_columns = [
         # total vaccinated (all and by three groups)

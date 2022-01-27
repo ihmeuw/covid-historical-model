@@ -19,12 +19,9 @@ def runner(input_data: Dict,
            pred_ifr: pd.Series,
            covariate_list: List[str],
            durations: Dict,
-           pred_start_date: str = '2019-11-01',
-           pred_end_date: str = '2021-12-31',
+           pred_start_date: pd.Timestamp,
+           pred_end_date: pd.Timestamp,
            verbose: bool = True,) -> namedtuple:
-    pred_start_date = pd.Timestamp(pred_start_date)
-    pred_end_date = pd.Timestamp(pred_end_date)
-
     model_data = idr.data.create_model_data(pred_ifr=pred_ifr, durations=durations, verbose=verbose, **input_data)
     pred_data = idr.data.create_pred_data(
         pred_start_date=pred_start_date, pred_end_date=pred_end_date,

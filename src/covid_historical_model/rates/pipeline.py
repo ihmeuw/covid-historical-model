@@ -33,6 +33,9 @@ def pipeline_wrapper(out_dir: Path,
                      age_rates_root: Path,
                      testing_root: Path,
                      n_samples: int,
+                     day_0: pd.Timestamp = pd.Timestamp('2020-03-15'),
+                     pred_start_date: pd.Timestamp = pd.Timestamp('2019-11-01'),
+                     pred_end_date: pd.Timestamp = pd.Timestamp('2021-12-31'),
                      correlate_samples: bool = True,
                      bootstrap: bool = True,
                      verbose: bool = True,) -> Tuple:
@@ -60,7 +63,7 @@ def pipeline_wrapper(out_dir: Path,
     
     escape_variant_prevalence = estimates.variant_scaleup(variant_scaleup_root, 'escape', verbose=verbose)
     severity_variant_prevalence = estimates.variant_scaleup(variant_scaleup_root, 'severity', verbose=verbose)
-    vaccine_coverage = estimates.vaccine_coverage(vaccine_coverage_root)
+    vaccine_coverage = estimates.vaccine_coverage(vaccine_coverage_root, pred_end_date)
     reported_seroprevalence, seroprevalence_samples = serology.load_seroprevalence_sub_vacccinated(
         model_inputs_root, vaccine_coverage.copy(), n_samples=n_samples,
         correlate_samples=correlate_samples, bootstrap=bootstrap,
@@ -112,7 +115,7 @@ def pipeline_wrapper(out_dir: Path,
                               '2020-10-01', '2020-11-01', '2020-12-01',
                               '2021-01-01', '2021-02-01', '2021-03-01',]
     day_inflection_pool = np.random.choice(day_inflection_options, n_samples)
-    day_inflection_pool = [str(d) for d in day_inflection_pool]  # can't be np.str_
+    day_inflection_pool = [pd.Timestamp(str(d)) for d in day_inflection_pool]
     
     inputs = {
         n: {
@@ -133,6 +136,9 @@ def pipeline_wrapper(out_dir: Path,
             'cross_variant_immunity': cross_variant_immunity,
             'variant_risk_ratio': variant_risk_ratio,
             'durations': durations,
+            'day_0': day_0,
+            'pred_start_date': pred_start_date,
+            'pred_end_date': pred_end_date,
             'verbose': verbose,
         }
         for n, (covariate_list, idr_covariate_list,
@@ -183,13 +189,16 @@ def pipeline(n: int,
              severity_variant_prevalence: pd.Series,
              age_rates_root: Path,
              testing_root: Path,
-             day_inflection: str,
+             day_inflection: pd.Timestamp,
              covariates: List[pd.Series],
              covariate_list: List[str],
              idr_covariate_list: List[str],
              cross_variant_immunity: float,
              variant_risk_ratio: float,
              durations: Dict,
+             day_0: pd.Timestamp,
+             pred_start_date: pd.Timestamp,
+             pred_end_date: pd.Timestamp,
              verbose: bool,) -> Tuple:
     if verbose:
         logger.info('\n*************************************\n'
@@ -213,6 +222,9 @@ def pipeline(n: int,
         day_inflection=day_inflection,
         covariate_list=covariate_list,
         durations=durations,
+        day_0=day_0,
+        pred_start_date=pred_start_date,
+        pred_end_date=pred_end_date,
         verbose=verbose,
     )
 
@@ -235,6 +247,8 @@ def pipeline(n: int,
                                     ifr_results.pred.copy(),
                                     idr_covariate_list,
                                     durations,
+                                    pred_start_date,
+                                    pred_end_date,
                                     verbose=verbose)
     
     if verbose:
@@ -257,6 +271,9 @@ def pipeline(n: int,
                                     ifr_results.pred.copy(),
                                     covariate_list,
                                     durations,
+                                    day_0,
+                                    pred_start_date,
+                                    pred_end_date,
                                     verbose=verbose)
     
     if verbose:

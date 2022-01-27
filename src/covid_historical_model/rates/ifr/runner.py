@@ -28,16 +28,12 @@ def runner(input_data: Dict,
            day_inflection: str,
            covariate_list: List[str],
            durations: Dict,
-           day_0: str = '2020-03-15',
-           pred_start_date: str = '2019-11-01',
-           pred_end_date: str = '2021-12-31',
+           day_0: pd.Timestamp,
+           pred_start_date: pd.Timestamp,
+           pred_end_date: pd.Timestamp,
            verbose: bool = True,) -> Dict:
     ## SET UP
-    logger.info(f"set up:\n day_inflection: {day_inflection}\n covariates: {', '.join(covariate_list)}")
-    day_inflection = pd.Timestamp(day_inflection)
-    day_0 = pd.Timestamp(day_0)
-    pred_start_date = pd.Timestamp(pred_start_date)
-    pred_end_date = pd.Timestamp(pred_end_date)
+    logger.info(f"set up:\n day_inflection: {str(day_inflection)}\n covariates: {', '.join(covariate_list)}")
 
     model_data = ifr.data.create_model_data(day_0=day_0, durations=durations,
                                             ifr_data_scalar=None,
@@ -103,6 +99,7 @@ def runner(input_data: Dict,
         location_dates=seroprevalence[['location_id', 'date']].drop_duplicates().values.tolist(),
         durations=durations.copy(),
         variant_risk_ratio=input_data['variant_risk_ratio'],
+        verbose=verbose,
     )
     
     ## SET UP REFIT
@@ -145,6 +142,7 @@ def runner(input_data: Dict,
         vaccine_coverage=refit_input_data['vaccine_coverage'].copy(),
         population=refit_input_data['population'].copy(),
         variant_risk_ratio=input_data['variant_risk_ratio'],
+        verbose=verbose,
     )
     
     ## SQUEEZE

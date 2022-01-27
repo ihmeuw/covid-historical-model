@@ -18,14 +18,10 @@ def runner(input_data: Dict,
            pred_ifr: pd.Series,
            covariate_list: List[str],
            durations: Dict,
-           day_0: str = '2020-03-15',
-           pred_start_date: str = '2019-11-01',
-           pred_end_date: str = '2021-12-31',
+           day_0: pd.Timestamp,
+           pred_start_date: pd.Timestamp,
+           pred_end_date: pd.Timestamp,
            verbose: bool = True,) -> namedtuple:
-    day_0 = pd.Timestamp(day_0)
-    pred_start_date = pd.Timestamp(pred_start_date)
-    pred_end_date = pd.Timestamp(pred_end_date)
-    
     ihr_data_scalar = variants_vaccines.get_ratio_data_scalar(
         rate_age_pattern=input_data['ihr_age_pattern'].copy(),
         denom_age_pattern=input_data['sero_age_pattern'].copy(),
@@ -40,6 +36,7 @@ def runner(input_data: Dict,
         location_dates=input_data['seroprevalence'][['location_id', 'date']].drop_duplicates().values.tolist(),
         durations=durations.copy(),
         variant_risk_ratio=input_data['variant_risk_ratio'],
+        verbose=verbose,
     )
 
     model_data = ihr.data.create_model_data(day_0=day_0, durations=durations,
@@ -71,6 +68,7 @@ def runner(input_data: Dict,
         vaccine_coverage=input_data['vaccine_coverage'].copy(),
         population=input_data['population'].copy(),
         variant_risk_ratio=input_data['variant_risk_ratio'],
+        verbose=verbose,
     )
     
     lr_rr = pred_lr / pred
