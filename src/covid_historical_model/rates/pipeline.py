@@ -154,7 +154,10 @@ def pipeline_wrapper(out_dir: Path,
     pipeline_dir = out_dir / 'pipeline_outputs'
     shell_tools.mkdir(pipeline_dir)
     job_args_map = {n: [__file__, n, inputs_path, pipeline_dir] for n in range(n_samples)}
-    cluster.run_cluster_jobs('covid_rates_pipeline', out_dir, job_args_map)
+    if gbd:
+        cluster.run_cluster_jobs('covid_rates_pipeline', out_dir, job_args_map, 'standard')
+    else:
+        cluster.run_cluster_jobs('covid_rates_pipeline', out_dir, job_args_map, 'gbd')
     
     pipeline_results = {}
     for n in range(n_samples):
@@ -271,58 +274,6 @@ def pipeline(n: int,
     }
     
     return pipeline_results
-
-
-def compile_pdfs(plots_dir: Path, out_dir: Path, hierarchy: pd.DataFrame,
-                 outfile_prefix: str, suffixes: List[str],):
-    possible_pdfs = [[f'{l}_{s}.pdf' for s in suffixes] for l in hierarchy['location_id']]
-    possible_pdfs = [ll for l in possible_pdfs for ll in l]
-    existing_pdfs = [str(x).split('/')[-1] for x in plots_dir.iterdir() if x.is_file()]
-    pdf_paths = [pdf for pdf in possible_pdfs if pdf in existing_pdfs]
-    pdf_location_ids = [int(pdf_path.split('_')[0]) for pdf_path in pdf_paths]
-    pdf_location_names = [hierarchy.loc[hierarchy['location_id'] == location_id, 'location_name'].item()
-                          for location_id in pdf_location_ids]
-    pdf_parent_ids = [hierarchy.loc[hierarchy['location_id'] == location_id, 'parent_id'].item()
-                      for location_id in pdf_location_ids]
-    pdf_parent_names = [hierarchy.loc[hierarchy['location_id'] == parent_id, 'location_name'].item()
-                        for parent_id in pdf_parent_ids]
-    pdf_levels = [hierarchy.loc[hierarchy['location_id'] == location_id, 'level'].item()
-                  for location_id in pdf_location_ids]
-    pdf_paths = [str(plots_dir / pdf_path) for pdf_path in pdf_paths]
-    pdf_out_path = out_dir / f'{outfile_prefix}_{str(out_dir).split("/")[-1]}.pdf'
-    pdf_merger.pdf_merger(pdf_paths, pdf_location_names, pdf_parent_names, pdf_levels, str(pdf_out_path))
-
-    
-def submit_plots():
-    raise ValueError('PLOTTING NOT SET UP')
-    plot_inputs = {
-        'best_ifr_models': best_ifr_models.set_index('location_id'),
-        'seroprevalence': seroprevalence,
-        'sensitivity': sensitivity,
-        'sensitivity_data': sensitivity_data,
-        'cumul_reinfection_inflation_factor': cumul_reinfection_inflation_factor,
-        'daily_reinfection_inflation_factor': daily_reinfection_inflation_factor,
-        'full_ifr_results': full_ifr_results,
-        'ifr_results': ifr_results,
-        'vaccine_coverage': vaccine_coverage,
-        'escape_variant_prevalence': escape_variant_prevalence,
-        'severity_variant_prevalence': severity_variant_prevalence,
-        'population': population,
-        'population_lr': population_lr,
-        'population_hr': population_hr,
-        'hierarchy': hierarchy,
-    }
-    inputs_path = storage_dir / f'plot_inputs.pkl'
-    with inputs_path.open('wb') as file:
-        pickle.dump(plot_inputs, file, -1)
-    
-    job_args_map = {
-        location_id: [location_plots.__file__, location_id, inputs_path, plots_dir] \
-        for location_id in hierarchy['location_id'].to_list()
-    }
-    cluster.run_cluster_jobs('covid_rates_plot', storage_dir, job_args_map)
-    compile_pdfs(plots_dir, out_dir, hierarchy, 'ifr', suffixes=['ifr'])
-    compile_pdfs(plots_dir, out_dir, hierarchy, 'serology', suffixes=['sero'])
 
 
 def main(n: int, inputs_path: str, pipeline_dir: str):
