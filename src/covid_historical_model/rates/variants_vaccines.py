@@ -23,26 +23,31 @@ def get_ratio_data_scalar(rate_age_pattern: pd.Series,
                           location_dates: List,
                           durations: Dict,
                           variant_risk_ratio: float,):
+    location_ids = sorted(set([location_id for location_id, date in location_dates]))
     vv_rate, *_ = variants_vaccines(
         rate_age_pattern=rate_age_pattern.copy(),
         denom_age_pattern=denom_age_pattern.copy(),
         age_spec_population=age_spec_population.copy(),
-        rate=rate.copy(),
+        rate=rate.loc[location_ids],
         day_shift=day_shift,
-        escape_variant_prevalence=escape_variant_prevalence.copy(),
-        severity_variant_prevalence=severity_variant_prevalence.copy(),
-        vaccine_coverage=vaccine_coverage.copy(),
+        escape_variant_prevalence=(escape_variant_prevalence
+                                   .to_frame()
+                                   .query('location_id == @location_ids')),
+        severity_variant_prevalence=(severity_variant_prevalence
+                                     .to_frame()
+                                     .query('location_id == @location_ids')),
+        vaccine_coverage=vaccine_coverage.query('location_id == @location_ids'),
         population=population.copy(),
         variant_risk_ratio=variant_risk_ratio,
     )
-    daily_ratio_scalar = (rate / vv_rate).rename('daily_ratio_scalar')
+    daily_ratio_scalar = (rate.loc[location_ids] / vv_rate).rename('daily_ratio_scalar')
 
-    daily_infections = (daily / rate).dropna().rename('infections')
+    daily_infections = (daily.loc[location_ids] / rate.loc[location_ids]).dropna().rename('infections')
     daily_infections += 1
 
     daily_ratio_scalar = daily_ratio_scalar.to_frame().join(daily_infections, how='right')
-    daily_ratio_scalar['daily_ratio_exp'] = daily_ratio_scalar['daily_ratio_scalar'] * \
-                                            daily_ratio_scalar['infections']
+    daily_ratio_scalar['daily_ratio_exp'] = (daily_ratio_scalar['daily_ratio_scalar']
+                                             * daily_ratio_scalar['infections'])
     del daily_ratio_scalar['daily_ratio_scalar']
     daily_ratio_scalar = daily_ratio_scalar.sort_index().groupby(level=0).cumsum()
 
@@ -69,8 +74,8 @@ def variants_vaccines(rate_age_pattern: pd.Series,
                       age_spec_population: pd.Series,
                       rate: pd.Series,
                       day_shift: int,
-                      escape_variant_prevalence: pd.Series,
-                      severity_variant_prevalence: pd.Series,
+                      escape_variant_prevalence: pd.DataFrame,
+                      severity_variant_prevalence: pd.DataFrame,
                       vaccine_coverage: pd.DataFrame,
                       population: pd.Series,
                       variant_risk_ratio: float,):
