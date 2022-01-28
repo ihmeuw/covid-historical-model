@@ -1,7 +1,5 @@
 import sys
 from typing import Tuple, List
-import functools
-import multiprocessing
 from tqdm import tqdm
 from loguru import logger
 
@@ -45,7 +43,7 @@ def manual_floor_setting(rmse: pd.DataFrame,
             rmse.loc[is_ssa_rmse, 'floor'] = floor
 
     return rmse, best_floor
-    
+
 
 def find_idr_floor(pred: pd.Series,
                    daily_cases: pd.Series,
@@ -54,26 +52,30 @@ def find_idr_floor(pred: pd.Series,
                    hierarchy: pd.DataFrame,
                    test_range: List,
                    verbose: bool = True) -> Tuple[pd.DataFrame, pd.Series]:
-    location_ids = serosurveys.reset_index()['location_id'].unique().tolist()
-    _tfv = functools.partial(
-        test_floor_value,
-        pred=pred.loc[location_ids],
-        daily_cases=daily_cases.loc[location_ids],
-        serosurveys=serosurveys.copy(),
-        population=population.copy(),
-        hierarchy=hierarchy.copy(),
-        verbose=verbose,
-    )
     floors = (np.array(test_range) / 100).tolist()
-    with multiprocessing.Pool(int(OMP_NUM_THREADS)) as p:
-        rmse = list(tqdm(p.imap(_tfv, floors), total=len(floors), file=sys.stdout))
+    if verbose:
+        logger.info(f'Testing IDR floors: {", ".join([str(round(floor*100, 2)) + "%" for floor in floors])}.')
+    
+    location_ids = serosurveys.reset_index()['location_id'].unique().tolist()
+    rmse = []
+    for floor in tqdm(floors, total=len(floors), file=sys.stdout):
+        rmse.append(
+            test_floor_value(
+                floor=floor,
+                pred=pred.loc[location_ids],
+                daily_cases=daily_cases.loc[location_ids],
+                serosurveys=serosurveys.copy(),
+                population=population.copy(),
+                hierarchy=hierarchy.copy(),
+            )
+        )
     rmse = pd.concat(rmse).reset_index()
     
     best_floor = rmse.groupby('location_id').apply(lambda x: x.sort_values('rmse')['floor'].values[0]).rename('idr_floor')
     
     rmse, best_floor = manual_floor_setting(rmse, best_floor, hierarchy,
                                             serosurveys.reset_index()['location_id'].unique().tolist(),
-                                            verbose)
+                                            verbose,)
     
     return rmse, best_floor
 
@@ -84,11 +86,7 @@ def test_floor_value(floor: float,
                      serosurveys: pd.Series,
                      population: pd.Series,
                      hierarchy: pd.DataFrame,
-                     min_children: int = 3,
-                     verbose: bool = True,) -> pd.DataFrame:
-    if verbose:
-        logger.info(f'Testing IDR floor of {round(floor*100, 2)}%.')
-    
+                     min_children: int = 3,) -> pd.DataFrame:
     pred = (pred
             .groupby(level=0)
             .apply(lambda x: scale_to_bounds(x, floor, 1.))

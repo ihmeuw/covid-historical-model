@@ -17,7 +17,7 @@ QUEUE = {
 }
 RESOURCES = {
     'standard': {'fmem': '10.0G', 'fthread': '6'},
-    'gbd': {'fmem': '40.0G', 'fthread': '6'},
+    'gbd': {'fmem': '60.0G', 'fthread': '6'},
 }
 OMP_NUM_THREADS = '6'
 MKL_NUM_THREADS = '6'
