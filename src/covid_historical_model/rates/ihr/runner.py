@@ -22,6 +22,7 @@ def runner(input_data: Dict,
            pred_start_date: pd.Timestamp,
            pred_end_date: pd.Timestamp,
            verbose: bool = True,) -> namedtuple:
+    logger.info('variant/vax data scalar')
     ihr_data_scalar = variants_vaccines.get_ratio_data_scalar(
         rate_age_pattern=input_data['ihr_age_pattern'].copy(),
         denom_age_pattern=input_data['sero_age_pattern'].copy(),
@@ -39,6 +40,7 @@ def runner(input_data: Dict,
         verbose=verbose,
     )
 
+    logger.info('setup')
     model_data = ihr.data.create_model_data(day_0=day_0, durations=durations,
                                             ihr_data_scalar=ihr_data_scalar,
                                             **input_data)
@@ -47,6 +49,7 @@ def runner(input_data: Dict,
         day_0=day_0, **input_data
     )
     
+    logger.info('cascade')
     # check what NAs in data might be about, get rid of them in safer way
     mr_model_dict, prior_dicts, pred, pred_fe, pred_location_map, age_stand_scaling_factor, level_lambdas = ihr.model.run_model(
         model_data=model_data.copy(),
@@ -57,6 +60,7 @@ def runner(input_data: Dict,
     )
     pred_unadj = pred.copy()
     
+    logger.info('post')
     pred, pred_lr, pred_hr, *_ = variants_vaccines.variants_vaccines(
         rate_age_pattern=input_data['ihr_age_pattern'].copy(),
         denom_age_pattern=input_data['sero_age_pattern'].copy(),
@@ -71,6 +75,7 @@ def runner(input_data: Dict,
         verbose=verbose,
     )
     
+    logger.info('squeeze')
     lr_rr = pred_lr / pred
     hr_rr = pred_hr / pred
     pred = squeeze.squeeze(
@@ -84,8 +89,8 @@ def runner(input_data: Dict,
     )
     pred_lr = lr_rr * pred
     pred_hr = hr_rr * pred
-
     
+    logger.info('compiling results')
     results = RESULTS(
         seroprevalence=input_data['seroprevalence'],
         model_data=model_data,

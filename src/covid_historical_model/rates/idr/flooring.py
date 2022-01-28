@@ -54,10 +54,11 @@ def find_idr_floor(pred: pd.Series,
                    hierarchy: pd.DataFrame,
                    test_range: List,
                    verbose: bool = True) -> Tuple[pd.DataFrame, pd.Series]:
+    location_ids = serosurveys.reset_index()['location_id'].unique().tolist()
     _tfv = functools.partial(
         test_floor_value,
-        pred=pred.copy(),
-        daily_cases=daily_cases.copy(),
+        pred=pred.loc[location_ids],
+        daily_cases=daily_cases.loc[location_ids],
         serosurveys=serosurveys.copy(),
         population=population.copy(),
         hierarchy=hierarchy.copy(),
@@ -75,7 +76,6 @@ def find_idr_floor(pred: pd.Series,
                                             verbose)
     
     return rmse, best_floor
-
 
 
 def test_floor_value(floor: float,
