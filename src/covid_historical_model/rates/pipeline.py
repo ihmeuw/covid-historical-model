@@ -158,9 +158,9 @@ def pipeline_wrapper(out_dir: Path,
     shell_tools.mkdir(pipeline_dir)
     job_args_map = {n: [__file__, n, inputs_path, pipeline_dir] for n in range(n_samples)}
     if gbd:
-        cluster.run_cluster_jobs('covid_rates_pipeline', out_dir, job_args_map, 'standard')
-    else:
         cluster.run_cluster_jobs('covid_rates_pipeline', out_dir, job_args_map, 'gbd')
+    else:
+        cluster.run_cluster_jobs('covid_rates_pipeline', out_dir, job_args_map, 'standard')
     
     pipeline_results = {}
     for n in range(n_samples):
