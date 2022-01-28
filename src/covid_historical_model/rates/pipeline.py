@@ -23,8 +23,6 @@ from covid_historical_model.rates import (
     cvi, variant_severity
 )
 from covid_historical_model import cluster
-# from covid_historical_model.rates import location_plots
-# from covid_historical_model.utils import pdf_merger
 
 
 def pipeline_wrapper(out_dir: Path,
