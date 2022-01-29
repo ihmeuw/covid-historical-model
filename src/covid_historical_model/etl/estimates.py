@@ -6,8 +6,8 @@ import numpy as np
 
 from covid_historical_model.etl import helpers
 
-EM_PATH = '/mnt/team/demographics/pub/covid_em_estimate/s3-2021-12-07-16-21'\
-          '/outputs/covid_em_scalars-draw-s3-2021-12-07-16-21.csv'
+EM_PATH = '/mnt/team/demographics/pub/covid_em_estimate/s3-2022-01-28-17-23'\
+          '/outputs/covid_em_scalars-draw-s3-2022-01-28-17-23.csv'
 
 
 def testing(testing_root: Path) -> pd.DataFrame:
