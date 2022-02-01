@@ -191,7 +191,7 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
         is_nov_or_later = data['date'] >= pd.Timestamp('2020-11-01')
         data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'isotype'] = 'pan-Ig'
         data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'test_target'] = 'nucleocapsid'
-        data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'test_name'] = 'Roche Elecsys N pan-Ig'  # 'Abbott Architect IgG; Roche Elecsys N pan-Ig'
+        data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'test_name'] = 'Roche Elecsys N pan-Ig'
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
     ## un-outlier Nigeria point before looking at that variable
@@ -282,13 +282,41 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     outliers.append(k_s_outlier)
     logger.debug(f'{k_s_outlier.sum()} rows from sero data dropped due to noisy (early) King/Snohomish data.')
 
-    # New York dialysis
-    is_ny = data['location_id'] == 555
+    # dialysis study
+    is_bad_dial_locs = data['location_id'].isin([
+        540,  # Kentucky
+        543,  # Maryland
+        545,  # Michigan
+        554,  # New Mexico
+        555,  # New York
+        560,  # Oregon
+        570,  # Washington
+        572,  # Wisconsin
+    ])
     is_usa_dialysis = data['survey_series'] == 'usa_dialysis'
 
-    ny_outlier = is_ny & is_usa_dialysis
+    ny_outlier = is_bad_dial_locs & is_usa_dialysis
     outliers.append(ny_outlier)
-    logger.debug(f'{ny_outlier.sum()} rows from sero data dropped due to bogus dialysis data in New York.')
+    logger.debug(f'{ny_outlier.sum()} rows from sero data dropped due to inconsistent results from dialysis study.')
+
+    # North Dakota first round
+    is_nd = data['location_id'] == 557
+    is_cdc_series = data['survey_series'] == 'cdc_series'
+    is_first_date = data['date'] == pd.Timestamp('2020-08-12')
+
+    nd_outlier = is_nd & is_cdc_series & is_first_date
+    outliers.append(nd_outlier)
+    logger.debug(f'{nd_outlier.sum()} rows from sero data dropped due to implausibility '
+                 '(or at least incompatibility) of first commercial lab point in North Dakota.')
+
+    # early Vermont
+    is_vermont = data['location_id'] == 568
+    is_pre_nov = data['date'] < pd.Timestamp('2020-11-01')
+
+    vermont_outlier = is_vermont & is_pre_nov
+    outliers.append(vermont_outlier)
+    logger.debug(f'{vermont_outlier.sum()} rows from sero data dropped due to implausibility '
+                 '(or at least incompatibility) of early commercial lab point in Vermont.')
 
     # Saskatchewan
     is_sas = data['location_id'] == 43869
