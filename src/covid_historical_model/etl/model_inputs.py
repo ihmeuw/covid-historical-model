@@ -274,6 +274,14 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     outliers.append(pr_vax_outlier)
     logger.debug(f'{pr_vax_outlier.sum()} rows from sero data dropped due to Puerto Rico vax issues.')
 
+    # Saskatchewan
+    is_sas = data['location_id'] == 43869
+    is_canadian_blood_services = data['survey_series'] == 'canadian_blood_services'
+
+    sas_outlier = is_sas & is_canadian_blood_services
+    outliers.append(sas_outlier)
+    logger.debug(f'{sas_outlier.sum()} rows from sero data dropped from Saskatchewan.')
+
     # King/Snohomish data is too early
     is_k_s = data['location_id'] == 60886
     is_pre_may_2020 = data['date'] < pd.Timestamp('2020-05-01')
@@ -295,9 +303,9 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     ])
     is_usa_dialysis = data['survey_series'] == 'usa_dialysis'
 
-    ny_outlier = is_bad_dial_locs & is_usa_dialysis
-    outliers.append(ny_outlier)
-    logger.debug(f'{ny_outlier.sum()} rows from sero data dropped due to inconsistent results from dialysis study.')
+    dialysis_outlier = is_bad_dial_locs & is_usa_dialysis
+    outliers.append(dialysis_outlier)
+    logger.debug(f'{dialysis_outlier.sum()} rows from sero data dropped due to inconsistent results from dialysis study.')
 
     # North Dakota first round
     is_nd = data['location_id'] == 557
@@ -316,15 +324,7 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     vermont_outlier = is_vermont & is_pre_nov
     outliers.append(vermont_outlier)
     logger.debug(f'{vermont_outlier.sum()} rows from sero data dropped due to implausibility '
-                 '(or at least incompatibility) of early commercial lab point in Vermont.')
-
-    # Saskatchewan
-    is_sas = data['location_id'] == 43869
-    is_canadian_blood_services = data['survey_series'] == 'canadian_blood_services'
-
-    sas_outlier = is_sas & is_canadian_blood_services
-    outliers.append(sas_outlier)
-    logger.debug(f'{sas_outlier.sum()} rows from sero data dropped from Saskatchewan.')
+                 '(or at least incompatibility) of early commercial lab points in Vermont.')
 
     # Ceuta first round
     is_ceu = data['location_id'] == 60369
