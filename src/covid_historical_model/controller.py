@@ -38,6 +38,8 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
          n_samples: int,
          excess_mortality: bool,
          gbd: bool,):
+    logger.info(f'Model run initiated -- {str(out_dir)}.')
+    
     ## run models
     pipeline_results, selected_combinations, \
     cross_variant_immunity_samples, variant_risk_ratio_samples, \
@@ -284,4 +286,4 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     
     variants.to_parquet(out_dir / 'variants.parquet')
 
-    logger.info(f'Model output directory: {str(out_dir)}')
+    logger.info(f'Model run complete -- {str(out_dir)}.')
