@@ -510,6 +510,11 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     outliers.append(is_maxsub3_sub1)
     logger.debug(f'{is_maxsub3_sub1.sum()} rows from sero data dropped due to having values'
                  'below 1% or a location max below 3%.')
+    
+    # 6) drop December 2021 onward
+    date_cutoff_outlier = data['date'] >= pd.Timestamp('2021-12-01')
+    outliers.append(date_cutoff_outlier)
+    logger.debug(f'EXCLUDING ALL SERO DATA AFTER 11/31/2021 ({date_cutoff_outlier.sum()} rows).')
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
     keep_columns = ['data_id', 'nid', 'survey_series', 'location_id', 'start_date', 'date',
@@ -553,6 +558,9 @@ def reported_epi(model_inputs_root: Path, input_measure: str, smooth: bool,
     data = data.loc[:, keep_cols].dropna()
     data['location_id'] = data['location_id'].astype(int)
     data = data.sort_values(['location_id', 'date']).reset_index(drop=True)
+    
+    logger.debug('EXCLUDING ALL EPI DATA AFTER 11/31/2021.')
+    data = data.loc[data['date'] >= pd.Timestamp('2021-11-31')]
     
     data = (data.groupby('location_id', as_index=False)
             .apply(lambda x: helpers.fill_dates(x, [f'cumulative_{input_measure}']))

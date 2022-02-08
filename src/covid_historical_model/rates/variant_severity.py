@@ -34,6 +34,8 @@ def get_variant_severity_rr_dist(n_samples: int,
     rr = []
     for mu, sigma, sample_range in zip(mus, sigmas, sample_ranges):
         rr += [np.exp(sample_rr(n, mu, sigma)) for n in sample_range]
+        ## SENSITIVITY ANALYSIS - No increased risk of severe disease from variants
+        # rr += [1 for n in sample_range]
     
     return rr
 

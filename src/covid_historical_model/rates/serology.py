@@ -536,6 +536,8 @@ def location_seroreversion_adjustment(location_id: int,
             'data_id': sero_data_id,
             'date': sero_date,
             'seroprevalence': 1 - (1 - sero_value) * seroreversion_factor
+            # ## SENSITIVITY ANALYSIS - No sensitivity decay in serological assays
+            # 'seroprevalence': sero_value
         }, index=[i]))
     adj_seroprevalence = pd.concat(adj_seroprevalence)
     adj_seroprevalence['location_id'] = location_id

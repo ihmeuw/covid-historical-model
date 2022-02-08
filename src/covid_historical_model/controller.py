@@ -10,24 +10,16 @@ from covid_shared import cli_tools
 from covid_historical_model.rates.pipeline import pipeline_wrapper
 from covid_historical_model.durations.durations import EXPOSURE_TO_SEROCONVERSION
 
-## IMPORTANT TODO:
-##     - OneNote stuff
-##     - make comparison routine; plot all fits in cascade
-##     - other NAs in IES inputs?
+##     - make comparison routine; plot all fits in cascade; explore how coefficients change down cascade
 ##     - best way to fill where we have no assay information
-##     - bias covariates?
-##     - for waning, do something to Perez-Saez to crosswalk for baseline sensitivity?
-##     - problem in vax proccess? (i.e., timing seems important)
-##     - how do coefficients change down cascade
-
-## RATIO FUTURE TODO:
+##     - bias covariates
+##     - incompatible vaccination adj locs
 ##     - try trimming in certain levels (probably just global)?
-##     - make sure we don't have NAs on dates that matter for ratios
 ##     - formalize test matching in `serology.apply_waning_adjustment`
 ##     - use fit to find tests where we have multiple? would be a little harder...
 ##     - mark model data NAs as outliers, drop that way (in general, make it clear what data is and is not included)
 ##     - remove unused model data in runner after modeling
-##     - PLOTTING (draws updates)
+##     - plotting (draws updates)
 
 
 def main(app_metadata: cli_tools.Metadata, out_dir: Path,

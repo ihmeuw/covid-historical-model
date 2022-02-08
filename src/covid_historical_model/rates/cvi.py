@@ -8,6 +8,8 @@ CVI_LIMITS = [0.3, 0.7]
 def get_cvi_dist(n_samples: int,
                  cvi_limits: List[float] = CVI_LIMITS) -> List[float]:
     cvi = [sample_cvi(n, *cvi_limits) for n in range(n_samples)]
+    ## SENSITIVITY ANALYSIS -- 100% cross-variant immunity
+    # cvi = [1 for n in range(n_samples)]
     
     return cvi
 
