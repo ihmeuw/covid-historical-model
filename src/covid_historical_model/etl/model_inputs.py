@@ -563,7 +563,7 @@ def reported_epi(model_inputs_root: Path, input_measure: str, smooth: bool,
             .apply(lambda x: helpers.fill_dates(x, [f'cumulative_{input_measure}']))
             .reset_index(drop=True))
     
-    logger.debug('EXCLUDING ALL EPI DATA AFTER 11/31/2021.')
+    logger.debug(f'EXCLUDING ALL {input_measure.upper()} DATA AFTER 11/31/2021.')
     data = data.loc[data['date'] >= pd.Timestamp('2021-11-31')]
     
     data, manipulation_metadata = evil_doings(data, hierarchy, input_measure)
