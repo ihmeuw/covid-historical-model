@@ -13,11 +13,11 @@ from loguru import logger
 PROJECT = 'proj_covid_prod'
 QUEUE = {
     'standard': 'd.q',
-    'gbd': 'd.q',
+    'gbd': 'all.q',
 }
 RESOURCES = {
     'standard': {'fmem': '10.0G', 'fthread': '6'},
-    'gbd': {'fmem': '10.0G', 'fthread': '6'},
+    'gbd': {'fmem': '12.0G', 'fthread': '6'},
 }
 OMP_NUM_THREADS = '6'
 MKL_NUM_THREADS = '6'
