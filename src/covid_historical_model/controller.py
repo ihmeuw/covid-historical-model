@@ -8,6 +8,7 @@ import numpy as np
 from covid_shared import cli_tools
 
 from covid_historical_model.rates.pipeline import pipeline_wrapper
+from covid_historical_model.etl.model_inputs import copy_model_inputs
 from covid_historical_model.durations.durations import EXPOSURE_TO_SEROCONVERSION
 
 ##     - make comparison routine; plot all fits in cascade; explore how coefficients change down cascade
@@ -31,6 +32,9 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
          excess_mortality: bool,
          gbd: bool,):
     logger.info(f'Model run initiated -- {str(out_dir)}.')
+    
+    ## copy over files from model inputs (IES will use these)
+    copy_model_inputs(model_inputs_root, out_dir)
     
     ## run models
     pipeline_results, selected_combinations, \

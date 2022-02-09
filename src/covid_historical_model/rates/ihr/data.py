@@ -8,7 +8,7 @@ import numpy as np
 from covid_historical_model.etl import model_inputs, estimates
 
 
-def load_input_data(model_inputs_root: Path,
+def load_input_data(out_dir: Path,
                     excess_mortality: bool,
                     excess_mortality_draw: int,
                     age_rates_root: Path,
@@ -20,11 +20,11 @@ def load_input_data(model_inputs_root: Path,
                     verbose: bool = True) -> Dict:
     # load data
     cumulative_hospitalizations, daily_hospitalizations = model_inputs.reported_epi(
-        model_inputs_root, 'hospitalizations', True,
+        out_dir, 'hospitalizations', True,
         shared['hierarchy'], shared['gbd_hierarchy'],
     )
     _, daily_deaths = model_inputs.reported_epi(
-        model_inputs_root, 'deaths', True,
+        out_dir, 'deaths', True,
         shared['hierarchy'], shared['gbd_hierarchy'],
         excess_mortality, excess_mortality_draw,
     )

@@ -1,9 +1,13 @@
 from pathlib import Path
 from typing import Dict, Tuple
 from loguru import logger
+import shutil
+import contextlib
 
 import pandas as pd
 import numpy as np
+
+from covid_shared import shell_tools
 
 from covid_historical_model.etl import db, helpers, estimates
 
@@ -76,9 +80,36 @@ def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str)
     return data, manipulation_metadata
 
 
-def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFrame:
+def copy_model_inputs(model_inputs_root: Path, out_dir: Path):
+    path_suffixes = [
+        'serology/global_serology_summary.csv',
+        'full_data_unscaled.csv',
+        'use_at_your_own_risk/full_data_extra_hospital.csv',
+        'locations/modeling_hierarchy.csv',
+        'locations/covariate_with_aggregates_hierarchy.csv',
+        'locations/gbd_analysis_hierarchy.csv',
+        'output_measures/population/all_populations.csv',
+        'serology/waning_immunity/peluso_assay_sensitivity.xlsx',
+        'serology/waning_immunity/perez-saez_n-roche.xlsx',
+        'serology/waning_immunity/perez-saez_rbd-euroimmun.xlsx',
+        'serology/waning_immunity/perez-saez_rbd-roche.xlsx',
+        'serology/waning_immunity/bond.xlsx',
+        'serology/waning_immunity/muecksch.xlsx',
+        'serology/waning_immunity/lumley_n-abbott.xlsx',
+        'serology/waning_immunity/lumley_s-oxford.xlsx',
+        'serology/waning_immunity/assay_map.xlsx',
+    ]
+    shell_tools.mkdir(out_dir / 'model_inputs')
+    for path_suffix in path_suffixes:
+        sub_dirs = '/'.join(path_suffix.split('/')[:-1])
+        shell_tools.mkdir(out_dir / 'model_inputs' / sub_dirs, exists_ok=True, parents=True)
+        with contextlib.redirect_stdout(_):
+            shutil.copyfile(model_inputs_root / path_suffix, out_dir / 'model_inputs' / path_suffix)
+
+
+def seroprevalence(out_dir: Path, verbose: bool = True,) -> pd.DataFrame:
     # load
-    data_path = model_inputs_root / 'serology' / 'global_serology_summary.csv'
+    data_path = out_dir / 'model_inputs' / 'serology' / 'global_serology_summary.csv'
     data = pd.read_csv(data_path)
     if verbose:
         logger.info(f'Initial observation count: {len(data)}')
@@ -540,17 +571,17 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
     return data
 
 
-def reported_epi(model_inputs_root: Path, input_measure: str, smooth: bool,
+def reported_epi(out_dir: Path, input_measure: str, smooth: bool,
                  hierarchy: pd.DataFrame, gbd_hierarchy: pd.DataFrame,
                  excess_mortality: bool = None,
                  excess_mortality_draw: int = None,) -> Tuple[pd.Series, pd.Series]:
     if input_measure == 'deaths':
         if type(excess_mortality) != bool:
             raise TypeError('Must specify `excess_mortality` argument to load deaths.')
-        data_path = model_inputs_root / 'full_data_unscaled.csv'
+        data_path = out_dir / 'model_inputs' / 'full_data_unscaled.csv'
     else:
         excess_mortality = False
-        data_path = model_inputs_root / 'use_at_your_own_risk' / 'full_data_extra_hospital.csv'
+        data_path = out_dir / 'model_inputs' / 'use_at_your_own_risk' / 'full_data_extra_hospital.csv'
     data = pd.read_csv(data_path)
     data = data.rename(columns={'Confirmed': 'cumulative_cases',
                                 'Hospitalizations': 'cumulative_hospitalizations',
@@ -640,24 +671,24 @@ def smooth_t1plus(data: pd.Series, window: int = 7) -> pd.Series:
     return data
 
 
-def hierarchy(model_inputs_root:Path, hierarchy_type: str = 'covid_modeling') -> pd.DataFrame:
+def hierarchy(out_dir:Path, hierarchy_type: str = 'covid_modeling') -> pd.DataFrame:
     if hierarchy_type == 'covid_modeling':
-        data_path = model_inputs_root / 'locations' / 'modeling_hierarchy.csv'
+        data_path = out_dir / 'model_inputs' / 'locations' / 'modeling_hierarchy.csv'
         
         data = pd.read_csv(data_path)
         data = data.sort_values('sort_order').reset_index(drop=True)
     elif hierarchy_type == 'covid_covariate':
-        data_path = model_inputs_root / 'locations' / 'covariate_with_aggregates_hierarchy.csv'
+        data_path = out_dir / 'model_inputs' / 'locations' / 'covariate_with_aggregates_hierarchy.csv'
         
         data = pd.read_csv(data_path)
         data = data.sort_values('sort_order').reset_index(drop=True)
     elif hierarchy_type == 'covid_gbd':
-        data_path = model_inputs_root / 'locations' / 'gbd_analysis_hierarchy.csv'
+        data_path = out_dir / 'model_inputs' / 'locations' / 'gbd_analysis_hierarchy.csv'
         data = pd.read_csv(data_path)
         data = data.sort_values('sort_order').reset_index(drop=True)
     elif hierarchy_type == 'covid_modeling_plus_zaf':
-        gbd_path = model_inputs_root / 'locations' / 'gbd_analysis_hierarchy.csv'
-        covid_path = model_inputs_root / 'locations' / 'modeling_hierarchy.csv'
+        gbd_path = out_dir / 'model_inputs' / 'locations' / 'gbd_analysis_hierarchy.csv'
+        covid_path = out_dir / 'model_inputs' / 'locations' / 'modeling_hierarchy.csv'
 
         # get ZAF only from GBD
         covid = pd.read_csv(covid_path)
@@ -679,8 +710,8 @@ def hierarchy(model_inputs_root:Path, hierarchy_type: str = 'covid_modeling') ->
     return data
 
 
-def population(model_inputs_root: Path, by_age: bool = False) -> pd.Series:
-    data_path = model_inputs_root / 'output_measures' / 'population' / 'all_populations.csv'
+def population(out_dir: Path, by_age: bool = False) -> pd.Series:
+    data_path = out_dir / 'model_inputs' / 'output_measures' / 'population' / 'all_populations.csv'
     data = pd.read_csv(data_path)
     is_2019 = data['year_id'] == 2019
     is_bothsex = data['sex_id'] == 3
@@ -704,19 +735,18 @@ def population(model_inputs_root: Path, by_age: bool = False) -> pd.Series:
     return data
 
 
-def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
-    # model_inputs_root = Path('/ihme/covid-19-2/data_intake')
-    peluso_path = model_inputs_root / 'serology' / 'waning_immunity' / 'peluso_assay_sensitivity.xlsx'
+def assay_sensitivity(out_dir: Path,) -> pd.DataFrame:
+    peluso_path = out_dir / 'model_inputs' / 'serology' / 'waning_immunity' / 'peluso_assay_sensitivity.xlsx'
     perez_saez_paths = [
-        model_inputs_root / 'serology' / 'waning_immunity' / 'perez-saez_n-roche.xlsx',
-        model_inputs_root / 'serology' / 'waning_immunity' / 'perez-saez_rbd-euroimmun.xlsx',
-        model_inputs_root / 'serology' / 'waning_immunity' / 'perez-saez_rbd-roche.xlsx',
+        out_dir / 'model_inputs' / 'serology' / 'waning_immunity' / 'perez-saez_n-roche.xlsx',
+        out_dir / 'model_inputs' / 'serology' / 'waning_immunity' / 'perez-saez_rbd-euroimmun.xlsx',
+        out_dir / 'model_inputs' / 'serology' / 'waning_immunity' / 'perez-saez_rbd-roche.xlsx',
     ]
-    bond_path = model_inputs_root / 'serology' / 'waning_immunity' / 'bond.xlsx'
-    muecksch_path = model_inputs_root / 'serology' / 'waning_immunity' / 'muecksch.xlsx'
+    bond_path = out_dir / 'model_inputs' / 'serology' / 'waning_immunity' / 'bond.xlsx'
+    muecksch_path = out_dir / 'model_inputs' / 'serology' / 'waning_immunity' / 'muecksch.xlsx'
     lumley_paths = [
-        model_inputs_root / 'serology' / 'waning_immunity' / 'lumley_n-abbott.xlsx',
-        model_inputs_root / 'serology' / 'waning_immunity' / 'lumley_s-oxford.xlsx',
+        out_dir / 'model_inputs' / 'serology' / 'waning_immunity' / 'lumley_n-abbott.xlsx',
+        out_dir / 'model_inputs' / 'serology' / 'waning_immunity' / 'lumley_s-oxford.xlsx',
     ]
     
     ## PELUSO
@@ -826,8 +856,8 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     return sensitivity
 
 
-def assay_map(model_inputs_root: Path,):
-    data_path = model_inputs_root / 'serology' / 'waning_immunity' / 'assay_map.xlsx'
+def assay_map(out_dir: Path,):
+    data_path = out_dir / 'model_inputs' / 'serology' / 'waning_immunity' / 'assay_map.xlsx'
     data = pd.read_excel(data_path)
     
     return data

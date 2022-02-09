@@ -7,7 +7,6 @@ import pandas as pd
 
 from covid_historical_model.rates import idr
 from covid_historical_model.rates import squeeze
-from covid_historical_model.etl import model_inputs
 from covid_historical_model.utils.math import scale_to_bounds
 
 RESULTS = namedtuple('Results',

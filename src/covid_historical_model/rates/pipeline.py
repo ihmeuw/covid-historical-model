@@ -26,7 +26,7 @@ from covid_historical_model import cluster
 
 
 def pipeline_wrapper(out_dir: Path,
-                     model_inputs_root: Path, excess_mortality: bool, gbd: bool,
+                     excess_mortality: bool, gbd: bool,
                      vaccine_coverage_root: Path, variant_scaleup_root: Path,
                      age_rates_root: Path,
                      testing_root: Path,
@@ -40,14 +40,14 @@ def pipeline_wrapper(out_dir: Path,
     np.random.seed(15243)
     if verbose:
         logger.info('Loading variant, vaccine, and sero data.')
-    hierarchy = model_inputs.hierarchy(model_inputs_root)
+    hierarchy = model_inputs.hierarchy(out_dir)
     if gbd:
-        gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_gbd')
+        gbd_hierarchy = model_inputs.hierarchy(out_dir, 'covid_gbd')
     else:
-        gbd_hierarchy = model_inputs.hierarchy(model_inputs_root, 'covid_modeling_plus_zaf')
+        gbd_hierarchy = model_inputs.hierarchy(out_dir, 'covid_modeling_plus_zaf')
     adj_gbd_hierarchy = model_inputs.validate_hierarchies(hierarchy.copy(), gbd_hierarchy.copy())
-    population = model_inputs.population(model_inputs_root)
-    age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
+    population = model_inputs.population(out_dir)
+    age_spec_population = model_inputs.population(out_dir, by_age=True)
     population_lr, population_hr = age_standardization.get_risk_group_populations(age_spec_population)
     shared = {
         'hierarchy': hierarchy,
@@ -63,11 +63,11 @@ def pipeline_wrapper(out_dir: Path,
     severity_variant_prevalence = estimates.variant_scaleup(variant_scaleup_root, 'severity', verbose=verbose)
     vaccine_coverage = estimates.vaccine_coverage(vaccine_coverage_root, pred_end_date)
     reported_seroprevalence, seroprevalence_samples = serology.load_seroprevalence_sub_vacccinated(
-        model_inputs_root, vaccine_coverage.copy(), n_samples=n_samples,
+        out_dir, vaccine_coverage.copy(), n_samples=n_samples,
         correlate_samples=correlate_samples, bootstrap=bootstrap,
         verbose=verbose,
     )
-    reported_sensitivity_data, sensitivity_data_samples = serology.load_sensitivity(model_inputs_root, n_samples,)
+    reported_sensitivity_data, sensitivity_data_samples = serology.load_sensitivity(out_dir, n_samples,)
     durations_samples = durations.get_duration_dist(n_samples)
     cross_variant_immunity_samples = cvi.get_cvi_dist(n_samples)
     variant_risk_ratio_samples = variant_severity.get_variant_severity_rr_dist(n_samples)
@@ -93,7 +93,7 @@ def pipeline_wrapper(out_dir: Path,
                         len([c for c in cc if c in ['uhc', 'haq']]) <= 1]
     selected_combinations = covariate_selection.covariate_selection(
         n_samples=n_samples, test_combinations=test_combinations,
-        model_inputs_root=model_inputs_root, excess_mortality=excess_mortality,
+        out_dir=out_dir, excess_mortality=excess_mortality,
         age_rates_root=age_rates_root, shared=shared,
         reported_seroprevalence=reported_seroprevalence,
         covariate_options=covariate_options,
@@ -119,7 +119,6 @@ def pipeline_wrapper(out_dir: Path,
         n: {
             'orig_seroprevalence': seroprevalence,
             'shared': shared,
-            'model_inputs_root': model_inputs_root,
             'excess_mortality': excess_mortality,
             'sensitivity_data': sensitivity_data,
             'vaccine_coverage': vaccine_coverage,
@@ -180,7 +179,7 @@ def pipeline_wrapper(out_dir: Path,
 def pipeline(n: int,
              orig_seroprevalence: pd.DataFrame,
              shared: Dict,
-             model_inputs_root: Path, excess_mortality: bool,
+             out_dir: Path, excess_mortality: bool,
              sensitivity_data: pd.DataFrame,
              vaccine_coverage: pd.DataFrame,
              escape_variant_prevalence: pd.Series,
@@ -202,7 +201,7 @@ def pipeline(n: int,
         logger.info('\n*************************************\n'
                     f"IFR ESTIMATION\n"
                     '*************************************')
-    ifr_input_data = ifr.data.load_input_data(model_inputs_root,
+    ifr_input_data = ifr.data.load_input_data(out_dir,
                                               excess_mortality, n,
                                               age_rates_root,
                                               shared.copy(),
@@ -231,7 +230,7 @@ def pipeline(n: int,
                     'IDR ESTIMATION\n'
                     '*************************************')
     
-    idr_input_data = idr.data.load_input_data(model_inputs_root,
+    idr_input_data = idr.data.load_input_data(out_dir,
                                               excess_mortality, n,
                                               testing_root,
                                               shared.copy(),
@@ -253,7 +252,7 @@ def pipeline(n: int,
         logger.info('\n*************************************\n'
                     'IHR ESTIMATION\n'
                     '*************************************')
-    ihr_input_data = ihr.data.load_input_data(model_inputs_root,
+    ihr_input_data = ihr.data.load_input_data(out_dir,
                                               excess_mortality, n,
                                               age_rates_root,
                                               shared.copy(),
