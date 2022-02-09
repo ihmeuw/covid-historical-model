@@ -215,13 +215,21 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ## save durations
     durations = [pipeline_results[n]['durations'] for n in range(n_samples)]
     
+    ## save raw sensitivity curves
+    raw_sensitivity_curve_draws = []
+    for n, raw_sensitivity_curves in [(n, pipeline_results[n]['raw_sensitivity_curves'].copy()) for n in range(n_samples)]:
+        raw_sensitivity_curves = raw_sensitivity_curves.reset_index()
+        raw_sensitivity_curves['draw'] = n
+        raw_sensitivity_curve_draws.append(raw_sensitivity_curves)
+    raw_sensitivity_curve_draws = pd.concat(raw_sensitivity_curve_draws).reset_index(drop=True)
+    
     ## save sensitivity
     sensitivity_draws = []
     for n, sensitivity in [(n, pipeline_results[n]['sensitivity'].copy()) for n in range(n_samples)]:
         sensitivity['draw'] = n
         sensitivity_draws.append(sensitivity)
     sensitivity_draws = pd.concat(sensitivity_draws).reset_index(drop=True)
-
+    
     ## save testing
     testing = pipeline_results[0]['idr_results'].testing_capacity.reset_index()
     
@@ -270,6 +278,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     seroprevalence.to_csv(out_dir / 'sero_data.csv', index=False)
     
     reported_sensitivity_data.to_parquet(out_dir / 'raw_sensitivity_data.parquet')
+    raw_sensitivity_curve_draws.to_parquet(out_dir / 'raw_sensitivity_curves.parquet')
     sensitivity_draws.to_parquet(out_dir / 'sensitivity.parquet')
     
     testing.to_parquet(out_dir / 'testing.parquet')

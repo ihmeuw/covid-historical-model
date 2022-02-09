@@ -87,7 +87,8 @@ def covariate_selection(n_samples: int, test_combinations: List[List[str]],
                                             **input_data)
     
     if exclude_US_UK:
-        logger.info('Excluding US data from covariate selection, is over-representative.')
+        logger.info('Excluding US and UK data from covariate selection, '
+                    'serial measureements there are over-representated in dataset.')
         hierarchy = input_data['hierarchy'].copy()
         usa = hierarchy.loc[hierarchy['path_to_top_parent'].apply(lambda x: '102' in x.split(',')), 'location_id'].to_list()
         uk = hierarchy.loc[hierarchy['path_to_top_parent'].apply(lambda x: '95' in x.split(',')), 'location_id'].to_list()

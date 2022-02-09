@@ -303,19 +303,19 @@ def apply_seroreversion_adjustment(sensitivity_data: pd.DataFrame,
     
     source_assays = sensitivity_data[['source', 'assay']].drop_duplicates().values.tolist()
     
-    sensitivity = []
+    raw_sensitivity = []
     for source_assay in tqdm(source_assays, total=len(source_assays), file=sys.stdout):
-        sensitivity.append(
+        raw_sensitivity.append(
             fit_hospital_weighted_sensitivity_decay(
                 source_assay,
                 sensitivity=sensitivity_data.set_index(['source', 'assay']).loc[tuple(source_assay)],
                 hospitalized_weights=hospitalized_weights.copy(),
             )
         )
-    sensitivity = (pd.concat(sensitivity)
-                   .set_index(['assay', 'location_id', 't'])
-                   .sort_index()
-                   .loc[:, 'sensitivity'])
+    raw_sensitivity = (pd.concat(raw_sensitivity)
+                       .set_index(['assay', 'location_id', 't'])
+                       .sort_index()
+                       .loc[:, 'sensitivity'])
     
     seroprevalence = seroprevalence.loc[seroprevalence['is_outlier'] == 0]
     
@@ -349,7 +349,7 @@ def apply_seroreversion_adjustment(sensitivity_data: pd.DataFrame,
     seroprevalence_list = []
     for assay_combination in assay_combinations:
         logger.info(f'Adjusting for sensitvity decay: {assay_combination}')
-        ac_sensitivity = (sensitivity
+        ac_sensitivity = (raw_sensitivity
                           .loc[assay_combination.split(', ')]
                           .reset_index()
                           .groupby(['location_id', 't'])['sensitivity'].mean())
@@ -373,7 +373,7 @@ def apply_seroreversion_adjustment(sensitivity_data: pd.DataFrame,
     sensitivity = pd.concat(sensitivity_list)
     seroprevalence = pd.concat(seroprevalence_list)
     
-    return sensitivity, seroprevalence
+    return raw_sensitivity, sensitivity, seroprevalence
 
 
 def fit_sensitivity_decay_curvefit(t: np.array, sensitivity: np.array, increasing: bool, t_N: int = 720) -> pd.DataFrame:

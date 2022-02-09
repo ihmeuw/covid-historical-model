@@ -72,7 +72,7 @@ def runner(input_data: Dict,
         input_data['ihr_age_pattern'].copy(), input_data['sero_age_pattern'].copy(),
         input_data['age_spec_population'].copy()
     )
-    sensitivity, seroprevalence = serology.apply_seroreversion_adjustment(
+    raw_sensitivity_curves, sensitivity, seroprevalence = serology.apply_seroreversion_adjustment(
         input_data['sensitivity_data'].copy(),
         input_data['assay_map'].copy(),
         hospitalized_weights.copy(),
@@ -196,7 +196,7 @@ def runner(input_data: Dict,
         age_stand_scaling_factor=refit_age_stand_scaling_factor,
     )
     
-    return refit_results, refit_input_data['seroprevalence'], sensitivity, \
+    return refit_results, refit_input_data['seroprevalence'], raw_sensitivity_curves, sensitivity, \
            cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor
 
 

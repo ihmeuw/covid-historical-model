@@ -214,7 +214,7 @@ def pipeline(n: int,
                                               cross_variant_immunity,
                                               variant_risk_ratio,
                                               verbose=verbose)
-    ifr_results, adj_seroprevalence, sensitivity, \
+    ifr_results, adj_seroprevalence, raw_sensitivity_curves, sensitivity, \
     cumul_reinfection_inflation_factor, _ = ifr.runner.runner(
         input_data=ifr_input_data,
         day_inflection=day_inflection,
@@ -283,6 +283,7 @@ def pipeline(n: int,
         'idr_covariate_list': idr_covariate_list,
         'durations': durations,
         'seroprevalence': adj_seroprevalence,
+        'raw_sensitivity_curves': raw_sensitivity_curves,
         'sensitivity': sensitivity,
         'cumul_reinfection_inflation_factor': cumul_reinfection_inflation_factor,
         'day_inflection': day_inflection,

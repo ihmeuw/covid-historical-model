@@ -192,6 +192,8 @@ def seroprevalence(model_inputs_root: Path, verbose: bool = True,) -> pd.DataFra
         data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'isotype'] = 'pan-Ig'
         data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'test_target'] = 'nucleocapsid'
         data.loc[is_state & is_cdc & is_nov_or_later & is_N, 'test_name'] = 'Roche Elecsys N pan-Ig'
+    # some of the new extractions have the wrong isotype
+    data.loc[data['test_name'] == 'Roche Elecsys N pan-Ig', 'isotype'] = 'pan-Ig'
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
     
     ## un-outlier Nigeria point before looking at that variable
@@ -798,7 +800,7 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
     muecksch = muecksch.loc[muecksch['assay'] == 'N-Abbott']
     muecksch['source'] = 'Muecksch'
     
-    ## LUMLEY
+    ## LUMLEY - exclude 180 day point for Oxford that goes back up
     lumley = pd.concat([pd.read_excel(lumley_path) for lumley_path in lumley_paths])
     lumley['metric'] = lumley['metric'].str.strip()
     lumley = pd.pivot_table(lumley, index=['t', 'assay', 'num_60', 'denom_60', 'avg_60'],
@@ -810,6 +812,7 @@ def assay_sensitivity(model_inputs_root: Path,) -> pd.DataFrame:
         pd.concat([lumley, pd.DataFrame({'hospitalization_status':'Non-hospitalized'}, index=lumley.index)], axis=1),
         pd.concat([lumley, pd.DataFrame({'hospitalization_status':'Hospitalized'}, index=lumley.index)], axis=1)
     ])
+    lumley = lumley.loc[~((lumley['assay'] == 'S-Oxford') & (lumley['t'] == 180))]
     lumley['source'] = 'Lumley'
     
     # combine them all
