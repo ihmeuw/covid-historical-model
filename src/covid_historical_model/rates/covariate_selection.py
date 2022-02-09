@@ -59,7 +59,7 @@ def get_coefficients(n_covariate_list: Tuple[int, List[str]],
 
 
 def covariate_selection(n_samples: int, test_combinations: List[List[str]],
-                        model_inputs_root: Path, excess_mortality: bool,
+                        out_dir: Path, excess_mortality: bool,
                         age_rates_root: Path,
                         shared: Dict, reported_seroprevalence: pd.DataFrame,
                         covariate_options: List[str],
@@ -70,7 +70,7 @@ def covariate_selection(n_samples: int, test_combinations: List[List[str]],
                         day_0: pd.Timestamp = pd.Timestamp('2020-03-15'),
                         day_inflection: pd.Timestamp = pd.Timestamp('2020-09-01'),
                         verbose: bool = True,):
-    input_data = ifr.data.load_input_data(model_inputs_root=model_inputs_root,
+    input_data = ifr.data.load_input_data(out_dir=out_dir,
                                           excess_mortality=excess_mortality,
                                           excess_mortality_draw=-1,
                                           age_rates_root=age_rates_root,

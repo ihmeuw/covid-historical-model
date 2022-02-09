@@ -117,6 +117,7 @@ def pipeline_wrapper(out_dir: Path,
     
     inputs = {
         n: {
+            'out_dir': out_dir,
             'orig_seroprevalence': seroprevalence,
             'shared': shared,
             'excess_mortality': excess_mortality,
@@ -177,9 +178,10 @@ def pipeline_wrapper(out_dir: Path,
 
 
 def pipeline(n: int,
+             out_dir: Path,
              orig_seroprevalence: pd.DataFrame,
              shared: Dict,
-             out_dir: Path, excess_mortality: bool,
+             excess_mortality: bool,
              sensitivity_data: pd.DataFrame,
              vaccine_coverage: pd.DataFrame,
              escape_variant_prevalence: pd.Series,
