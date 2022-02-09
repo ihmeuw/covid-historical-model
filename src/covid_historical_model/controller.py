@@ -43,7 +43,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     escape_variant_prevalence, severity_variant_prevalence, \
     vaccine_coverage, em_data, hierarchy, population = pipeline_wrapper(
         out_dir,
-        model_inputs_root, excess_mortality, gbd,
+        excess_mortality, gbd,
         vaccine_coverage_root, variant_scaleup_root,
         age_rates_root,
         testing_root,

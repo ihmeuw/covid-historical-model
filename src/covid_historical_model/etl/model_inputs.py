@@ -80,7 +80,7 @@ def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str)
     return data, manipulation_metadata
 
 
-def copy_model_inputs(model_inputs_root: Path, out_dir: Path):
+def copy_model_inputs(model_inputs_root: Path, out_dir: Path, verbose: bool = True,):
     path_suffixes = [
         'serology/global_serology_summary.csv',
         'full_data_unscaled.csv',
@@ -99,11 +99,13 @@ def copy_model_inputs(model_inputs_root: Path, out_dir: Path):
         'serology/waning_immunity/lumley_s-oxford.xlsx',
         'serology/waning_immunity/assay_map.xlsx',
     ]
+    if verbose:
+        logger.info('Transferring files from `model-inputs`.')
     shell_tools.mkdir(out_dir / 'model_inputs')
     for path_suffix in path_suffixes:
         sub_dirs = '/'.join(path_suffix.split('/')[:-1])
         shell_tools.mkdir(out_dir / 'model_inputs' / sub_dirs, exists_ok=True, parents=True)
-        with contextlib.redirect_stdout(_):
+        with contextlib.redirect_stdout(None):
             shutil.copyfile(model_inputs_root / path_suffix, out_dir / 'model_inputs' / path_suffix)
 
 
