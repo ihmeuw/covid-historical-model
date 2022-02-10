@@ -313,7 +313,7 @@ def apply_seroreversion_adjustment(sensitivity_data: pd.DataFrame,
             )
         )
     raw_sensitivity = (pd.concat(raw_sensitivity)
-                       .set_index(['assay', 'location_id', 't'])
+                       .set_index(['assay', 'source', 'location_id', 't'])
                        .sort_index()
                        .loc[:, 'sensitivity'])
     
@@ -372,6 +372,9 @@ def apply_seroreversion_adjustment(sensitivity_data: pd.DataFrame,
         seroprevalence_list.append(ac_seroprevalence)
     sensitivity = pd.concat(sensitivity_list)
     seroprevalence = pd.concat(seroprevalence_list)
+    
+    # just save global
+    raw_sensitivity = raw_sensitivity.loc[:, :, 1, :]
     
     return raw_sensitivity, sensitivity, seroprevalence
 
@@ -486,9 +489,10 @@ def fit_hospital_weighted_sensitivity_decay(source_assay: Tuple[str, str],
                                  (sensitivity['nonhosp_sensitivity'] * (1 - sensitivity['hospitalized_weights']))
     sensitivity = sensitivity.reset_index()
     
+    sensitivity['source'] = source
     sensitivity['assay'] = assay
     
-    return sensitivity.loc[:, ['location_id', 'assay', 't', 'sensitivity', 'hosp_sensitivity', 'nonhosp_sensitivity']]
+    return sensitivity.loc[:, ['location_id', 'source', 'assay', 't', 'sensitivity', 'hosp_sensitivity', 'nonhosp_sensitivity']]
 
 
 def calculate_seroreversion_factor(daily_infections: pd.DataFrame, sensitivity: pd.Series,
