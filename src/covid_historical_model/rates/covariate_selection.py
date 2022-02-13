@@ -23,7 +23,7 @@ def get_coefficients(n_covariate_list: Tuple[int, List[str]],
     np.random.seed(seed)
     
     model_data, age_stand_scaling_factor, level_lambdas, var_args, \
-    global_prior_dict, pred_replace_dict, pred_exclude_vars = ifr.model.prepare_model(
+    global_prior_dict, location_prior_dict, pred_replace_dict, pred_exclude_vars = ifr.model.prepare_model(
         model_data=model_data,
         ifr_age_pattern=input_data['ifr_age_pattern'],
         sero_age_pattern=input_data['sero_age_pattern'],
@@ -41,14 +41,15 @@ def get_coefficients(n_covariate_list: Tuple[int, List[str]],
                                           var_args['dep_var'], var_args['dep_var_se'],
                                           var_args['fe_vars'], var_args['group_var'])
 
-    location_mr_model, location_prior_dict = cascade.run_location(
+    location_mr_model, location_prior_dict = cascade.model_location(
+        model_name='ifr',
         location_id=1,
         model_data=model_data,
         prior_dict=prior_dict,
+        location_prior_dict=location_prior_dict,
         level_lambda={lk: 1. for lk in level_lambdas[0].keys()},
         global_mr_data=global_mr_data,
         var_args=var_args,
-        verbose=False,
     )
     
     y = location_mr_model.data.obs

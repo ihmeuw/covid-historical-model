@@ -109,7 +109,7 @@ def copy_model_inputs(model_inputs_root: Path, out_dir: Path, verbose: bool = Tr
             shutil.copyfile(model_inputs_root / path_suffix, out_dir / 'model_inputs' / path_suffix)
 
 
-def seroprevalence(out_dir: Path, verbose: bool = True,) -> pd.DataFrame:
+def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,) -> pd.DataFrame:
     # load
     data_path = out_dir / 'model_inputs' / 'serology' / 'global_serology_summary.csv'
     data = pd.read_csv(data_path)
@@ -153,6 +153,7 @@ def seroprevalence(out_dir: Path, verbose: bool = True,) -> pd.DataFrame:
     data['seroprevalence_lower'] = data['lower'] / 100
     data['seroprevalence_upper'] = data['upper'] / 100
     data['sample_size'] = (helpers.str_fmt(data['sample_size'])
+                           .str.replace(',', '')
                            .replace(('unchecked', 'not specified'), np.nan).astype(float))
     
     data['bias'] = (helpers.str_fmt(data['bias'])
@@ -179,20 +180,24 @@ def seroprevalence(out_dir: Path, verbose: bool = True,) -> pd.DataFrame:
     is_mixed = data['test_target'] == 'mixed'
     data.loc[is_oxford & is_mixed, 'test_target'] = 'spike'
     
+    # No vax in India survey
+    is_ind = data['location_id'] == 163
+    is_icmr_serosurvey = data['survey_series'] == 'icmr_serosurvey'
+    data.loc[is_ind & is_icmr_serosurvey, 'test_target'] = 'mixed'
+    
     # Peru N-Roche has the wrong isotype
     is_peru = data['location_id'] == 123
     is_roche = data['test_name'] == 'Roche Elecsys N pan-Ig'
     data.loc[is_peru & is_roche, 'isotype'] = 'pan-Ig'
     
-    # New York (after Nov 2020 onwards, nucleocapsid test is Abbott, not Roche)
-    # ADDENDUM (2021-08-31): mixed portion looks the same as the Abbott; recode that as well
+    # New York (from Nov 2020 to Aug 2021, test is Abbott)
     is_ny = data['location_id'] == 555
     is_cdc = data['survey_series'] == 'cdc_series'
-    #is_N = data['test_target'] == 'nucleocapsid'
-    is_nov_or_later = data['date'] >= pd.Timestamp('2020-11-01')
-    data.loc[is_ny & is_cdc & is_nov_or_later, 'isotype'] = 'pan-Ig'
-    data.loc[is_ny & is_cdc & is_nov_or_later, 'test_target'] = 'nucleocapsid'  #  & is_N
-    data.loc[is_ny & is_cdc & is_nov_or_later, 'test_name'] = 'Abbott Architect IgG; Roche Elecsys N pan-Ig'  #  & is_N
+    is_post_oct_2020 = pd.Timestamp('2020-10-31') < data['date']
+    is_pre_sept_2021 = data['date'] < pd.Timestamp('2021-09-01')
+    data.loc[is_ny & is_cdc & is_post_oct_2020 & is_pre_sept_2021, 'isotype'] = 'IgG'
+    data.loc[is_ny & is_cdc & is_post_oct_2020 & is_pre_sept_2021, 'test_target'] = 'nucleocapsid'
+    data.loc[is_ny & is_cdc & is_post_oct_2020 & is_pre_sept_2021, 'test_name'] = 'Abbott ARCHITECT SARS-CoV-2 IgG immunoassay'
     
     # BIG CDC CHANGE
     # many states are coded as Abbott, seem be Roche after the changes in Nov; recode
@@ -228,12 +233,50 @@ def seroprevalence(out_dir: Path, verbose: bool = True,) -> pd.DataFrame:
     # some of the new extractions have the wrong isotype
     data.loc[data['test_name'] == 'Roche Elecsys N pan-Ig', 'isotype'] = 'pan-Ig'
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+    ## Angola odd point
+    data.loc[(data['location_id'] == 168) &
+             (data['survey_series'] == 'Sebastiao_Sep2020'),
+             'manual_outlier'] = 1
     
-    ## un-outlier Nigeria point before looking at that variable
-    data.loc[(data['location_id'] == 214) &
-             (data['manual_outlier'] == 1) &
-             (data['notes'].str.startswith('Average of ncdc_nimr study')),
-             'manual_outlier'] = 0
+    ## outlier Madagascar blood donor IgG after they started pan-Ig
+    data.loc[(data['location_id'] == 181) &
+             (data['survey_series'] == 'madagascar_blood') & 
+             (data['test_name'] == 'ID Vet ELISA IgG') & 
+             (data['date'] >= pd.Timestamp('2021-01-01')),
+             'manual_outlier'] = 1
+    
+    ## Zambia same study reports 7.6% PCR prev, 2.1% antibody
+    data.loc[(data['location_id'] == 191) &
+             (data['survey_series'] == 'Hines_July2020'),
+             'manual_outlier'] = 1
+    
+    ## Zambia study is young children and healthcare workers
+    data.loc[(data['location_id'] == 191) &
+             (data['survey_series'] == 'Laban_Dec2020'),
+             'manual_outlier'] = 1
+    
+    ## South Africa use most-detailed locs
+    data.loc[(data['location_id'] == 196) &
+             (data['survey_series'] == 'sanbs_southafrica') & 
+             (data['source_population'] == 'South Africa'),
+             'manual_outlier'] = 1
+    
+    ## South Africa Angincourt must have missed first wave
+    data.loc[(data['location_id'] == 196) &
+             (data['survey_series'] == 'PHIRST_C2021') & 
+             (data['source_population'] == 'Angincourt, Mpumalanga province') &
+             (data['date'] <= pd.Timestamp('2020-10-10')),
+             'manual_outlier'] = 1
+    
+    ## Cote d'Ivoire mining camp not rep
+    data.loc[(data['location_id'] == 205) &
+             (data['survey_series'] == 'Milleliri_Oct2020'),
+             'manual_outlier'] = 1
+    
+    ## Sierra Leone - must be using awful test
+    data.loc[(data['location_id'] == 217) &
+             (data['survey_series'] == 'sierra_leone_household'),
+             'manual_outlier'] = 1
     
     outliers = []
     data['manual_outlier'] = data['manual_outlier'].astype(float)
@@ -248,7 +291,6 @@ def seroprevalence(out_dir: Path, verbose: bool = True,) -> pd.DataFrame:
     # # 1)
     # #    Question: What if survey is only in adults? Only kids?
     # #    Current approach: Drop beyond some threshold limits.
-    # #    Final solution: ...
     # max_start_age = 30
     # min_end_age = 60
     # data['study_start_age'] = helpers.str_fmt(data['study_start_age']).replace('not specified', np.nan).astype(float)
@@ -264,8 +306,9 @@ def seroprevalence(out_dir: Path, verbose: bool = True,) -> pd.DataFrame:
     # 2)
     #    Question: Use of geo_accordance?
     #    Current approach: Drop non-represeentative (geo_accordance == 0).
-    #    Final solution: ...
     data['geo_accordance'] = helpers.str_fmt(data['geo_accordance']).replace(('unchecked', np.nan), '0').astype(int)
+    ssa_location_ids = hierarchy.loc[hierarchy['path_to_top_parent'].apply(lambda x: '166' in x.split(',')), 'location_id'].to_list()
+    data.loc[data['location_id'].isin(ssa_location_ids), 'geo_accordance'] = 1
     geo_outlier = data['geo_accordance'] == 0
     outliers.append(geo_outlier)
     if verbose:
@@ -588,6 +631,7 @@ def reported_epi(out_dir: Path, input_measure: str, smooth: bool,
     data = data.rename(columns={'Confirmed': 'cumulative_cases',
                                 'Hospitalizations': 'cumulative_hospitalizations',
                                 'Deaths': 'cumulative_deaths',})
+    
     data['date'] = pd.to_datetime(data['Date'])
     keep_cols = ['location_id', 'date', f'cumulative_{input_measure}']
     data = data.loc[:, keep_cols].dropna()

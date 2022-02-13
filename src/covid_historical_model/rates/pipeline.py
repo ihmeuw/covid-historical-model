@@ -33,7 +33,7 @@ def pipeline_wrapper(out_dir: Path,
                      n_samples: int,
                      day_0: pd.Timestamp = pd.Timestamp('2020-03-15'),
                      pred_start_date: pd.Timestamp = pd.Timestamp('2019-11-01'),
-                     pred_end_date: pd.Timestamp = pd.Timestamp('2021-12-31'),
+                     pred_end_date: pd.Timestamp = pd.Timestamp('2022-03-15'),
                      correlate_samples: bool = True,
                      bootstrap: bool = True,
                      verbose: bool = True,) -> Tuple:
@@ -63,7 +63,7 @@ def pipeline_wrapper(out_dir: Path,
     severity_variant_prevalence = estimates.variant_scaleup(variant_scaleup_root, 'severity', verbose=verbose)
     vaccine_coverage = estimates.vaccine_coverage(vaccine_coverage_root, pred_end_date)
     reported_seroprevalence, seroprevalence_samples = serology.load_seroprevalence_sub_vacccinated(
-        out_dir, vaccine_coverage.copy(), n_samples=n_samples,
+        out_dir, hierarchy, vaccine_coverage.copy(), n_samples=n_samples,
         correlate_samples=correlate_samples, bootstrap=bootstrap,
         verbose=verbose,
     )

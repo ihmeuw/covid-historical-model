@@ -51,6 +51,7 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
                 're_vars': [],
                 'group_var': 'location_id',}
     global_prior_dict = covariate_priors
+    location_prior_dict = {}
     pred_replace_dict = {}
     pred_exclude_vars = []
     level_lambdas = {
@@ -71,10 +72,12 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     model_data = model_data.loc[:, model_data_cols]
     model_data = model_data.dropna()
     mr_model_dict, prior_dicts = cascade.run_cascade(
+        model_name='ihr',
         model_data=model_data.copy(),
         hierarchy=hierarchy.copy(),  # run w/ modeling hierarchy
         var_args=var_args.copy(),
         global_prior_dict=global_prior_dict.copy(),
+        location_prior_dict=location_prior_dict.copy(),
         level_lambdas=level_lambdas.copy(),
         verbose=False,
     )

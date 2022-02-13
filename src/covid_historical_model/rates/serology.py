@@ -139,16 +139,16 @@ def sample_seroprevalence(seroprevalence: pd.DataFrame, n_samples: int,
     return bootstrap_list
 
 
-def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.Series,
+def load_seroprevalence_sub_vacccinated(out_dir: Path, hierarchy: pd.DataFrame, vaccinated: pd.Series,
                                         n_samples: int, correlate_samples: bool, bootstrap: bool,
                                         verbose: bool = True,) -> pd.DataFrame:
-    seroprevalence = model_inputs.seroprevalence(model_inputs_root, verbose=verbose)
+    seroprevalence = model_inputs.seroprevalence(out_dir, hierarchy, verbose=verbose)
     seroprevalence_samples = sample_seroprevalence(seroprevalence, n_samples, correlate_samples, bootstrap, verbose=verbose)
     
     # ## ## ## ## ## #### ## ## ## ## ## ## ## ## ## ## ##
     # ## tweaks
     # # only take some old age from Danish blood bank data
-    # age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
+    # age_spec_population = model_inputs.population(out_dir, by_age=True)
     # pct_65_69 = age_spec_population.loc[78, 65].item() / age_spec_population.loc[78, 65:].sum()
     # danish_sub_70plus = (vaccinated.loc[[78], 'cumulative_adults_vaccinated'] + \
     #     vaccinated.loc[[78], 'cumulative_essential_vaccinated'] + \
@@ -160,7 +160,7 @@ def load_seroprevalence_sub_vacccinated(model_inputs_root: Path, vaccinated: pd.
     ## ## ## ## ## #### ## ## ## ## ## ## ## ## ## ## ##
     
     # make pop group specific
-    age_spec_population = model_inputs.population(model_inputs_root, by_age=True)
+    age_spec_population = model_inputs.population(out_dir, by_age=True)
     vaccinated = get_pop_vaccinated(age_spec_population, vaccinated)
     
     # use 90% of total vaccinated
@@ -254,9 +254,9 @@ def remove_vaccinated(seroprevalence: pd.DataFrame,
     return seroprevalence
 
 
-def load_sensitivity(model_inputs_root: Path, n_samples: int,
+def load_sensitivity(out_dir: Path, n_samples: int,
                      floor: float = 1e-4, logit_se_cap: float = 1.,):
-    sensitivity_data = model_inputs.assay_sensitivity(model_inputs_root)
+    sensitivity_data = model_inputs.assay_sensitivity(out_dir)
     logit_mean = logit(sensitivity_data['sensitivity_mean'].clip(floor, 1 - floor))
     logit_sd = sensitivity_data['sensitivity_std'] / \
                (sensitivity_data['sensitivity_mean'].clip(floor, 1 - floor) * \
