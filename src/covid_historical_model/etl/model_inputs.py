@@ -592,7 +592,7 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     # 6) drop December 2021 onward
     date_cutoff_outlier = data['date'] >= pd.Timestamp('2021-12-01')
     outliers.append(date_cutoff_outlier)
-    logger.debug(f'EXCLUDING ALL SERO DATA AFTER 11/31/2021 ({date_cutoff_outlier.sum()} rows).')
+    logger.debug(f'EXCLUDING ALL SERO DATA AFTER 11/30/2021 ({date_cutoff_outlier.sum()} rows).')
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
     keep_columns = ['data_id', 'nid', 'survey_series', 'location_id', 'start_date', 'date',
@@ -642,7 +642,7 @@ def reported_epi(out_dir: Path, input_measure: str, smooth: bool,
             .apply(lambda x: helpers.fill_dates(x, [f'cumulative_{input_measure}']))
             .reset_index(drop=True))
     
-    logger.debug(f'EXCLUDING ALL {input_measure.upper()} DATA AFTER 11/31/2021.')
+    logger.debug(f'EXCLUDING ALL {input_measure.upper()} DATA AFTER 11/30/2021.')
     data = data.loc[data['date'] < pd.Timestamp('2021-12-01')]
     
     data, manipulation_metadata = evil_doings(data, hierarchy, input_measure)
