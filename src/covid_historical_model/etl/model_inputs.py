@@ -180,10 +180,15 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     is_mixed = data['test_target'] == 'mixed'
     data.loc[is_oxford & is_mixed, 'test_target'] = 'spike'
     
-    # No vax in India survey
+    # code India 2020 nat'l point (ICMR 3?) as mixed
     is_ind = data['location_id'] == 163
     is_icmr_serosurvey = data['survey_series'] == 'icmr_serosurvey'
     data.loc[is_ind & is_icmr_serosurvey, 'test_target'] = 'mixed'
+    
+    # code all ICMR round 4 data as spike
+    is_icmr_round4 = data['survey_series'] == 'icmr_round4'
+    data.loc[is_icmr_round4, 'test_target'] = 'spike'
+    data.loc[is_icmr_round4, 'isotype'] = 'IgG'
     
     # Peru N-Roche has the wrong isotype
     is_peru = data['location_id'] == 123
@@ -307,7 +312,9 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     #    Question: Use of geo_accordance?
     #    Current approach: Drop non-represeentative (geo_accordance == 0).
     data['geo_accordance'] = helpers.str_fmt(data['geo_accordance']).replace(('unchecked', np.nan), '0').astype(int)
-    ssa_location_ids = hierarchy.loc[hierarchy['path_to_top_parent'].apply(lambda x: '166' in x.split(',')), 'location_id'].to_list()
+    ssa_location_ids = (hierarchy
+                        .loc[hierarchy['path_to_top_parent'].apply(lambda x: '166' in x.split(',')), 'location_id']
+                        .to_list())
     data.loc[data['location_id'].isin(ssa_location_ids), 'geo_accordance'] = 1
     geo_outlier = data['geo_accordance'] == 0
     outliers.append(geo_outlier)
@@ -422,6 +429,16 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     outliers.append(kaz_outlier)
     logger.debug(f'{kaz_outlier.sum()} rows from sero data dropped due to implausibility '
                  '(or at least incompatibility) of Kazakhstan colloborator data.')
+
+    # third round from Brazil (test is not great)
+    is_bra = data['location_id'] == 135
+    is_133_sentinel_cities = data['survey_series'] == '133_sentinel_cities'
+    is_third_wave = data['date'] == pd.Timestamp('2020-06-24')
+
+    bra_outlier = is_bra & is_133_sentinel_cities & is_third_wave
+    outliers.append(bra_outlier)
+    logger.debug(f'{bra_outlier.sum()} rows from sero data dropped due to implausibility '
+                 '(or at least incompatibility) of EPICOVID19 third wave in Brazil.')
 
     # # Albania first round data
     # is_alb = data['location_id'] == 43
@@ -590,9 +607,9 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
                  'below 1% or a location max below 3%.')
     
     # 6) drop December 2021 onward
-    date_cutoff_outlier = data['date'] >= pd.Timestamp('2021-12-01')
+    date_cutoff_outlier = data['date'] > pd.Timestamp('2021-11-20')
     outliers.append(date_cutoff_outlier)
-    logger.debug(f'EXCLUDING ALL SERO DATA AFTER 11/30/2021 ({date_cutoff_outlier.sum()} rows).')
+    logger.debug(f'EXCLUDING ALL SERO DATA AFTER 11/20/2021 ({date_cutoff_outlier.sum()} rows).')
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
 
     keep_columns = ['data_id', 'nid', 'survey_series', 'location_id', 'start_date', 'date',

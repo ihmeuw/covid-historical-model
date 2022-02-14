@@ -104,7 +104,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ifr_model_data['is_outlier'] = 0
     ifr_model_data = ifr_model_data.reset_index()
     ifr_model_data = ifr_model_data.rename(columns={'mean_death_date': 'date'})
-    ifr_model_data = ifr_model_data.loc[:, ['location_id', 'date', 'ifr_mean', 'ifr_std', 'is_outlier']]
+    ifr_model_data = ifr_model_data.loc[:, ['data_id', 'location_id', 'date', 'ifr_mean', 'ifr_std', 'is_outlier']]
     
     ifr_age_stand = pipeline_results[0]['ifr_results'].age_stand_scaling_factor.reset_index()
     
@@ -144,7 +144,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ihr_model_data['is_outlier'] = 0
     ihr_model_data = ihr_model_data.reset_index()
     ihr_model_data = ihr_model_data.rename(columns={'mean_hospitalization_date': 'date'})
-    ihr_model_data = ihr_model_data.loc[:, ['location_id', 'date', 'ihr_mean', 'ihr_std', 'is_outlier']]
+    ihr_model_data = ihr_model_data.loc[:, ['data_id', 'location_id', 'date', 'ihr_mean', 'ihr_std', 'is_outlier']]
     
     ihr_age_stand = pipeline_results[0]['ihr_results'].age_stand_scaling_factor.reset_index()
     
@@ -184,7 +184,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     idr_model_data['is_outlier'] = 0
     idr_model_data = idr_model_data.reset_index()
     idr_model_data = idr_model_data.rename(columns={'mean_infection_date': 'date'})
-    idr_model_data = idr_model_data.loc[:, ['location_id', 'date', 'idr_mean', 'idr_std', 'is_outlier']]
+    idr_model_data = idr_model_data.loc[:, ['data_id', 'location_id', 'date', 'idr_mean', 'idr_std', 'is_outlier']]
     
     idr_level_lambdas_draws = []
     for n, idr_level_lambdas in [(n, pipeline_results[n]['idr_results'].level_lambdas) for n in range(n_samples)]:

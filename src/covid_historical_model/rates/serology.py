@@ -303,13 +303,16 @@ def apply_seroreversion_adjustment(sensitivity_data: pd.DataFrame,
     
     source_assays = sensitivity_data[['source', 'assay']].drop_duplicates().values.tolist()
     
+    sensitivity_locs = seroprevalence['location_id'].unique().tolist()
+    sensitivity_locs = [loc for loc in sensitivity_locs if loc in daily_deaths.reset_index()['location_id'].unique()]
+    sensitivity_locs = [1] + sensitivity_locs
     raw_sensitivity = []
-    for source_assay in tqdm(source_assays, total=len(source_assays), file=sys.stdout):
+    for source_assay in source_assays:
         raw_sensitivity.append(
             fit_hospital_weighted_sensitivity_decay(
                 source_assay,
                 sensitivity=sensitivity_data.set_index(['source', 'assay']).loc[tuple(source_assay)],
-                hospitalized_weights=hospitalized_weights.copy(),
+                hospitalized_weights=hospitalized_weights.loc[sensitivity_locs],
             )
         )
     raw_sensitivity = (pd.concat(raw_sensitivity)
@@ -348,7 +351,8 @@ def apply_seroreversion_adjustment(sensitivity_data: pd.DataFrame,
     sensitivity_list = []
     seroprevalence_list = []
     for assay_combination in assay_combinations:
-        logger.info(f'Adjusting for sensitvity decay: {assay_combination}')
+        if verbose:
+            logger.info(f'Adjusting for sensitvity decay: {assay_combination}')
         ac_sensitivity = (raw_sensitivity
                           .loc[assay_combination.split(', ')]
                           .reset_index()
@@ -358,7 +362,8 @@ def apply_seroreversion_adjustment(sensitivity_data: pd.DataFrame,
         ac_seroprevalence = seroreversion_adjustment(
             daily_infections.copy(),
             ac_sensitivity.copy(),
-            ac_seroprevalence.copy()
+            ac_seroprevalence.copy(),
+            verbose=verbose,
         )
         
         ac_sensitivity = (ac_sensitivity
@@ -550,7 +555,7 @@ def location_seroreversion_adjustment(location_id: int,
 
 
 def seroreversion_adjustment(daily_infections: pd.Series, sensitivity: pd.Series,
-                             seroprevalence: pd.DataFrame) -> pd.DataFrame:
+                             seroprevalence: pd.DataFrame, verbose: bool) -> pd.DataFrame:
     # # determine waning sensitivity adjustment based on midpoint of survey
     # orig_date = seroprevalence[['data_id', 'date']].copy()
     # seroprevalence['n_midpoint_days'] = (seroprevalence['date'] - seroprevalence['start_date']).dt.days / 2
@@ -568,7 +573,10 @@ def seroreversion_adjustment(daily_infections: pd.Series, sensitivity: pd.Series
         seroprevalence=seroprevalence,
     )
     with multiprocessing.Pool(int(OMP_NUM_THREADS)) as p:
-        seroprevalence = list(tqdm(p.imap(_lwa, location_ids), total=len(location_ids), file=sys.stdout))
+        if verbose:
+            seroprevalence = list(tqdm(p.imap(_lwa, location_ids), total=len(location_ids), file=sys.stdout))
+        else:
+            seroprevalence = list(p.imap(_lwa, location_ids))
     seroprevalence = pd.concat(seroprevalence).reset_index(drop=True)
     
     # del seroprevalence['date']

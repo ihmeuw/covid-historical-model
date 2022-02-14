@@ -98,11 +98,21 @@ def pipeline_wrapper(out_dir: Path,
         reported_seroprevalence=reported_seroprevalence,
         covariate_options=covariate_options,
         covariates=covariates,
+        reported_sensitivity_data=reported_sensitivity_data,
+        vaccine_coverage=vaccine_coverage,
+        escape_variant_prevalence=escape_variant_prevalence,
+        severity_variant_prevalence=severity_variant_prevalence,
+        cross_variant_immunity_samples=cross_variant_immunity_samples,
+        variant_risk_ratio_samples=variant_risk_ratio_samples,
+        pred_start_date=pred_start_date,
+        pred_end_date=pred_end_date,
         cutoff_pct=1.,
-        durations={'sero_to_death': int(round(np.mean(durations.EXPOSURE_TO_ADMISSION) + \
-                                              np.mean(durations.ADMISSION_TO_DEATH) - \
-                                              np.mean(durations.EXPOSURE_TO_SEROCONVERSION)))
-                  },
+        durations={'sero_to_death': (int(round(np.mean(durations.EXPOSURE_TO_ADMISSION))) + 
+                                     int(round(np.mean(durations.ADMISSION_TO_DEATH))) - 
+                                     int(round(np.mean(durations.EXPOSURE_TO_SEROCONVERSION)))),
+                   'exposure_to_death': (int(round(np.mean(durations.EXPOSURE_TO_ADMISSION))) + 
+                                         int(round(np.mean(durations.ADMISSION_TO_DEATH)))),
+                   'exposure_to_seroconversion': int(round(np.mean(durations.EXPOSURE_TO_SEROCONVERSION)))},
     )
     
     idr_covariate_options = [['haq'], ['uhc'], ['prop_65plus'], [],]

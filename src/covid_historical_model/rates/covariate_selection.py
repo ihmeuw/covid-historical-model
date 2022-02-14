@@ -62,14 +62,23 @@ def get_coefficients(n_covariate_list: Tuple[int, List[str]],
 def covariate_selection(n_samples: int, test_combinations: List[List[str]],
                         out_dir: Path, excess_mortality: bool,
                         age_rates_root: Path,
-                        shared: Dict, reported_seroprevalence: pd.DataFrame,
+                        shared: Dict,
+                        reported_seroprevalence: pd.DataFrame,
                         covariate_options: List[str],
                         covariates: List[pd.Series],
+                        reported_sensitivity_data: pd.DataFrame,
+                        vaccine_coverage: pd.DataFrame,
+                        escape_variant_prevalence: pd.Series,
+                        severity_variant_prevalence: pd.Series,
+                        cross_variant_immunity_samples: List,
+                        variant_risk_ratio_samples: List,
+                        pred_start_date: pd.Timestamp,
+                        pred_end_date: pd.Timestamp,
                         cutoff_pct: float,
                         durations: Dict,
                         exclude_US_UK: bool = True,
                         day_0: pd.Timestamp = pd.Timestamp('2020-03-15'),
-                        day_inflection: pd.Timestamp = pd.Timestamp('2020-09-01'),
+                        day_inflection: pd.Timestamp = pd.Timestamp('2021-01-01'),
                         verbose: bool = True,):
     input_data = ifr.data.load_input_data(out_dir=out_dir,
                                           excess_mortality=excess_mortality,
@@ -77,14 +86,32 @@ def covariate_selection(n_samples: int, test_combinations: List[List[str]],
                                           age_rates_root=age_rates_root,
                                           shared=shared, seroprevalence=reported_seroprevalence,
                                           covariates=covariates,
-                                          sensitivity_data=None, vaccine_coverage=None,
-                                          escape_variant_prevalence=None,
-                                          severity_variant_prevalence=None,
-                                          cross_variant_immunity=None,
-                                          variant_risk_ratio=None,
+                                          sensitivity_data=reported_sensitivity_data.rename(
+                                              columns={'sensitivity_mean':'sensitivity'}
+                                          ).drop('sensitivity_std', axis=1),
+                                          vaccine_coverage=vaccine_coverage,
+                                          escape_variant_prevalence=escape_variant_prevalence,
+                                          severity_variant_prevalence=severity_variant_prevalence,
+                                          cross_variant_immunity=np.mean(cross_variant_immunity_samples),
+                                          variant_risk_ratio=np.mean(variant_risk_ratio_samples),
                                           verbose=False)
+    # use dumb IFR to do corrections
+    naive_pred = pd.Series(
+        1,
+        index=pd.MultiIndex.from_product([input_data['hierarchy']['location_id'].to_list(),
+                                          pd.date_range(pred_start_date, pred_end_date)],
+                                         names=['location_id', 'date'])
+    ) * 0.005
+
+    # do corrections
+    _, _, _, _, seroprevalence, ifr_data_scalar = ifr.runner.derive_intermediate_outputs(
+        input_data, naive_pred, durations, verbose=False
+    )
+    
+    # prepare model data with corrected inputs
+    input_data['seroprevalence'] = seroprevalence
     model_data = ifr.data.create_model_data(day_0=day_0, durations=durations,
-                                            ifr_data_scalar=None,
+                                            ifr_data_scalar=ifr_data_scalar,
                                             **input_data)
     
     if exclude_US_UK:
