@@ -430,16 +430,6 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     logger.debug(f'{kaz_outlier.sum()} rows from sero data dropped due to implausibility '
                  '(or at least incompatibility) of Kazakhstan colloborator data.')
 
-    # third round from Brazil (test is not great)
-    is_bra = data['location_id'] == 135
-    is_133_sentinel_cities = data['survey_series'] == '133_sentinel_cities'
-    is_third_wave = data['date'] == pd.Timestamp('2020-06-24')
-
-    bra_outlier = is_bra & is_133_sentinel_cities & is_third_wave
-    outliers.append(bra_outlier)
-    logger.debug(f'{bra_outlier.sum()} rows from sero data dropped due to implausibility '
-                 '(or at least incompatibility) of EPICOVID19 third wave in Brazil.')
-
     # # Albania first round data
     # is_alb = data['location_id'] == 43
     # ## this is actually first round (see dates), survey_series is mislabeled in extraction ##
@@ -589,13 +579,10 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
                  '(or at least incompatibility) of first Mozabique INS survey.')
 
     # 4) Level threshold - location max > 3%, value max > 1%
-    # exemtions -> Brazil
-    na_list = [135]
     data['tmp_outlier'] = pd.concat(outliers, axis=1).max(axis=1).astype(int)
     is_maxsub3 = (data
                   .groupby(['location_id', 'tmp_outlier'])
-                  .apply(lambda x: x['seroprevalence'].max() < 0.03 and
-                                   x.reset_index()['location_id'].unique().item() not in na_list)
+                  .apply(lambda x: x['seroprevalence'].max() < 0.03)
                   .rename('is_maxsub3')
                   .reset_index())
     is_maxsub3 = data.merge(is_maxsub3, how='left').loc[data.index, 'is_maxsub3']
