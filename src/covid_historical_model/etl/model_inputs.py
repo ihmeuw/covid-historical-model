@@ -18,11 +18,6 @@ def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str)
         pass
 
     elif input_measure == 'hospitalizations':
-        # ## hosp/IHR == admissions too low
-        # is_argentina = data['location_id'] == 97
-        # data = data.loc[~is_argentina].reset_index(drop=True)
-        # manipulation_metadata['argentina'] = 'dropped all hospitalizations'
-        
         ## late, not cumulative on first day
         is_ndl = data['location_id'] == 89
         data = data.loc[~is_ndl].reset_index(drop=True)
@@ -123,10 +118,6 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
         else:
             data = data.rename(columns={'Date':'date'})
     for date_var in ['start_date', 'date']:
-        # data[date_var] = helpers.str_fmt(data[date_var]).replace('.202$', '.2020')
-        # data.loc[(data['location_id'] == 570) & (data[date_var] == '11.08.2021'), date_var] = '11.08.2020'
-        # data.loc[(data['location_id'] == 533) & (data[date_var] == '13.11.2.2020'), date_var] = '13.11.2020'
-        # data.loc[data[date_var] == '05.21.2020', date_var] = '21.05.2020'
         data[date_var] = pd.to_datetime(data[date_var])  # , format='%d.%m.%Y'
     
     # if no start date provided, assume 2 weeks before end date?
@@ -430,43 +421,6 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     logger.debug(f'{kaz_outlier.sum()} rows from sero data dropped due to implausibility '
                  '(or at least incompatibility) of Kazakhstan colloborator data.')
 
-    # # Albania first round data
-    # is_alb = data['location_id'] == 43
-    # ## this is actually first round (see dates), survey_series is mislabeled in extraction ##
-    # is_tirana_first_round_data = data['survey_series'] == 'tirana_second_round'
-
-    # alb_outlier = is_alb & is_tirana_first_round_data
-    # outliers.append(alb_outlier)
-    # logger.debug(f'{alb_outlier.sum()} rows from sero data dropped due to implausibility '
-    #              '(or at least incompatibility) of first round of Albania survey.')
-
-    # # Egypt
-    # is_egy = data['location_id'] == 141
-    # is_egypt_gomaa = data['survey_series'] == 'egypt_gomaa'
-
-    # egy_outlier = is_egy & is_egypt_gomaa
-    # outliers.append(egy_outlier)
-    # logger.debug(f'{egy_outlier.sum()} rows from sero data dropped due to implausibility '
-    #              '(or at least incompatibility) of Egypt GOMAA(?) survey.')
-
-    # # Qatar
-    # is_qat = data['location_id'] == 151
-    # is_qatar_raddad = data['survey_series'] == 'qatar_raddad'
-
-    # qat_outlier = is_qat & is_qatar_raddad
-    # outliers.append(qat_outlier)
-    # logger.debug(f'{qat_outlier.sum()} rows from sero data dropped due to implausibility '
-    #              '(or at least incompatibility) of Qatar RADDAD(?) survey.')
-
-    # # Afghanistan
-    # is_afg = data['location_id'] == 160
-    # is_afghanistan_sero_survey = data['survey_series'] == 'afghanistan_sero_survey'
-
-    # afg_outlier = is_afg & is_afghanistan_sero_survey
-    # outliers.append(afg_outlier)
-    # logger.debug(f'{afg_outlier.sum()} rows from sero data dropped due to implausibility '
-    #              '(or at afg_outlier incompatibility) of Afghanistan survey.')
-
     # Chhattisgarh ICMR round 2
     is_chhatt = data['location_id'] == 4846
     is_icmr_round2 = data['survey_series'] == 'icmr_round2'
@@ -539,15 +493,6 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     outliers.append(raj_outlier)
     logger.debug(f'{raj_outlier.sum()} rows from sero data dropped due to implausibility '
                  '(or at least incompatibility) of Rajasthan survey data (ICMR round 2).')
-
-    # # Khyber Pakhtunkhwa
-    # is_kp = data['location_id'] == 53619
-    # is_pakistan_july = data['survey_series'] == 'pakistan_july'
-
-    # kp_outlier = is_kp & is_pakistan_july
-    # outliers.append(kp_outlier)
-    # logger.debug(f'{kp_outlier.sum()} rows from sero data dropped due to implausibility '
-    #              '(or at least incompatibility) of Khyber Pakhtunkhwa July survey.')
 
     # Punjab (PAK)
     is_pp = data['location_id'] == 53620
