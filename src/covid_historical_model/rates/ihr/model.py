@@ -38,9 +38,8 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     covariate_priors = {covariate: covariate_priors[covariate] for covariate in covariate_list}
     covariate_constraints = get_covariate_constraints('ihr')
     covariate_constraints = {covariate: covariate_constraints[covariate] for covariate in covariate_list}
-    covariate_lambdas_sr_r = {covariate: 1. for covariate in covariate_list}
-    covariate_lambdas_admin = {covariate: 10. for covariate in covariate_list}
-
+    covariate_lambdas_sr_r = {covariate: 3. for covariate in covariate_list}
+    covariate_lambdas_admin = {covariate: 100. for covariate in covariate_list}
 
     var_args = {'dep_var': 'logit_ihr',
                 'dep_var_se': 'logit_ihr_se',
@@ -55,8 +54,8 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     pred_replace_dict = {}
     pred_exclude_vars = []
     level_lambdas = {
-        0: {'intercept':   2.,  **covariate_lambdas_sr_r,},  # G->SR
-        1: {'intercept':   2.,  **covariate_lambdas_sr_r,},  # SR->R
+        0: {'intercept':   3.,  **covariate_lambdas_sr_r,},  # G->SR
+        1: {'intercept':   3.,  **covariate_lambdas_sr_r,},  # SR->R
         2: {'intercept': 100., **covariate_lambdas_admin,},  # R->A0
         3: {'intercept': 100., **covariate_lambdas_admin,},  # A0->A1
         4: {'intercept': 100., **covariate_lambdas_admin,},  # A1->A2
@@ -66,7 +65,6 @@ def run_model(model_data: pd.DataFrame, pred_data: pd.DataFrame,
     if var_args['group_var'] != 'location_id':
         raise ValueError('NRMSE data assignment assumes `study_id` == `location_id` (`location_id` must be group_var).')
     
-    # SUPPRESSING CASCADE CONSOLE OUTPUT
     model_data_cols = ['location_id', 'date', var_args['dep_var'],
                        var_args['dep_var_se']] + var_args['fe_vars']
     model_data = model_data.loc[:, model_data_cols]

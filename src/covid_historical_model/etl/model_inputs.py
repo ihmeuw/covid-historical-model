@@ -229,9 +229,28 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     # some of the new extractions have the wrong isotype
     data.loc[data['test_name'] == 'Roche Elecsys N pan-Ig', 'isotype'] = 'pan-Ig'
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
-    ## Angola odd point
+    ## Angola odd points
     data.loc[(data['location_id'] == 168) &
              (data['survey_series'] == 'Sebastiao_Sep2020'),
+             'manual_outlier'] = 1
+    data.loc[(data['location_id'] == 168) &
+             (data['survey_series'] == 'Sebastiao_blooddonors_2020') &
+             (data['date'] == pd.Timestamp('2020-07-31')),
+             'manual_outlier'] = 1
+    
+    ## Ethiopia Abdella
+    data.loc[(data['location_id'] == 179) &
+             (data['survey_series'] == 'Abdella_Sep2020'),
+             'manual_outlier'] = 1
+    
+    ## Kenya super early point
+    data.loc[(data['location_id'] == 180) &
+             (data['survey_series'] == 'Crowell_2021'),
+             'manual_outlier'] = 1
+    
+    ## Kenya Lucinde
+    data.loc[(data['location_id'] == 180) &
+             (data['survey_series'] == 'Lucinde_2021'),
              'manual_outlier'] = 1
     
     ## outlier Madagascar blood donor IgG after they started pan-Ig
@@ -257,16 +276,25 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
              (data['source_population'] == 'South Africa'),
              'manual_outlier'] = 1
     
-    ## South Africa Angincourt must have missed first wave
+    ## South Africa Hsiao study
     data.loc[(data['location_id'] == 196) &
-             (data['survey_series'] == 'PHIRST_C2021') & 
-             (data['source_population'] == 'Angincourt, Mpumalanga province') &
-             (data['date'] <= pd.Timestamp('2020-10-10')),
+             (data['survey_series'] == 'Hsiao_2020'),
              'manual_outlier'] = 1
     
-    ## Cote d'Ivoire mining camp not rep
+    ## South Africa Angincourt is too low in PHIRST_C2021
+    data.loc[(data['location_id'] == 196) &
+             (data['survey_series'] == 'PHIRST_C2021') & 
+             (data['source_population'] == 'Agincourt, Mpumalanga province'),
+             'manual_outlier'] = 1
+    
+    ## Cote d'Ivoire mining camp not rep (even though data is consistent)
     data.loc[(data['location_id'] == 205) &
              (data['survey_series'] == 'Milleliri_Oct2020'),
+             'manual_outlier'] = 1
+    
+    ## Ghana multi-site
+    data.loc[(data['location_id'] == 207) &
+             (data['survey_series'] == 'ghana_multisite'),
              'manual_outlier'] = 1
     
     ## Sierra Leone - must be using awful test
@@ -321,7 +349,8 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
 
     uk_vax_outlier = is_uk & is_spike & is_2021
     outliers.append(uk_vax_outlier)
-    logger.debug(f'{uk_vax_outlier.sum()} rows from sero data dropped due to UK vax issues.')
+    if verbose:
+        logger.debug(f'{uk_vax_outlier.sum()} rows from sero data dropped due to UK vax issues.')
 
     # vaccine debacle, lose all the Danish data from Jan 2021 onward
     is_den = data['location_id'].isin([78])
@@ -330,7 +359,8 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
 
     den_vax_outlier = is_den & is_spike & is_2021
     outliers.append(den_vax_outlier)
-    logger.debug(f'{den_vax_outlier.sum()} rows from sero data dropped due to Denmark vax issues.')
+    if verbose:
+        logger.debug(f'{den_vax_outlier.sum()} rows from sero data dropped due to Denmark vax issues.')
 
     # vaccine debacle, lose all the Estonia and Netherlands data from June 2021 onward
     is_est_ndl = data['location_id'].isin([58, 89])
@@ -339,7 +369,8 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
 
     est_ndl_vax_outlier = is_est_ndl & is_spike & is_post_june_2021
     outliers.append(est_ndl_vax_outlier)
-    logger.debug(f'{est_ndl_vax_outlier.sum()} rows from sero data dropped due to Netherlands and Estonia vax issues.')
+    if verbose:
+        logger.debug(f'{est_ndl_vax_outlier.sum()} rows from sero data dropped due to Netherlands and Estonia vax issues.')
 
     # vaccine debacle, lose all the Puerto Rico data from Feb 2021 onward
     is_pr = data['location_id'].isin([385])
@@ -348,7 +379,8 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
 
     pr_vax_outlier = is_pr & is_spike & is_2021
     outliers.append(pr_vax_outlier)
-    logger.debug(f'{pr_vax_outlier.sum()} rows from sero data dropped due to Puerto Rico vax issues.')
+    if verbose:
+        logger.debug(f'{pr_vax_outlier.sum()} rows from sero data dropped due to Puerto Rico vax issues.')
 
     # Saskatchewan
     is_sas = data['location_id'] == 43869
@@ -356,7 +388,8 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
 
     sas_outlier = is_sas & is_canadian_blood_services
     outliers.append(sas_outlier)
-    logger.debug(f'{sas_outlier.sum()} rows from sero data dropped from Saskatchewan.')
+    if verbose:
+        logger.debug(f'{sas_outlier.sum()} rows from sero data dropped from Saskatchewan.')
 
     # King/Snohomish data is too early
     is_k_s = data['location_id'] == 60886
@@ -364,7 +397,8 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
 
     k_s_outlier = is_k_s & is_pre_may_2020
     outliers.append(k_s_outlier)
-    logger.debug(f'{k_s_outlier.sum()} rows from sero data dropped due to noisy (early) King/Snohomish data.')
+    if verbose:
+        logger.debug(f'{k_s_outlier.sum()} rows from sero data dropped due to noisy (early) King/Snohomish data.')
 
     # dialysis study
     is_bad_dial_locs = data['location_id'].isin([
@@ -381,7 +415,8 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
 
     dialysis_outlier = is_bad_dial_locs & is_usa_dialysis
     outliers.append(dialysis_outlier)
-    logger.debug(f'{dialysis_outlier.sum()} rows from sero data dropped due to inconsistent results from dialysis study.')
+    if verbose:
+        logger.debug(f'{dialysis_outlier.sum()} rows from sero data dropped due to inconsistent results from dialysis study.')
 
     # North Dakota first round
     is_nd = data['location_id'] == 557
@@ -390,8 +425,9 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
 
     nd_outlier = is_nd & is_cdc_series & is_first_date
     outliers.append(nd_outlier)
-    logger.debug(f'{nd_outlier.sum()} rows from sero data dropped due to implausibility '
-                 '(or at least incompatibility) of first commercial lab point in North Dakota.')
+    if verbose:
+        logger.debug(f'{nd_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of first commercial lab point in North Dakota.')
 
     # early Vermont
     is_vermont = data['location_id'] == 568
@@ -399,8 +435,9 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
 
     vermont_outlier = is_vermont & is_pre_nov
     outliers.append(vermont_outlier)
-    logger.debug(f'{vermont_outlier.sum()} rows from sero data dropped due to implausibility '
-                 '(or at least incompatibility) of early commercial lab points in Vermont.')
+    if verbose:
+        logger.debug(f'{vermont_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of early commercial lab points in Vermont.')
 
     # Ceuta first round
     is_ceu = data['location_id'] == 60369
@@ -409,8 +446,9 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
 
     ceu_outlier = is_ceu & is_ene_covid & is_pre_june_2020
     outliers.append(ceu_outlier)
-    logger.debug(f'{ceu_outlier.sum()} rows from sero data dropped due to implausibility '
-                 '(or at least incompatibility) of first survey round in Ceuta.')
+    if verbose:
+        logger.debug(f'{ceu_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of first survey round in Ceuta.')
 
     # Kazakhstan collab data
     is_kaz = data['location_id'] == 36
@@ -418,45 +456,82 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
 
     kaz_outlier = is_kaz & is_kaz_collab_data
     outliers.append(kaz_outlier)
-    logger.debug(f'{kaz_outlier.sum()} rows from sero data dropped due to implausibility '
-                 '(or at least incompatibility) of Kazakhstan colloborator data.')
+    if verbose:
+        logger.debug(f'{kaz_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of Kazakhstan colloborator data.')
+    
+    # India national studies, 2020
+    is_india = data['location_id'] == 163
+    is_2020 = data['date'] <= pd.Timestamp('2020-12-31')
 
-    # Chhattisgarh ICMR round 2
-    is_chhatt = data['location_id'] == 4846
+    india_natl_outlier = is_india & is_2020
+    outliers.append(india_natl_outlier)
+    if verbose:
+        logger.debug(f'{india_natl_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of India national data.')
+    
+    # India ICMR round 2 for some states
+    is_bad_icmr_round2_states = data['location_id'].isin([
+        4846,  # Chhattisgarh
+        4851,  # Gujarat
+        4855,  # Jharkhand
+        4859,  # Madhya Pradesh
+        4867,  # Punjab
+        4868,  # Rajasthan
+        4871,  # Telangana
+        4873,  # Uttar Pradesh
+        4875,  # West Bengal
+    ])
     is_icmr_round2 = data['survey_series'] == 'icmr_round2'
-
-    chhatt_outlier = is_chhatt & is_icmr_round2
-    outliers.append(chhatt_outlier)
-    logger.debug(f'{chhatt_outlier.sum()} rows from sero data dropped due to implausibility '
-                 '(or at least incompatibility) of Chhattisgarh survey data (ICMR round 2).')
-
-    # Delhi
+    
+    icmr_round2_outlier = is_bad_icmr_round2_states & is_icmr_round2
+    outliers.append(icmr_round2_outlier)
+    if verbose:
+        logger.debug(f'{icmr_round2_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of ICMR round 2 for some Indian states.')
+    
+    # India ICMR round 3 for some states
+    is_bad_icmr_round3_states = data['location_id'].isin([
+        4851,  # Gujarat
+        4856,  # Karnataka
+        4859,  # Madhya Pradesh
+        4867,  # Punjab
+        4868,  # Rajasthan
+        4871,  # Telangana
+        4873,  # Uttar Pradesh
+    ])
+    is_icmr_round3 = data['survey_series'] == 'icmr_round3'
+    
+    icmr_round3_outlier = is_bad_icmr_round3_states & is_icmr_round3
+    outliers.append(icmr_round3_outlier)
+    if verbose:
+        logger.debug(f'{icmr_round3_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of ICMR round 3 for some Indian states.')
+    
+    # India Phenome
+    phenome_india_outlier = data['survey_series'] == 'phenome_india'
+    outliers.append(phenome_india_outlier)
+    if verbose:
+        logger.debug(f'{phenome_india_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of Phenome India survey data.')
+    
+    # Chhattisgarh ICMR-RMRC survey
+    chhattisgarh_outlier = data['survey_series'] == 'Chhattisgarh_icmr_rmrc'
+    outliers.append(chhattisgarh_outlier)
+    if verbose:
+        logger.debug(f'{chhattisgarh_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of Chhattisgarh ICMR-RMRC survey data.')
+    
+    # Delhi Sharma study
     is_delhi = data['location_id'] == 4849
-    is_dey_sharma = data['survey_series'].isin(['dey_delhi_sero', 'sharma_delhi_sero'])
+    is_sharma = data['survey_series'] == 'sharma_delhi_sero'
     is_pre_sept_2020 = data['date'] < pd.Timestamp('2020-09-01')
 
-    delhi_outlier = is_delhi & is_dey_sharma & is_pre_sept_2020
+    delhi_outlier = is_delhi & is_sharma & is_pre_sept_2020
     outliers.append(delhi_outlier)
-    logger.debug(f'{delhi_outlier.sum()} rows from sero data dropped due to implausibility '
-                 '(or at least incompatibility) of Delhi survey data (non-ICMR).')
-
-    # Gujarat ICMR round 2
-    is_guj = data['location_id'] == 4851
-    is_icmr_round2 = data['survey_series'] == 'icmr_round2'
-
-    guj_outlier = is_guj & is_icmr_round2
-    outliers.append(guj_outlier)
-    logger.debug(f'{guj_outlier.sum()} rows from sero data dropped due to implausibility '
-                 '(or at least incompatibility) of Gujarat survey data (ICMR round 2).')
-
-    # Himachal Pradesh non-ICMR survey
-    is_hp = data['location_id'] == 4853
-    is_phenome_india = data['survey_series'] == 'phenome_india'
-
-    hp_outlier = is_hp & is_phenome_india
-    outliers.append(hp_outlier)
-    logger.debug(f'{hp_outlier.sum()} rows from sero data dropped due to implausibility '
-                 '(or at least incompatibility) of Himachal Pradesh survey data (non-ICMR).')
+    if verbose:
+        logger.debug(f'{delhi_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of early portion of Delhi survey data (Sharma, non-ICMR).')
 
     # Jharkhand non-ICMR survey
     is_jhark = data['location_id'] == 4855
@@ -464,35 +539,30 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
 
     jhark_outlier = is_jhark & is_jharkhand_feb
     outliers.append(jhark_outlier)
-    logger.debug(f'{jhark_outlier.sum()} rows from sero data dropped due to implausibility '
-                 '(or at least incompatibility) of Jharkand survey data (non-ICMR).')
+    if verbose:
+        logger.debug(f'{jhark_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of Jharkand survey data (non-ICMR).')
 
-    # Karnataka JAMA
+    # Karnataka JAMA and statewide 2
     is_karn = data['location_id'] == 4856
-    is_karnataka_mohanan = data['survey_series'] == 'karnataka_mohanan'
+    is_karnataka_mohanan_or_statewide_2 = data['survey_series'].isin(['karnataka_mohanan', 'karnataka_statewide_2'])
 
-    karn_outlier = is_karn & is_karnataka_mohanan
+    karn_outlier = is_karn & is_karnataka_mohanan_or_statewide_2
     outliers.append(karn_outlier)
-    logger.debug(f'{karn_outlier.sum()} rows from sero data dropped due to implausibility '
-                 '(or at least incompatibility) of Karnataka survey data (non-ICMR).')
+    if verbose:
+        logger.debug(f'{karn_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of Karnataka survey (Mohanan and "statewide", non-ICMR).')
+    
+    # Tamil Nadu gov't survey spring 2021
+    is_tn = data['location_id'] == 4870
+    is_Gov_Tamil_Nadu = data['survey_series'] == 'Gov_Tamil_Nadu'
+    is_april_2021 = data['date'] == pd.Timestamp('2021-04-30')
 
-    # Odisha ICMR round 2
-    is_odisha = data['location_id'] == 4865
-    is_icmr_round2 = data['survey_series'] == 'icmr_round2'
-
-    odisha_outlier = is_odisha & is_icmr_round2
-    outliers.append(odisha_outlier)
-    logger.debug(f'{odisha_outlier.sum()} rows from sero data dropped due to implausibility '
-                 '(or at least incompatibility) of Odisha survey data (ICMR round 2).')
-
-    # Rajasthan ICMR round 2
-    is_raj = data['location_id'] == 4868
-    is_icmr_round2 = data['survey_series'] == 'icmr_round2'
-
-    raj_outlier = is_raj & is_icmr_round2
-    outliers.append(raj_outlier)
-    logger.debug(f'{raj_outlier.sum()} rows from sero data dropped due to implausibility '
-                 '(or at least incompatibility) of Rajasthan survey data (ICMR round 2).')
+    tn_outlier = is_tn & is_Gov_Tamil_Nadu & is_april_2021
+    outliers.append(tn_outlier)
+    if verbose:
+        logger.debug(f'{tn_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of spring 2021 Tamil Nadu survey (state government, non-ICMR).')
 
     # Punjab (PAK)
     is_pp = data['location_id'] == 53620
@@ -500,9 +570,20 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
 
     pp_outlier = is_pp & is_pakistan_july
     outliers.append(pp_outlier)
-    logger.debug(f'{pp_outlier.sum()} rows from sero data dropped due to implausibility '
-                 '(or at least incompatibility) of Punjab (PAK) July survey.')
+    if verbose:
+        logger.debug(f'{pp_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of Punjab (PAK) July survey.')
+    
+    # DRC ARIACOV
+    is_drc = data['location_id'] == 171
+    is_ARIACOV_Nov2020 = data['survey_series'] == 'ARIACOV_Nov2020'
 
+    drc_outlier = is_drc & is_ARIACOV_Nov2020
+    outliers.append(drc_outlier)
+    if verbose:
+        logger.debug(f'{drc_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of DRC ARIACOV study.')
+    
     # Kenya blood transfusion pre-July
     is_ken = data['location_id'] == 180
     is_kenya_blood = data['survey_series'] == 'kenya_blood'
@@ -510,18 +591,62 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
 
     ken_outlier = is_ken & is_kenya_blood & is_pre_july_2020
     outliers.append(ken_outlier)
-    logger.debug(f'{ken_outlier.sum()} rows from sero data dropped due to implausibility '
-                 '(or at least incompatibility) of first two months of Kenya blood transfusion surveillance.')
+    if verbose:
+        logger.debug(f'{ken_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of first two months of Kenya blood transfusion surveillance.')
+    
+    # Malawi Mandolo series pre-July
+    is_malawi = data['location_id'] == 182
+    is_Mandolo_2021 = data['survey_series'] == 'Mandolo_2021'
+    is_pre_july_2020 = data['date'] < pd.Timestamp('2020-07-01')
 
-    # Mozambique INS pre-Sept
+    malawi_outlier = is_malawi & is_Mandolo_2021 & is_pre_july_2020
+    outliers.append(malawi_outlier)
+    if verbose:
+        logger.debug(f'{malawi_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of super early points from Malawi Mandolo series.')
+
+    # Mozambique INS 2020
     is_moz = data['location_id'] == 184
     is_moz_ins_incovid2020 = data['survey_series'] == 'moz_ins_incovid2020'
-    is_pre_sept_2020 = data['date'] < pd.Timestamp('2020-09-01')
+    is_2020 = data['date'] <= pd.Timestamp('2020-12-31')
 
-    moz_outlier = is_moz & is_moz_ins_incovid2020 & is_pre_sept_2020
+    moz_outlier = is_moz & is_moz_ins_incovid2020 & is_2020
     outliers.append(moz_outlier)
-    logger.debug(f'{moz_outlier.sum()} rows from sero data dropped due to implausibility '
-                 '(or at least incompatibility) of first Mozabique INS survey.')
+    if verbose:
+        logger.debug(f'{moz_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of Mozabique INS survey in 2020.')
+    
+    # Cameroon study
+    is_cameroon = data['location_id'] == 202
+    is_Sachathep_zenodo = data['survey_series'] == 'Sachathep_zenodo'
+
+    cameroon_outlier = is_cameroon & is_Sachathep_zenodo
+    outliers.append(cameroon_outlier)
+    if verbose:
+        logger.debug(f'{cameroon_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of Cameroon Sachathep study.')
+    
+    # Mali first point in study
+    is_mali = data['location_id'] == 211
+    is_Sagara_2021 = data['survey_series'] == 'Sagara_2021'
+    is_2020 = data['date'] <= pd.Timestamp('2020-12-31')
+
+    mali_outlier = is_mali & is_Sagara_2021 & is_2020
+    outliers.append(mali_outlier)
+    if verbose:
+        logger.debug(f'{mali_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of first point from Mali Sagara study.')
+    
+    # Nigeria Okpala
+    is_nigeria = data['location_id'] == 214
+    is_Okpala_Dec2020 = data['survey_series'] == 'Okpala_Dec2020'
+
+    nigeria_outlier = is_nigeria & is_Okpala_Dec2020
+    outliers.append(nigeria_outlier)
+    if verbose:
+        logger.debug(f'{nigeria_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of Nigeria Okpala.')
 
     # 4) Level threshold - location max > 3%, value max > 1%
     data['tmp_outlier'] = pd.concat(outliers, axis=1).max(axis=1).astype(int)
@@ -535,8 +660,9 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     is_sub1 = data['seroprevalence'] < 0.01
     is_maxsub3_sub1 = is_maxsub3 | is_sub1
     outliers.append(is_maxsub3_sub1)
-    logger.debug(f'{is_maxsub3_sub1.sum()} rows from sero data dropped due to having values'
-                 'below 1% or a location max below 3%.')
+    if verbose:
+        logger.info(f'{is_maxsub3_sub1.sum()} rows from sero data dropped due to having values'
+                     'below 1% or a location max below 3%.')
     
     # 6) drop December 2021 onward
     date_cutoff_outlier = data['date'] > pd.Timestamp('2021-11-20')

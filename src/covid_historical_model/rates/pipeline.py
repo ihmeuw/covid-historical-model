@@ -118,10 +118,11 @@ def pipeline_wrapper(out_dir: Path,
     idr_covariate_options = [['haq'], ['uhc'], ['prop_65plus'], [],]
     idr_covariate_pool = np.random.choice(idr_covariate_options, n_samples)
     
-    day_inflection_options = ['2020-05-01', '2020-06-01',
-                              '2020-07-01', '2020-08-01', '2020-09-01',
-                              '2020-10-01', '2020-11-01', '2020-12-01',
-                              '2021-01-01', '2021-02-01', '2021-03-01',]
+    day_inflection_options = ['2020-06-01', '2020-07-01',
+                              '2020-08-01', '2020-09-01',
+                              '2020-10-01', '2020-11-01',
+                              '2020-12-01', '2021-01-01',
+                              '2021-02-01', '2021-03-01',]
     day_inflection_pool = np.random.choice(day_inflection_options, n_samples)
     day_inflection_pool = [pd.Timestamp(str(d)) for d in day_inflection_pool]
     
