@@ -45,18 +45,13 @@ def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str)
         is_ecdc = data['location_id'].isin(ecdc_location_ids)
         data = data.loc[~is_ecdc].reset_index(drop=True)
         manipulation_metadata['ecdc_countries'] = 'dropped all hospitalizations'
-        
-        ## CLOSE, but seems a little low... check w/ new data
-        is_goa = data['location_id'] == 4850
-        data = data.loc[~is_goa].reset_index(drop=True)
-        manipulation_metadata['goa'] = 'dropped all hospitalizations'
 
         ## too late, starts March 2021
         is_haiti = data['location_id'] == 114
         data = data.loc[~is_haiti].reset_index(drop=True)
         manipulation_metadata['haiti'] = 'dropped all hospitalizations'
 
-        ## late, starts Jan/Feb 2021 (and is a little low, should check w/ new data)
+        ## late, starts Jan/Feb 2021 and is not cumulative (would require imputation)
         is_jordan = data['location_id'] == 144
         data = data.loc[~is_jordan].reset_index(drop=True)
         manipulation_metadata['jordan'] = 'dropped all hospitalizations'
@@ -65,6 +60,11 @@ def evil_doings(data: pd.DataFrame, hierarchy: pd.DataFrame, input_measure: str)
         is_andorra = data['location_id'] == 74
         data = data.loc[~is_andorra].reset_index(drop=True)
         manipulation_metadata['andorra'] = 'dropped all hospitalizations'
+        
+        ## only Jan-July 2021; also probably too low
+        is_malawi = data['location_id'] == 182
+        data = data.loc[~is_malawi].reset_index(drop=True)
+        manipulation_metadata['malawi'] = 'dropped all hospitalizations'
     
     elif input_measure == 'deaths':
         pass
@@ -478,7 +478,6 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
         4859,  # Madhya Pradesh
         4867,  # Punjab
         4868,  # Rajasthan
-        4871,  # Telangana
         4873,  # Uttar Pradesh
         4875,  # West Bengal
     ])
@@ -493,12 +492,7 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     # India ICMR round 3 for some states
     is_bad_icmr_round3_states = data['location_id'].isin([
         4851,  # Gujarat
-        4856,  # Karnataka
         4859,  # Madhya Pradesh
-        4867,  # Punjab
-        4868,  # Rajasthan
-        4871,  # Telangana
-        4873,  # Uttar Pradesh
     ])
     is_icmr_round3 = data['survey_series'] == 'icmr_round3'
     
