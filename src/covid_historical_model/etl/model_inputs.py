@@ -229,79 +229,6 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     # some of the new extractions have the wrong isotype
     data.loc[data['test_name'] == 'Roche Elecsys N pan-Ig', 'isotype'] = 'pan-Ig'
     ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
-    ## Angola odd points
-    data.loc[(data['location_id'] == 168) &
-             (data['survey_series'] == 'Sebastiao_Sep2020'),
-             'manual_outlier'] = 1
-    data.loc[(data['location_id'] == 168) &
-             (data['survey_series'] == 'Sebastiao_blooddonors_2020') &
-             (data['date'] == pd.Timestamp('2020-07-31')),
-             'manual_outlier'] = 1
-    
-    ## Ethiopia Abdella
-    data.loc[(data['location_id'] == 179) &
-             (data['survey_series'] == 'Abdella_Sep2020'),
-             'manual_outlier'] = 1
-    
-    ## Kenya super early point
-    data.loc[(data['location_id'] == 180) &
-             (data['survey_series'] == 'Crowell_2021'),
-             'manual_outlier'] = 1
-    
-    ## Kenya Lucinde
-    data.loc[(data['location_id'] == 180) &
-             (data['survey_series'] == 'Lucinde_2021'),
-             'manual_outlier'] = 1
-    
-    ## outlier Madagascar blood donor IgG after they started pan-Ig
-    data.loc[(data['location_id'] == 181) &
-             (data['survey_series'] == 'madagascar_blood') & 
-             (data['test_name'] == 'ID Vet ELISA IgG') & 
-             (data['date'] >= pd.Timestamp('2021-01-01')),
-             'manual_outlier'] = 1
-    
-    ## Zambia same study reports 7.6% PCR prev, 2.1% antibody
-    data.loc[(data['location_id'] == 191) &
-             (data['survey_series'] == 'Hines_July2020'),
-             'manual_outlier'] = 1
-    
-    ## Zambia study is young children and healthcare workers
-    data.loc[(data['location_id'] == 191) &
-             (data['survey_series'] == 'Laban_Dec2020'),
-             'manual_outlier'] = 1
-    
-    ## South Africa use most-detailed locs
-    data.loc[(data['location_id'] == 196) &
-             (data['survey_series'] == 'sanbs_southafrica') & 
-             (data['source_population'] == 'South Africa'),
-             'manual_outlier'] = 1
-    
-    ## South Africa Hsiao study
-    data.loc[(data['location_id'] == 196) &
-             (data['survey_series'] == 'Hsiao_2020'),
-             'manual_outlier'] = 1
-    
-    ## South Africa Angincourt is too low in PHIRST_C2021
-    data.loc[(data['location_id'] == 196) &
-             (data['survey_series'] == 'PHIRST_C2021') & 
-             (data['source_population'] == 'Agincourt, Mpumalanga province'),
-             'manual_outlier'] = 1
-    
-    ## Cote d'Ivoire mining camp not rep (even though data is consistent)
-    data.loc[(data['location_id'] == 205) &
-             (data['survey_series'] == 'Milleliri_Oct2020'),
-             'manual_outlier'] = 1
-    
-    ## Ghana multi-site
-    data.loc[(data['location_id'] == 207) &
-             (data['survey_series'] == 'ghana_multisite'),
-             'manual_outlier'] = 1
-    
-    ## Sierra Leone - must be using awful test
-    data.loc[(data['location_id'] == 217) &
-             (data['survey_series'] == 'sierra_leone_household'),
-             'manual_outlier'] = 1
-    
     outliers = []
     data['manual_outlier'] = data['manual_outlier'].astype(float)
     data['manual_outlier'] = data['manual_outlier'].fillna(0)
@@ -331,10 +258,103 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     #    Question: Use of geo_accordance?
     #    Current approach: Drop non-represeentative (geo_accordance == 0).
     data['geo_accordance'] = helpers.str_fmt(data['geo_accordance']).replace(('unchecked', np.nan), '0').astype(int)
+    
+    # re-code Singh study to be representative of states in which it was conducted except W Bengal
+    data.loc[(data['survey_series'] == 'Singh_Dec2020') &
+             (data['location_id'] != 4875),
+             'geo_accordance'] = 1
+    
+    # re-code WHO UNITY study to be representative of states in which it was conducted
+    data.loc[(data['survey_series'] == 'WHO_Unity_India2021'),
+             'geo_accordance'] = 1
+    
+    # re-code Phenome-India to be representative of Telengana
+    data.loc[(data['location_id'] == 4871) &
+             (data['survey_series'] == 'phenome_india'),
+             'geo_accordance'] = 1
+    
+    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+    ## SSA REPRESENTATIVENESS RECODE
+    #  all SSA
     ssa_location_ids = (hierarchy
                         .loc[hierarchy['path_to_top_parent'].apply(lambda x: '166' in x.split(',')), 'location_id']
                         .to_list())
     data.loc[data['location_id'].isin(ssa_location_ids), 'geo_accordance'] = 1
+    
+    # Angola Sebastiao odd points
+    data.loc[(data['location_id'] == 168) &
+             (data['survey_series'] == 'Sebastiao_Sep2020'),
+             'geo_accordance'] = 0
+    data.loc[(data['location_id'] == 168) &
+             (data['survey_series'] == 'Sebastiao_blooddonors_2020') &
+             (data['date'] == pd.Timestamp('2020-07-31')),
+             'geo_accordance'] = 0
+    
+    # Ethiopia Abdella
+    data.loc[(data['location_id'] == 179) &
+             (data['survey_series'] == 'Abdella_Sep2020'),
+             'geo_accordance'] = 0
+    
+    # Kenya super early point
+    data.loc[(data['location_id'] == 180) &
+             (data['survey_series'] == 'Crowell_2021'),
+             'geo_accordance'] = 0
+    
+    # Kenya Lucinde
+    data.loc[(data['location_id'] == 180) &
+             (data['survey_series'] == 'Lucinde_2021'),
+             'geo_accordance'] = 0
+    
+    # Madagascar blood donor IgG after they started pan-Ig
+    data.loc[(data['location_id'] == 181) &
+             (data['survey_series'] == 'madagascar_blood') & 
+             (data['test_name'] == 'ID Vet ELISA IgG') & 
+             (data['date'] >= pd.Timestamp('2021-01-01')),
+             'geo_accordance'] = 0
+    
+    # Zambia same study reports 7.6% PCR prev, 2.1% antibody
+    data.loc[(data['location_id'] == 191) &
+             (data['survey_series'] == 'Hines_July2020'),
+             'geo_accordance'] = 0
+    
+    # Zambia study is young children and healthcare workers
+    data.loc[(data['location_id'] == 191) &
+             (data['survey_series'] == 'Laban_Dec2020'),
+             'geo_accordance'] = 0
+    
+    # South Africa use most-detailed locs
+    data.loc[(data['location_id'] == 196) &
+             (data['survey_series'] == 'sanbs_southafrica') & 
+             (data['source_population'] == 'South Africa'),
+             'geo_accordance'] = 0
+    
+    # South Africa Hsiao study
+    data.loc[(data['location_id'] == 196) &
+             (data['survey_series'] == 'Hsiao_2020'),
+             'geo_accordance'] = 0
+    
+    # South Africa Angincourt is too low in PHIRST_C2021
+    data.loc[(data['location_id'] == 196) &
+             (data['survey_series'] == 'PHIRST_C2021') & 
+             (data['source_population'] == 'Agincourt, Mpumalanga province'),
+             'geo_accordance'] = 0
+    
+    # Cote d'Ivoire mining camp not rep (even though data is consistent)
+    data.loc[(data['location_id'] == 205) &
+             (data['survey_series'] == 'Milleliri_Oct2020'),
+             'geo_accordance'] = 0
+    
+    # Ghana multi-site
+    data.loc[(data['location_id'] == 207) &
+             (data['survey_series'] == 'ghana_multisite'),
+             'geo_accordance'] = 0
+    
+    # Sierra Leone - must be using awful test
+    data.loc[(data['location_id'] == 217) &
+             (data['survey_series'] == 'sierra_leone_household'),
+             'geo_accordance'] = 0
+    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+    
     geo_outlier = data['geo_accordance'] == 0
     outliers.append(geo_outlier)
     if verbose:
@@ -438,6 +458,17 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     if verbose:
         logger.debug(f'{vermont_outlier.sum()} rows from sero data dropped due to implausibility '
                      '(or at least incompatibility) of early commercial lab points in Vermont.')
+    
+    # high Norway
+    is_norway = data['location_id'] == 90
+    is_norway_serobank = data['survey_series'] == 'norway_serobank'
+    is_august_2020 = data['date'] == pd.Timestamp('2020-08-30')
+
+    norway_outlier = is_norway & is_norway_serobank & is_august_2020
+    outliers.append(norway_outlier)
+    if verbose:
+        logger.debug(f'{norway_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of high Norway serobank point.')
 
     # Ceuta first round
     is_ceu = data['location_id'] == 60369
@@ -474,12 +505,10 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     is_bad_icmr_round2_states = data['location_id'].isin([
         4846,  # Chhattisgarh
         4851,  # Gujarat
-        4855,  # Jharkhand
         4859,  # Madhya Pradesh
         4867,  # Punjab
         4868,  # Rajasthan
-        4873,  # Uttar Pradesh
-        4875,  # West Bengal
+        4871,  # Telangana
     ])
     is_icmr_round2 = data['survey_series'] == 'icmr_round2'
     
@@ -491,8 +520,12 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     
     # India ICMR round 3 for some states
     is_bad_icmr_round3_states = data['location_id'].isin([
+        4844,  # Bihar
         4851,  # Gujarat
         4859,  # Madhya Pradesh
+        4867,  # Punjab
+        4868,  # Rajasthan
+        4871,  # Telangana
     ])
     is_icmr_round3 = data['survey_series'] == 'icmr_round3'
     
@@ -503,7 +536,13 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
                      '(or at least incompatibility) of ICMR round 3 for some Indian states.')
     
     # India Phenome
-    phenome_india_outlier = data['survey_series'] == 'phenome_india'
+    is_bad_phenome_india_states = data['location_id'].isin([
+        4850,  # Goa
+        4853,  # Himachal Pradesh
+    ])
+    is_phenome_india = data['survey_series'] == 'phenome_india'
+    
+    phenome_india_outlier = is_bad_phenome_india_states & is_phenome_india
     outliers.append(phenome_india_outlier)
     if verbose:
         logger.debug(f'{phenome_india_outlier.sum()} rows from sero data dropped due to implausibility '
@@ -526,16 +565,6 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     if verbose:
         logger.debug(f'{delhi_outlier.sum()} rows from sero data dropped due to implausibility '
                      '(or at least incompatibility) of early portion of Delhi survey data (Sharma, non-ICMR).')
-
-    # Jharkhand non-ICMR survey
-    is_jhark = data['location_id'] == 4855
-    is_jharkhand_feb = data['survey_series'] == 'jharkhand_feb'
-
-    jhark_outlier = is_jhark & is_jharkhand_feb
-    outliers.append(jhark_outlier)
-    if verbose:
-        logger.debug(f'{jhark_outlier.sum()} rows from sero data dropped due to implausibility '
-                     '(or at least incompatibility) of Jharkand survey data (non-ICMR).')
 
     # Karnataka JAMA and statewide 2
     is_karn = data['location_id'] == 4856
@@ -646,12 +675,12 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     data['tmp_outlier'] = pd.concat(outliers, axis=1).max(axis=1).astype(int)
     is_maxsub3 = (data
                   .groupby(['location_id', 'tmp_outlier'])
-                  .apply(lambda x: x['seroprevalence'].max() < 0.03)
+                  .apply(lambda x: x['seroprevalence'].max() <= 0.03)
                   .rename('is_maxsub3')
                   .reset_index())
     is_maxsub3 = data.merge(is_maxsub3, how='left').loc[data.index, 'is_maxsub3']
     del data['tmp_outlier']
-    is_sub1 = data['seroprevalence'] < 0.01
+    is_sub1 = data['seroprevalence'] <= 0.01
     is_maxsub3_sub1 = is_maxsub3 | is_sub1
     outliers.append(is_maxsub3_sub1)
     if verbose:
