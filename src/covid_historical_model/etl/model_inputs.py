@@ -458,17 +458,19 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     if verbose:
         logger.debug(f'{vermont_outlier.sum()} rows from sero data dropped due to implausibility '
                      '(or at least incompatibility) of early commercial lab points in Vermont.')
-    
-    # high Norway
+
+    # high Norway + 2021 point of NRC/UT survey
     is_norway = data['location_id'] == 90
     is_norway_serobank = data['survey_series'] == 'norway_serobank'
     is_august_2020 = data['date'] == pd.Timestamp('2020-08-30')
+    is_norway_winter = data['survey_series'] == 'norway_winter'
+    is_2021 = data['date'] >= pd.Timestamp('2021-01-01')
 
-    norway_outlier = is_norway & is_norway_serobank & is_august_2020
+    norway_outlier = is_norway & ((is_norway_serobank & is_august_2020) | (is_norway_winter & is_2021))
     outliers.append(norway_outlier)
     if verbose:
         logger.debug(f'{norway_outlier.sum()} rows from sero data dropped due to implausibility '
-                     '(or at least incompatibility) of high Norway serobank point.')
+                     '(or at least incompatibility) of high Norway serobank point + 2021 (vax era) point of NRC/UT survey.')
 
     # Ceuta first round
     is_ceu = data['location_id'] == 60369
@@ -672,6 +674,8 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
                      '(or at least incompatibility) of Nigeria Okpala.')
 
     # 4) Level threshold - location max > 3%, value max > 1%
+    # exemtions -> Norway and Vermont (noisy serial measurements, need low values)
+    na_list = [90, 568]
     data['tmp_outlier'] = pd.concat(outliers, axis=1).max(axis=1).astype(int)
     is_maxsub3 = (data
                   .groupby(['location_id', 'tmp_outlier'])
@@ -681,7 +685,7 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     is_maxsub3 = data.merge(is_maxsub3, how='left').loc[data.index, 'is_maxsub3']
     del data['tmp_outlier']
     is_sub1 = data['seroprevalence'] <= 0.01
-    is_maxsub3_sub1 = is_maxsub3 | is_sub1
+    is_maxsub3_sub1 = (is_maxsub3 | is_sub1) & ~data['location_id'].isin(na_list)
     outliers.append(is_maxsub3_sub1)
     if verbose:
         logger.info(f'{is_maxsub3_sub1.sum()} rows from sero data dropped due to having values'
