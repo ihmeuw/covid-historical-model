@@ -362,6 +362,8 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     data['correction_status'] = helpers.str_fmt(data['correction_status']).replace(('unchecked', 'not specified', np.nan), '0').astype(int)
     
     # 3) Extra drops
+    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+    ## VACCINE-RELATED
     # vaccine debacle, lose all the UK spike data in 2021
     is_uk = data['location_id'].isin([4749, 433, 434, 4636])
     is_spike = data['test_target'] == 'spike'
@@ -382,8 +384,8 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     if verbose:
         logger.debug(f'{den_vax_outlier.sum()} rows from sero data dropped due to Denmark vax issues.')
 
-    # vaccine debacle, lose all the Estonia and Netherlands data from June 2021 onward
-    is_est_ndl = data['location_id'].isin([58, 89])
+    # vaccine debacle, lose all the Estonia, Belgium, and Netherlands data from June 2021 onward
+    is_est_ndl = data['location_id'].isin([58, 76, 89])
     is_spike = data['test_target'] == 'spike'
     is_post_june_2021 = data['date'] >= pd.Timestamp('2021-06-01')
 
@@ -401,6 +403,18 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
     outliers.append(pr_vax_outlier)
     if verbose:
         logger.debug(f'{pr_vax_outlier.sum()} rows from sero data dropped due to Puerto Rico vax issues.')
+    
+    ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ## ##
+    ## OTHER FIT-RELATED
+    # Kazakhstan collab data
+    is_kaz = data['location_id'] == 36
+    is_kaz_collab_data = data['survey_series'] == 'kazakhstan_who'
+
+    kaz_outlier = is_kaz & is_kaz_collab_data
+    outliers.append(kaz_outlier)
+    if verbose:
+        logger.debug(f'{kaz_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of Kazakhstan colloborator data.')
 
     # Saskatchewan
     is_sas = data['location_id'] == 43869
@@ -451,13 +465,24 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
 
     # early Vermont
     is_vermont = data['location_id'] == 568
-    is_pre_nov = data['date'] < pd.Timestamp('2020-11-01')
+    is_pre_dec = data['date'] < pd.Timestamp('2020-12-01')
 
-    vermont_outlier = is_vermont & is_pre_nov
+    vermont_outlier = is_vermont & is_pre_dec
     outliers.append(vermont_outlier)
     if verbose:
         logger.debug(f'{vermont_outlier.sum()} rows from sero data dropped due to implausibility '
                      '(or at least incompatibility) of early commercial lab points in Vermont.')
+
+    # France early study points
+    is_fra = data['location_id'] == 80
+    is_frenchpop_stephanelevu = data['survey_series'] == 'frenchpop_stephanelevu'
+    is_pre_may_2020 = data['date'] < pd.Timestamp('2020-05-01')
+
+    fra_outlier = is_fra & is_frenchpop_stephanelevu & is_pre_may_2020
+    outliers.append(fra_outlier)
+    if verbose:
+        logger.debug(f'{fra_outlier.sum()} rows from sero data dropped due to implausibility '
+                     '(or at least incompatibility) of first pre-May survey in France.')
 
     # high Norway + 2021 point of NRC/UT survey
     is_norway = data['location_id'] == 90
@@ -483,16 +508,6 @@ def seroprevalence(out_dir: Path, hierarchy: pd.DataFrame, verbose: bool = True,
         logger.debug(f'{ceu_outlier.sum()} rows from sero data dropped due to implausibility '
                      '(or at least incompatibility) of first survey round in Ceuta.')
 
-    # Kazakhstan collab data
-    is_kaz = data['location_id'] == 36
-    is_kaz_collab_data = data['survey_series'] == 'kazakhstan_who'
-
-    kaz_outlier = is_kaz & is_kaz_collab_data
-    outliers.append(kaz_outlier)
-    if verbose:
-        logger.debug(f'{kaz_outlier.sum()} rows from sero data dropped due to implausibility '
-                     '(or at least incompatibility) of Kazakhstan colloborator data.')
-    
     # India national studies, 2020
     is_india = data['location_id'] == 163
     is_2020 = data['date'] <= pd.Timestamp('2020-12-31')
