@@ -741,9 +741,14 @@ def reported_epi(out_dir: Path, input_measure: str, smooth: bool,
         if type(excess_mortality) != bool:
             raise TypeError('Must specify `excess_mortality` argument to load deaths.')
         data_path = out_dir / 'model_inputs' / 'full_data_unscaled.csv'
-    else:
+    elif input_measure == 'cases':
+        excess_mortality = False
+        data_path = out_dir / 'model_inputs' / 'full_data_unscaled.csv'
+    elif input_measure == 'hospitalizations':
         excess_mortality = False
         data_path = out_dir / 'model_inputs' / 'use_at_your_own_risk' / 'full_data_extra_hospital.csv'
+    else:
+        raise ValueError('Invalid input measure.')
     data = pd.read_csv(data_path)
     data = data.rename(columns={'Confirmed': 'cumulative_cases',
                                 'Hospitalizations': 'cumulative_hospitalizations',
