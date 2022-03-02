@@ -840,11 +840,20 @@ def hierarchy(out_dir:Path, hierarchy_type: str = 'covid_modeling') -> pd.DataFr
         
         data = pd.read_csv(data_path)
         data = data.sort_values('sort_order').reset_index(drop=True)
+        
+        logger.warning('Manually adapting hierarchy for Other Union Territories')
+        n_children = data.loc[data['parent_id'] == 44538].shape[0]
+        data = data.loc[data['parent_id'] != 44538]
+        data.loc[data['location_id'] == 44538, 'most_detailed'] = 1
+        sort_order = data.loc[data['location_id'] == 44538, 'sort_order'].item()
+        data.loc[data['sort_order'] > sort_order, 'sort_order'] -= n_children
+        
     elif hierarchy_type == 'covid_covariate':
         data_path = out_dir / 'model_inputs' / 'locations' / 'covariate_with_aggregates_hierarchy.csv'
         
         data = pd.read_csv(data_path)
         data = data.sort_values('sort_order').reset_index(drop=True)
+        raise ValueError('Incompatible hierarchy.')
     elif hierarchy_type == 'covid_gbd':
         data_path = out_dir / 'model_inputs' / 'locations' / 'gbd_analysis_hierarchy.csv'
         data = pd.read_csv(data_path)
@@ -855,6 +864,14 @@ def hierarchy(out_dir:Path, hierarchy_type: str = 'covid_modeling') -> pd.DataFr
 
         # get ZAF only from GBD
         covid = pd.read_csv(covid_path)
+        
+        logger.warning('Manually adapting hierarchy for Other Union Territories')
+        n_children = data.loc[data['parent_id'] == 44538].shape[0]
+        data = data.loc[data['parent_id'] != 44538]
+        data.loc[data['location_id'] == 44538, 'most_detailed'] = 1
+        sort_order = data.loc[data['location_id'] == 44538, 'sort_order'].item()
+        data.loc[data['sort_order'] > sort_order, 'sort_order'] -= n_children
+        
         covid_is_zaf = covid['path_to_top_parent'].apply(lambda x: '196' in x.split(','))
         if not covid_is_zaf.sum() == 1:
             raise ValueError('Already have ZAF subnats in Covid hierarchy.')
