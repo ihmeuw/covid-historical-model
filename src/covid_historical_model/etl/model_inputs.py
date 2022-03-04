@@ -871,11 +871,11 @@ def hierarchy(out_dir:Path, hierarchy_type: str = 'covid_modeling') -> pd.DataFr
         covid = pd.read_csv(covid_path)
         
         logger.warning('Manually adapting hierarchy for Other Union Territories')
-        n_children = data.loc[data['parent_id'] == 44538].shape[0]
-        data = data.loc[data['parent_id'] != 44538]
-        data.loc[data['location_id'] == 44538, 'most_detailed'] = 1
-        sort_order = data.loc[data['location_id'] == 44538, 'sort_order'].item()
-        data.loc[data['sort_order'] > sort_order, 'sort_order'] -= n_children
+        n_children = covid.loc[covid['parent_id'] == 44538].shape[0]
+        covid = covid.loc[covid['parent_id'] != 44538]
+        covid.loc[covid['location_id'] == 44538, 'most_detailed'] = 1
+        sort_order = covid.loc[covid['location_id'] == 44538, 'sort_order'].item()
+        covid.loc[covid['sort_order'] > sort_order, 'sort_order'] -= n_children
         
         covid_is_zaf = covid['path_to_top_parent'].apply(lambda x: '196' in x.split(','))
         if not covid_is_zaf.sum() == 1:
