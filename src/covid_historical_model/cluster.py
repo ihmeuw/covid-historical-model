@@ -11,18 +11,23 @@ from loguru import logger
 
 
 PROJECT = 'proj_covid_prod'
-QUEUE = 'd.q'
+QUEUE = {
+    'standard': 'd.q',
+    'gbd': 'all.q',
+}
 RESOURCES = {
-    'all':{'fmem': '10.0G', 'fthread': '6'},
+    'standard': {'fmem': '10.0G', 'fthread': '6'},
+    'gbd': {'fmem': '12.0G', 'fthread': '6'},
 }
 OMP_NUM_THREADS = '6'
 MKL_NUM_THREADS = '6'
 CONTROLLER_MP_THREADS = 25
-H_RUNTIME = '02:00:00'
+H_RUNTIME = '03:00:00'
 SLEEP_TIME = 10
 
 
-def run_cluster_jobs(job_type: str, output_root: Path, job_args_map: Dict[int, List[str]]) -> None:
+def run_cluster_jobs(job_type: str, output_root: Path, job_args_map: Dict[int, List[str]],
+                     process_key: str) -> None:
     drmaa = get_drmaa()
     jobs = {}
     with drmaa.Session() as session:
@@ -30,7 +35,7 @@ def run_cluster_jobs(job_type: str, output_root: Path, job_args_map: Dict[int, L
             logger.info(f"Enqueuing {job_type} jobs...")
             for job_id, job_args in job_args_map.items():
                 job_name = f'{job_type}_{job_id}'
-                job = do_qsub(session, job_type, job_name, output_root, job_args)
+                job = do_qsub(session, job_type, job_name, output_root, job_args, process_key)
                 jobs[job_name] = (job, drmaa.JobState.UNDETERMINED)
 
             logger.info('Entering monitoring loop.')
@@ -62,7 +67,7 @@ def run_cluster_jobs(job_type: str, output_root: Path, job_args_map: Dict[int, L
 
 
 def do_qsub(session, job_type: str, job_name: str, output_root: Path, script_args: List[str],
-            process_key: str = 'all'):
+            process_key: str):
     error_logs = output_root / 'logs' / job_type / 'error'
     output_logs = output_root / 'logs' / job_type / 'output'
     shell_tools.mkdir(error_logs, exists_ok=True, parents=True)
@@ -76,7 +81,7 @@ def do_qsub(session, job_type: str, job_name: str, output_root: Path, script_arg
     job_template.nativeSpecification = (f'-V '  # Export all environment variables
                                         f'-b y '  # Command is a binary (python)
                                         f'-P {PROJECT} '
-                                        f'-q {QUEUE} '
+                                        f'-q {QUEUE[process_key]} '
                                         f"-l fmem={RESOURCES[process_key]['fmem']} "
                                         f"-l fthread={RESOURCES[process_key]['fthread']} "
                                         f'-l h_rt={H_RUNTIME} '

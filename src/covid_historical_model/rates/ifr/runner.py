@@ -28,16 +28,12 @@ def runner(input_data: Dict,
            day_inflection: str,
            covariate_list: List[str],
            durations: Dict,
-           day_0: str = '2020-03-15',
-           pred_start_date: str = '2019-11-01',
-           pred_end_date: str = '2021-12-31',
+           day_0: pd.Timestamp,
+           pred_start_date: pd.Timestamp,
+           pred_end_date: pd.Timestamp,
            verbose: bool = True,) -> Dict:
     ## SET UP
-    logger.info(f"set up:\n day_inflection: {day_inflection}\n covariates: {', '.join(covariate_list)}")
-    day_inflection = pd.Timestamp(day_inflection)
-    day_0 = pd.Timestamp(day_0)
-    pred_start_date = pd.Timestamp(pred_start_date)
-    pred_end_date = pd.Timestamp(pred_end_date)
+    logger.info(f"set up:\n day_inflection: {str(day_inflection)}\n covariates: {', '.join(covariate_list)}")
 
     model_data = ifr.data.create_model_data(day_0=day_0, durations=durations,
                                             ifr_data_scalar=None,
@@ -59,50 +55,10 @@ def runner(input_data: Dict,
         **input_data
     )
     
-    ## REINFECTION
-    # account for escape variant re-infection
-    logger.info('reinfection')
-    cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor, seroprevalence = reinfection.add_repeat_infections(
-        pred_ifr=pred.copy(),
-        durations=durations,
-        verbose=False,
-        **input_data,
-    )
-
-    ## WANING SENSITIVITY ADJUSTMENT
-    # account for waning antibody detection
-    logger.info('sensitivity')
-    hospitalized_weights = age_standardization.get_all_age_rate(
-        input_data['ihr_age_pattern'].copy(), input_data['sero_age_pattern'].copy(),
-        input_data['age_spec_population'].copy()
-    )
-    sensitivity, seroprevalence = serology.apply_waning_adjustment(
-        input_data['sensitivity_data'].copy(),
-        input_data['assay_map'].copy(),
-        hospitalized_weights.copy(),
-        input_data['seroprevalence'].copy(),
-        input_data['daily_deaths'].copy(),
-        pred.copy(),
-        durations,
-    )
-    
-    ## REMOVE EFFECTS OF VARIANTS/VACCINATIONS FROM INPUT DATA
-    logger.info('variant/vax data scalar')
-    ifr_data_scalar = variants_vaccines.get_ratio_data_scalar(
-        rate_age_pattern=input_data['ifr_age_pattern'].copy(),
-        denom_age_pattern=input_data['sero_age_pattern'].copy(),
-        age_spec_population=input_data['age_spec_population'].copy(),
-        rate=pred.copy(),
-        day_shift=durations['exposure_to_death'],
-        escape_variant_prevalence=input_data['escape_variant_prevalence'].copy(),
-        severity_variant_prevalence=input_data['severity_variant_prevalence'].copy(),
-        vaccine_coverage=input_data['vaccine_coverage'].copy(),
-        population=input_data['population'].copy(),
-        daily=input_data['daily_deaths'].copy(),
-        location_dates=seroprevalence[['location_id', 'date']].drop_duplicates().values.tolist(),
-        durations=durations.copy(),
-        variant_risk_ratio=input_data['variant_risk_ratio'],
-    )
+    ## GET INTERMEDIATE OUTPUTS
+    cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor,\
+    raw_sensitivity_curves, sensitivity, seroprevalence,\
+    ifr_data_scalar = derive_intermediate_outputs(input_data, pred, durations, verbose)
     
     ## SET UP REFIT
     logger.info('set up stage 2')
@@ -144,6 +100,7 @@ def runner(input_data: Dict,
         vaccine_coverage=refit_input_data['vaccine_coverage'].copy(),
         population=refit_input_data['population'].copy(),
         variant_risk_ratio=input_data['variant_risk_ratio'],
+        verbose=verbose,
     )
     
     ## SQUEEZE
@@ -197,8 +154,66 @@ def runner(input_data: Dict,
         age_stand_scaling_factor=refit_age_stand_scaling_factor,
     )
     
-    return refit_results, refit_input_data['seroprevalence'], sensitivity, \
-           cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor
+    return (refit_results, refit_input_data['seroprevalence'], raw_sensitivity_curves, sensitivity,
+            cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor)
+
+
+def derive_intermediate_outputs(input_data: Dict, pred: pd.Series, durations: Dict,
+                                verbose: bool):
+    ## REINFECTION
+    # account for escape variant re-infection
+    if verbose:
+        logger.info('reinfection')
+    cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor, seroprevalence = reinfection.add_repeat_infections(
+        pred_ifr=pred.copy(),
+        durations=durations,
+        verbose=False,
+        **input_data,
+    )
+
+    ## WANING SENSITIVITY ADJUSTMENT
+    # account for waning antibody detection
+    if verbose:
+        logger.info('sensitivity')
+    hospitalized_weights = age_standardization.get_all_age_rate(
+        input_data['ihr_age_pattern'].copy(), input_data['sero_age_pattern'].copy(),
+        input_data['age_spec_population'].copy()
+    )
+    raw_sensitivity_curves, sensitivity, seroprevalence = serology.apply_seroreversion_adjustment(
+        input_data['sensitivity_data'].copy(),
+        input_data['assay_map'].copy(),
+        hospitalized_weights.copy(),
+        input_data['seroprevalence'].copy(),
+        input_data['daily_deaths'].copy(),
+        pred.copy(),
+        input_data['population'].copy(),
+        durations,
+        verbose=verbose,
+    )
+    
+    ## REMOVE EFFECTS OF VARIANTS/VACCINATIONS FROM INPUT DATA
+    if verbose:
+        logger.info('variant/vax data scalar')
+    ifr_data_scalar = variants_vaccines.get_ratio_data_scalar(
+        rate_age_pattern=input_data['ifr_age_pattern'].copy(),
+        denom_age_pattern=input_data['sero_age_pattern'].copy(),
+        age_spec_population=input_data['age_spec_population'].copy(),
+        rate=pred.copy(),
+        day_shift=durations['exposure_to_death'],
+        escape_variant_prevalence=input_data['escape_variant_prevalence'].copy(),
+        severity_variant_prevalence=input_data['severity_variant_prevalence'].copy(),
+        vaccine_coverage=input_data['vaccine_coverage'].copy(),
+        population=input_data['population'].copy(),
+        daily=input_data['daily_deaths'].copy(),
+        location_dates=seroprevalence[['location_id', 'date']].drop_duplicates().values.tolist(),
+        durations=durations.copy(),
+        variant_risk_ratio=input_data['variant_risk_ratio'],
+        verbose=verbose,
+    )
+    
+    return (cumul_reinfection_inflation_factor, daily_reinfection_inflation_factor,
+            raw_sensitivity_curves, sensitivity, seroprevalence,
+            ifr_data_scalar)
 
 
 def main(day_inflection: str,
