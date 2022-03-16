@@ -8,36 +8,19 @@ import numpy as np
 from covid_shared import cli_tools
 
 from covid_historical_model.rates.pipeline import pipeline_wrapper
+from covid_historical_model.etl.model_inputs import copy_model_inputs
 from covid_historical_model.durations.durations import EXPOSURE_TO_SEROCONVERSION
 
-## IMPORTANT TODO:
-##     - OneNote stuff
-##     - make comparison routine; plot all fits in cascade
-##     - other NAs in IES inputs?
+##     - make comparison routine; plot all fits in cascade; explore how coefficients change down cascade
 ##     - best way to fill where we have no assay information
-##     - bias covariates?
-##     - for waning, do something to Perez-Saez to crosswalk for baseline sensitivity?
-##     - smarter posterior IFR forecast
-##     - problem in vax proccess? (i.e., timing seems important)
-##     - variant prevalence IN model (starting to overlap)
-##     - additional sources of uncertainty:
-##           * waning immunity
-##     - how do coefficients change down cascade
-
-## RATIO FUTURE TODO:
+##     - bias covariates
+##     - incompatible vaccination adj locs
 ##     - try trimming in certain levels (probably just global)?
-##     - make sure we don't have NAs on dates that matter for ratios
 ##     - formalize test matching in `serology.apply_waning_adjustment`
-##     - stuff written down in IHME notebook
-##     - why is sero data inconsistent between IFR and IHR/IDR?
 ##     - use fit to find tests where we have multiple? would be a little harder...
 ##     - mark model data NAs as outliers, drop that way (in general, make it clear what data is and is not included)
 ##     - remove unused model data in runner after modeling
-##     - PLOTTING (draws updates)
-
-## JEFFREY FUTURE TODO:
-##     - add smarter logic around dropping leading 0s? also, add ability to drop from infecion modeling only
-##     - plot scaled deaths (w/ UI)
+##     - plotting (draws updates)
 
 
 def main(app_metadata: cli_tools.Metadata, out_dir: Path,
@@ -48,6 +31,11 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
          n_samples: int,
          excess_mortality: bool,
          gbd: bool,):
+    logger.info(f'Model run initiated -- {str(out_dir)}.')
+    
+    ## copy over files from model inputs (IES will use these)
+    copy_model_inputs(model_inputs_root, out_dir)
+    
     ## run models
     pipeline_results, selected_combinations, \
     cross_variant_immunity_samples, variant_risk_ratio_samples, \
@@ -55,7 +43,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     escape_variant_prevalence, severity_variant_prevalence, \
     vaccine_coverage, em_data, hierarchy, population = pipeline_wrapper(
         out_dir,
-        model_inputs_root, excess_mortality, gbd,
+        excess_mortality, gbd,
         vaccine_coverage_root, variant_scaleup_root,
         age_rates_root,
         testing_root,
@@ -116,7 +104,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ifr_model_data['is_outlier'] = 0
     ifr_model_data = ifr_model_data.reset_index()
     ifr_model_data = ifr_model_data.rename(columns={'mean_death_date': 'date'})
-    ifr_model_data = ifr_model_data.loc[:, ['location_id', 'date', 'ifr_mean', 'ifr_std', 'is_outlier']]
+    ifr_model_data = ifr_model_data.loc[:, ['data_id', 'location_id', 'date', 'ifr_mean', 'ifr_std', 'is_outlier']]
     
     ifr_age_stand = pipeline_results[0]['ifr_results'].age_stand_scaling_factor.reset_index()
     
@@ -156,7 +144,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ihr_model_data['is_outlier'] = 0
     ihr_model_data = ihr_model_data.reset_index()
     ihr_model_data = ihr_model_data.rename(columns={'mean_hospitalization_date': 'date'})
-    ihr_model_data = ihr_model_data.loc[:, ['location_id', 'date', 'ihr_mean', 'ihr_std', 'is_outlier']]
+    ihr_model_data = ihr_model_data.loc[:, ['data_id', 'location_id', 'date', 'ihr_mean', 'ihr_std', 'is_outlier']]
     
     ihr_age_stand = pipeline_results[0]['ihr_results'].age_stand_scaling_factor.reset_index()
     
@@ -196,7 +184,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     idr_model_data['is_outlier'] = 0
     idr_model_data = idr_model_data.reset_index()
     idr_model_data = idr_model_data.rename(columns={'mean_infection_date': 'date'})
-    idr_model_data = idr_model_data.loc[:, ['location_id', 'date', 'idr_mean', 'idr_std', 'is_outlier']]
+    idr_model_data = idr_model_data.loc[:, ['data_id', 'location_id', 'date', 'idr_mean', 'idr_std', 'is_outlier']]
     
     idr_level_lambdas_draws = []
     for n, idr_level_lambdas in [(n, pipeline_results[n]['idr_results'].level_lambdas) for n in range(n_samples)]:
@@ -231,13 +219,21 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     ## save durations
     durations = [pipeline_results[n]['durations'] for n in range(n_samples)]
     
+    ## save raw sensitivity curves
+    raw_sensitivity_curve_draws = []
+    for n, raw_sensitivity_curves in [(n, pipeline_results[n]['raw_sensitivity_curves'].copy()) for n in range(n_samples)]:
+        raw_sensitivity_curves = raw_sensitivity_curves.reset_index()
+        raw_sensitivity_curves['draw'] = n
+        raw_sensitivity_curve_draws.append(raw_sensitivity_curves)
+    raw_sensitivity_curve_draws = pd.concat(raw_sensitivity_curve_draws).reset_index(drop=True)
+    
     ## save sensitivity
     sensitivity_draws = []
     for n, sensitivity in [(n, pipeline_results[n]['sensitivity'].copy()) for n in range(n_samples)]:
         sensitivity['draw'] = n
         sensitivity_draws.append(sensitivity)
     sensitivity_draws = pd.concat(sensitivity_draws).reset_index(drop=True)
-
+    
     ## save testing
     testing = pipeline_results[0]['idr_results'].testing_capacity.reset_index()
     
@@ -286,6 +282,7 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     seroprevalence.to_csv(out_dir / 'sero_data.csv', index=False)
     
     reported_sensitivity_data.to_parquet(out_dir / 'raw_sensitivity_data.parquet')
+    raw_sensitivity_curve_draws.to_parquet(out_dir / 'raw_sensitivity_curves.parquet')
     sensitivity_draws.to_parquet(out_dir / 'sensitivity.parquet')
     
     testing.to_parquet(out_dir / 'testing.parquet')
@@ -294,4 +291,4 @@ def main(app_metadata: cli_tools.Metadata, out_dir: Path,
     
     variants.to_parquet(out_dir / 'variants.parquet')
 
-    logger.info(f'Model output directory: {str(out_dir)}')
+    logger.info(f'Model run complete -- {str(out_dir)}.')

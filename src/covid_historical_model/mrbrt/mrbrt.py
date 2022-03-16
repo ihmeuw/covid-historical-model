@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from loguru import logger
 
 import pandas as pd
@@ -6,7 +6,6 @@ import numpy as np
 
 from mrtool import MRData, LinearCovModel, MRBRT
 
-from covid_historical_model.utils.math import expit
 from covid_historical_model.utils.misc import suppress_stdout
 
 # TODO: pass in trans function for prediction (rather than inferring from name)
@@ -37,10 +36,10 @@ def run_mr_model(model_data: pd.DataFrame,
                  re_vars: List[str],
                  group_var: str,
                  inlier_pct: float = 1.,
-                 outer_max_iter: int = 500,
+                 inner_max_iter: int = 1000,
+                 outer_max_iter: int = 1000,
                  prior_dict: Dict = None,
                  global_mr_data: MRData = None,
-                 verbose: bool = True,
                  **kwargs) -> MRBRT:
     mr_data = create_mr_data(model_data, dep_var, dep_var_se, fe_vars, group_var)
     
@@ -50,16 +49,11 @@ def run_mr_model(model_data: pd.DataFrame,
         prior_dict = {fe_var: {} for fe_var in fe_vars}
     cov_models = [LinearCovModel(fe_var, use_re=fe_var in re_vars, **prior_dict[fe_var]) for fe_var in fe_vars]
 
-    if verbose:
+    with suppress_stdout():
         mr_model = MRBRT(mr_data, cov_models, inlier_pct=inlier_pct)
         mr_model.attach_data(global_mr_data)
-        mr_model.fit_model(outer_max_iter=outer_max_iter)
-    else:
-        with suppress_stdout():
-            mr_model = MRBRT(mr_data, cov_models, inlier_pct=inlier_pct)
-            mr_model.attach_data(global_mr_data)
-            mr_model.fit_model(outer_max_iter=outer_max_iter)
-    
+        mr_model.fit_model(inner_max_iter=inner_max_iter, outer_max_iter=outer_max_iter)
+
     return mr_model
 
 
@@ -98,8 +92,7 @@ def predict(pred_data: pd.DataFrame,
             fe_vars: List[str],
             re_vars: List[str],
             group_var: str,
-            verbose: bool = True,
-            **kwargs) -> pd.Series:
+            **kwargs) -> Tuple[pd.DataFrame, pd.DataFrame]:
     keep_vars = list(pred_replace_dict.keys()) + fe_vars
     if len(set(keep_vars)) != len(keep_vars):
         raise ValueError('Duplicate in replace_var + fe_vars.')

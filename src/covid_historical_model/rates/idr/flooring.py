@@ -1,7 +1,5 @@
 import sys
 from typing import Tuple, List
-import functools
-import multiprocessing
 from tqdm import tqdm
 from loguru import logger
 
@@ -17,21 +15,35 @@ def manual_floor_setting(rmse: pd.DataFrame,
                          hierarchy: pd.DataFrame,
                          data_locations: List[int],
                          verbose: bool = True) -> Tuple[pd.DataFrame, pd.Series]:
-    if verbose:
-        logger.warning('Manually setting IDR floor of 0.1% for SSA locations.')
     is_ssa_location = hierarchy['path_to_top_parent'].apply(lambda x: '166' in x.split(','))
+    is_zaf_location = hierarchy['path_to_top_parent'].apply(lambda x: '196' in x.split(','))
     ssa_location_ids = hierarchy.loc[is_ssa_location, 'location_id'].to_list()
+    zaf_location_ids = hierarchy.loc[is_zaf_location, 'location_id'].to_list()
     ssa_location_ids = [l for l in ssa_location_ids if l not in data_locations]
-    
+
+    not_flagged = True
     for ssa_location_id in ssa_location_ids:
-        if best_floor[ssa_location_id] > 0.001:
-            best_floor[ssa_location_id] = 0.001
+        reset_floor = False
+        if ssa_location_id in zaf_location_ids:
+            # ZAF 1%
+            floor = 0.01
+            reset_floor = True
+        else:
+            # rest of Africa 0.1%
+            floor = 0.001
+            if best_floor[ssa_location_id] > floor:
+                reset_floor = True
+        if reset_floor:
+            if verbose and not_flagged:
+                logger.warning('Manually setting IDR floor for SSA locations.')
+                not_flagged = False
+            best_floor[ssa_location_id] = floor
             is_ssa_rmse = rmse['location_id'] == ssa_location_id
             rmse.loc[is_ssa_rmse, 'rmse'] = np.nan
-            rmse.loc[is_ssa_rmse, 'floor'] = 0.001
+            rmse.loc[is_ssa_rmse, 'floor'] = floor
 
     return rmse, best_floor
-    
+
 
 def find_idr_floor(pred: pd.Series,
                    daily_cases: pd.Series,
@@ -40,28 +52,32 @@ def find_idr_floor(pred: pd.Series,
                    hierarchy: pd.DataFrame,
                    test_range: List,
                    verbose: bool = True) -> Tuple[pd.DataFrame, pd.Series]:
-    _tfv = functools.partial(
-        test_floor_value,
-        pred=pred.copy(),
-        daily_cases=daily_cases.copy(),
-        serosurveys=serosurveys.copy(),
-        population=population.copy(),
-        hierarchy=hierarchy.copy(),
-        verbose=verbose,
-    )
     floors = (np.array(test_range) / 100).tolist()
-    with multiprocessing.Pool(int(OMP_NUM_THREADS)) as p:
-        rmse = list(tqdm(p.imap(_tfv, floors), total=len(floors), file=sys.stdout))
+    if verbose:
+        logger.info(f'Testing IDR floors: {", ".join([str(round(floor*100, 2)) + "%" for floor in floors])}.')
+    
+    location_ids = serosurveys.reset_index()['location_id'].unique().tolist()
+    rmse = []
+    for floor in tqdm(floors, total=len(floors), file=sys.stdout):
+        rmse.append(
+            test_floor_value(
+                floor=floor,
+                pred=pred.loc[location_ids],
+                daily_cases=daily_cases.loc[location_ids],
+                serosurveys=serosurveys.copy(),
+                population=population.copy(),
+                hierarchy=hierarchy.copy(),
+            )
+        )
     rmse = pd.concat(rmse).reset_index()
     
     best_floor = rmse.groupby('location_id').apply(lambda x: x.sort_values('rmse')['floor'].values[0]).rename('idr_floor')
     
     rmse, best_floor = manual_floor_setting(rmse, best_floor, hierarchy,
                                             serosurveys.reset_index()['location_id'].unique().tolist(),
-                                            verbose)
+                                            verbose,)
     
     return rmse, best_floor
-
 
 
 def test_floor_value(floor: float,
@@ -70,11 +86,7 @@ def test_floor_value(floor: float,
                      serosurveys: pd.Series,
                      population: pd.Series,
                      hierarchy: pd.DataFrame,
-                     min_children: int = 3,
-                     verbose: bool = True,) -> pd.DataFrame:
-    if verbose:
-        logger.info(f'Testing IDR floor of {round(floor*100, 2)}%.')
-    
+                     min_children: int = 3,) -> pd.DataFrame:
     pred = (pred
             .groupby(level=0)
             .apply(lambda x: scale_to_bounds(x, floor, 1.))

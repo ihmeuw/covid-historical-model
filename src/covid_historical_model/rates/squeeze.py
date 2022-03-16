@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-CEILING = 0.9
+CEILING = 0.99
 
 def squeeze(daily: pd.Series, rate: pd.Series,
             day_shift: int,

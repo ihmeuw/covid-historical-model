@@ -26,6 +26,7 @@ if __name__ == "__main__":
         'xspline',
         'tables',
         'fastparquet',
+        'pathos',
         'xlrd',
         'openpyxl',
         'matplotlib',

@@ -6,8 +6,9 @@ import numpy as np
 
 from covid_historical_model.etl import helpers
 
-EM_PATH = '/mnt/team/demographics/pub/covid_em_estimate/s3-2021-10-14-18-05'\
-          '/outputs/covid_em_scalars-draw-s3-2021-10-14-18-05.csv'
+# EM_PATH = ('/mnt/team/demographics/pub/covid_em_estimate/s3-2022-02-17-22-05'
+#            '/outputs/covid_em_scalars-draw-s3-2022-02-17-22-05.csv')
+EM_PATH = '/ihme/covid-19/mortality-scalars/2022_03_02.01/total_covid_draw.csv'
 
 
 def testing(testing_root: Path) -> pd.DataFrame:
@@ -118,10 +119,11 @@ def seroprevalence_age_pattern(age_rates_root: Path, hierarchy: pd.DataFrame,) -
     return data
 
 
-def vaccine_coverage(vaccine_coverage_root: Path) -> pd.DataFrame:
+def vaccine_coverage(vaccine_coverage_root: Path, pred_end_date: pd.Timestamp,) -> pd.DataFrame:
     data_path = vaccine_coverage_root / 'slow_scenario_vaccine_coverage.csv'
     data = pd.read_csv(data_path)
     data['date'] = pd.to_datetime(data['date'])
+    data = data.loc[data['date'] <= pred_end_date]
     
     keep_columns = [
         # total vaccinated (all and by three groups)
