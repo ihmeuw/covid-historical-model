@@ -8,7 +8,7 @@ from covid_historical_model.etl import helpers
 
 # EM_PATH = ('/mnt/team/demographics/pub/covid_em_estimate/s3-2022-02-17-22-05'
 #            '/outputs/covid_em_scalars-draw-s3-2022-02-17-22-05.csv')
-EM_PATH = '/ihme/covid-19/mortality-scalars/2022_03_02.01/total_covid_draw.csv'
+EM_PATH = '/ihme/covid-19/mortality-scalars/2022_03_16.01/total_covid_draw.csv'
 
 
 def testing(testing_root: Path) -> pd.DataFrame:
@@ -163,8 +163,16 @@ def variant_scaleup(variant_scaleup_root: Path, variant_type: str, verbose: bool
     data_path = variant_scaleup_root / 'variant_reference.csv'
     data = pd.read_csv(data_path)
     data['date'] = pd.to_datetime(data['date'])
-    variants_in_data = data['variant'].unique().tolist()
     
+    # use Delhi for Other Union Territories
+    delhi_data = data.loc[data['location_id'] == 4849]
+    for location_id in [4840, 4845, 4858, 4866, 60896, 44539, 44540]:
+        if location_id not in data['location_id'].unique():
+            out_data = delhi_data.copy()
+            out_data['location_id'] = location_id
+            data = pd.concat([data, out_data]).reset_index(drop=True)
+    
+    variants_in_data = data['variant'].unique().tolist()
     status_path = variant_scaleup_root / 'outputs' / 'variant_by_escape_status.csv'
     status = pd.read_csv(status_path)
     severity = status.loc[status['escape'] == 0, 'variant'].unique().tolist()
